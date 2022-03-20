@@ -1,0 +1,15 @@
+BasedOnStyle: LLVM
+
+AlignEscapedNewlines: DontAlign
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+BreakBeforeBraces: Attach
+ColumnLimit: 100
+Cpp11BracedListStyle: false
+IndentCaseLabels: true
+IndentWidth: 4
+PointerAlignment: Left
+SpaceBeforeParens: ControlStatementsExceptForEachMacros
+TabWidth: 4
+UseTab: Never
