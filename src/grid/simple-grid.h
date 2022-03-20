@@ -3,12 +3,20 @@
 
 #include <vector>
 
+#include "base-grid.h"
+
 using namespace std;
 
-typedef vector<double> Grid;
+class SimpleGrid : public Grid {
+  public:
+    SimpleGrid(const size_t x_dim, const size_t y_dim, const size_t z_dim);
+    static SimpleGrid init_linear(const size_t x_dim, const size_t y_dim, const size_t z_dim);
+    void print();
+    double operator()(const size_t x, const size_t y, const size_t z);
 
-Grid init_linear_grid(size_t x_dim, size_t y_dim, size_t z_dim);
-
-void print_grid(Grid& grid, size_t x_dim, size_t y_dim, size_t z_dim);
+  private:
+    SimpleGrid();
+    vector<double> data;
+};
 
 #endif

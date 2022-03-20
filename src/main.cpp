@@ -9,9 +9,9 @@ const size_t CELLS_PER_DIMENSION = 10;
 
 int main(int argc, char** argv) {
 
-    Grid grid = init_linear_grid(CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION);
-
-    print_grid(grid, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION);
+    SimpleGrid grid =
+        SimpleGrid::init_linear(CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION);
+    grid.print();
 
     return EXIT_SUCCESS;
 }
