@@ -5,7 +5,7 @@
 
 class Solver {
   public:
-    virtual void compute_step(Grid* grid, const double time_step) = 0;
+    virtual void compute_step(Grid& grid, const double time_step) = 0;
 };
 
 #endif

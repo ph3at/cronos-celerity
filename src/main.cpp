@@ -8,7 +8,7 @@ using namespace std;
 
 const size_t CELLS_PER_DIMENSION = 10;
 
-void solve(Grid* grid);
+void solve(Grid& grid);
 
 int main(int argc, char** argv) {
 
@@ -18,13 +18,13 @@ int main(int argc, char** argv) {
     grid.print();
 
     cout << "------ Solving Grid ------" << endl << endl;
-    solve(&grid);
+    solve(grid);
     grid.print();
 
     return EXIT_SUCCESS;
 }
 
-void solve(Grid* grid) {
+void solve(Grid& grid) {
     SimpleSolver simple_solver = SimpleSolver();
     Solver* solver = &simple_solver;
     const unsigned time_steps = 10000;
