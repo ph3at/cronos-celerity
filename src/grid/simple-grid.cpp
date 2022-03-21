@@ -42,8 +42,8 @@ void SimpleGrid::print() {
     }
 }
 
-double* SimpleGrid::operator()(const size_t x, const size_t y, const size_t z) {
-    return &this->data[x * this->x_size * this->x_size + y * this->y_size + z];
+double& SimpleGrid::operator()(const size_t x, const size_t y, const size_t z) {
+    return this->data[x * this->x_size * this->x_size + y * this->y_size + z];
 }
 
 void SimpleGrid::set_border_const(const double border_value) {
