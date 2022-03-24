@@ -5,19 +5,20 @@
 
 #include "base-grid.h"
 
-using namespace std;
-
 class SimpleGrid : public Grid {
   public:
-    SimpleGrid(const size_t x_dim, const size_t y_dim, const size_t z_dim);
-    static SimpleGrid init_linear(const size_t x_dim, const size_t y_dim, const size_t z_dim);
-    void print();
+    SimpleGrid(const size_t xDim, const size_t yDim, const size_t zDim);
+    static SimpleGrid initLinear(const size_t xDim, const size_t yDim, const size_t zDim);
+
+    double operator()(const size_t x, const size_t y, const size_t z) const;
     double& operator()(const size_t x, const size_t y, const size_t z);
-    void set_border_const(const double border_value);
+
+    void print() const;
+    void setBorderConst(const double borderValue);
 
   private:
     SimpleGrid();
-    vector<double> data;
+    std::vector<double> data;
 };
 
 #endif

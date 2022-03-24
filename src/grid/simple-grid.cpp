@@ -4,70 +4,74 @@
 
 SimpleGrid::SimpleGrid(){};
 
-SimpleGrid::SimpleGrid(const size_t x_dim, const size_t y_dim, const size_t z_dim) {
-    this->x_size = x_dim;
-    this->y_size = y_dim;
-    this->z_size = z_dim;
+SimpleGrid::SimpleGrid(const size_t xDim, const size_t yDim, const size_t zDim) {
+    this->xSize = xDim;
+    this->ySize = yDim;
+    this->zSize = zDim;
 
-    this->data.assign(x_dim * y_dim * z_dim, 0.0);
+    this->data.assign(xDim * yDim * zDim, 0.0);
 }
 
-SimpleGrid SimpleGrid::init_linear(const size_t x_dim, const size_t y_dim, const size_t z_dim) {
+SimpleGrid SimpleGrid::initLinear(const size_t xDim, const size_t yDim, const size_t zDim) {
     SimpleGrid grid;
-    grid.x_size = x_dim;
-    grid.y_size = y_dim;
-    grid.z_size = y_dim;
+    grid.xSize = xDim;
+    grid.ySize = yDim;
+    grid.zSize = yDim;
 
-    grid.data.reserve(x_dim * y_dim * z_dim);
-    for (size_t x = 0; x < x_dim; x++) {
-        for (size_t y = 0; y < y_dim; y++) {
-            for (size_t z = 0; z < z_dim; z++) {
-                grid.data.push_back(double(x + y + z));
+    grid.data.reserve(xDim * yDim * zDim);
+    for (size_t x = 0; x < xDim; x++) {
+        for (size_t y = 0; y < yDim; y++) {
+            for (size_t z = 0; z < zDim; z++) {
+                grid.data.push_back(static_cast<double>(x + y + z));
             }
         }
     }
     return grid;
 }
 
-void SimpleGrid::print() {
-    cout.width(5);
-    for (size_t x = 0; x < this->x_size; x++) {
-        for (size_t y = 0; y < this->y_size; y++) {
-            for (size_t z = 0; z < this->z_size; z++) {
-                printf(" %4.f", this->data[x * this->x_size * this->x_size + y * this->y_size + z]);
-            }
-            cout << endl;
-        }
-        cout << endl << endl;
-    }
+double SimpleGrid::operator()(const size_t x, const size_t y, const size_t z) const {
+    return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
 }
 
 double& SimpleGrid::operator()(const size_t x, const size_t y, const size_t z) {
-    return this->data[x * this->x_size * this->x_size + y * this->y_size + z];
+    return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
 }
 
-void SimpleGrid::set_border_const(const double border_value) {
-    for (size_t x = 0; x < this->x_size; x++) {
-        for (size_t y = 0; y < this->y_size; y++) {
-            this->data[x * this->x_size * this->x_size + y * this->y_size] = border_value;
-            this->data[x * this->x_size * this->x_size + y * this->y_size + this->z_size - 1] =
-                border_value;
+void SimpleGrid::print() const {
+    std::cout.width(5);
+    for (size_t x = 0; x < this->xSize; x++) {
+        for (size_t y = 0; y < this->ySize; y++) {
+            for (size_t z = 0; z < this->zSize; z++) {
+                printf(" %4.f", this->data[x * this->xSize * this->xSize + y * this->ySize + z]);
+            }
+            std::cout << std::endl;
+        }
+        std::cout << std::endl << std::endl;
+    }
+}
+
+void SimpleGrid::setBorderConst(const double borderValue) {
+    for (size_t x = 0; x < this->xSize; x++) {
+        for (size_t y = 0; y < this->ySize; y++) {
+            this->data[x * this->xSize * this->xSize + y * this->ySize] = borderValue;
+            this->data[x * this->xSize * this->xSize + y * this->ySize + this->zSize - 1] =
+                borderValue;
         }
     }
 
-    for (size_t x = 0; x < this->x_size; x++) {
-        for (size_t z = 0; z < this->z_size; z++) {
-            this->data[x * this->x_size * this->x_size + z] = border_value;
-            this->data[x * this->x_size * this->x_size + (this->y_size - 1) * this->y_size + z] =
-                border_value;
+    for (size_t x = 0; x < this->xSize; x++) {
+        for (size_t z = 0; z < this->zSize; z++) {
+            this->data[x * this->xSize * this->xSize + z] = borderValue;
+            this->data[x * this->xSize * this->xSize + (this->ySize - 1) * this->ySize + z] =
+                borderValue;
         }
     }
 
-    for (size_t y = 0; y < this->y_size; y++) {
-        for (size_t z = 0; z < this->z_size; z++) {
-            this->data[y * this->y_size + z] = border_value;
-            this->data[(this->x_size - 1) * this->x_size * this->x_size + y * this->y_size + z] =
-                border_value;
+    for (size_t y = 0; y < this->ySize; y++) {
+        for (size_t z = 0; z < this->zSize; z++) {
+            this->data[y * this->ySize + z] = borderValue;
+            this->data[(this->xSize - 1) * this->xSize * this->xSize + y * this->ySize + z] =
+                borderValue;
         }
     }
 }

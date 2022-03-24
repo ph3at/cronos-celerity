@@ -1,23 +1,22 @@
+#include <cstdlib>
 #include <iostream>
-#include <stdlib.h>
+#include <memory>
 
 #include "grid/simple-grid.h"
 #include "solver/simple-solver.h"
 
-using namespace std;
-
-const size_t CELLS_PER_DIMENSION = 10;
+constexpr size_t CELLS_PER_DIMENSION = 10;
 
 void solve(Grid& grid);
 
 int main(int argc, char** argv) {
 
     SimpleGrid grid =
-        SimpleGrid::init_linear(CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION);
-    grid.set_border_const(3.0);
+        SimpleGrid::initLinear(CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION);
+    grid.setBorderConst(3.0);
     grid.print();
 
-    cout << "------ Solving Grid ------" << endl << endl;
+    std::cout << "------ Solving Grid ------" << std::endl << std::endl;
     solve(grid);
     grid.print();
 
@@ -25,11 +24,12 @@ int main(int argc, char** argv) {
 }
 
 void solve(Grid& grid) {
-    SimpleSolver simple_solver = SimpleSolver();
-    Solver* solver = &simple_solver;
-    const unsigned time_steps = 10000;
-    const double time_step = 1.0 / double(time_steps);
-    for (unsigned step = 0; step < time_steps; step++) {
-        solver->compute_step(grid, time_step);
+    SimpleSolver simpleSolver = SimpleSolver();
+    std::unique_ptr<Solver> solver = std::make_unique<SimpleSolver>(simpleSolver);
+    const unsigned timeSteps = 10000;
+    const double time = 1.0;
+    const double deltaTime = time / double(timeSteps);
+    for (unsigned step = 0; step < timeSteps; step++) {
+        solver->computeStep(grid, deltaTime);
     }
 }

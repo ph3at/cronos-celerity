@@ -5,7 +5,7 @@
 
 class SimpleSolver : public Solver {
   public:
-    void compute_step(Grid& grid, const double time_step);
+    void computeStep(Grid& grid, const double timeStep);
 };
 
 #endif
