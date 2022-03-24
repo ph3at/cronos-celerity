@@ -1,5 +1,4 @@
-#ifndef GRID
-#define GRID
+#pragma once
 
 #include <vector>
 
@@ -20,5 +19,3 @@ class SimpleGrid : public Grid {
     SimpleGrid();
     std::vector<double> data;
 };
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef BASE_GRID
-#define BASE_GRID
+#pragma once
 
 #include <cstddef>
 
@@ -16,5 +15,3 @@ class Grid {
     double ySize;
     double zSize;
 };
-
-#endif
