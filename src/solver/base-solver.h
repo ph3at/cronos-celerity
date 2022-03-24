@@ -2,7 +2,7 @@
 
 #include "../grid/base-grid.h"
 
-class Solver {
+template <class T> class Solver {
   public:
-    virtual void computeStep(Grid& grid, const double timeStep) = 0;
+    virtual void computeStep(Grid<T>& grid, const double timeStep) = 0;
 };

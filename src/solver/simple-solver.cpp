@@ -2,7 +2,7 @@
 
 #include <vector>
 
-void SimpleSolver::computeStep(Grid& grid, const double deltaTime) {
+void SimpleSolver::computeStep(Grid<double>& grid, const double deltaTime) {
     size_t xDim = grid.xDim();
     size_t yDim = grid.yDim();
     size_t zDim = grid.zDim();

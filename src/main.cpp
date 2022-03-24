@@ -2,17 +2,18 @@
 #include <iostream>
 #include <memory>
 
+#include "grid/padded-grid.h"
 #include "grid/simple-grid.h"
 #include "solver/simple-solver.h"
 
 constexpr size_t CELLS_PER_DIMENSION = 10;
 
-void solve(Grid& grid);
+void solve(Grid<double>& grid);
 
 int main(int argc, char** argv) {
 
-    SimpleGrid grid =
-        SimpleGrid::initLinear(CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION);
+    SimpleGrid<double> grid = SimpleGrid<double>::initLinear(
+        CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION);
     grid.setBorderConst(3.0);
     grid.print();
 
@@ -23,9 +24,9 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
 }
 
-void solve(Grid& grid) {
+void solve(Grid<double>& grid) {
     SimpleSolver simpleSolver = SimpleSolver();
-    std::unique_ptr<Solver> solver = std::make_unique<SimpleSolver>(simpleSolver);
+    std::unique_ptr<Solver<double>> solver = std::make_unique<SimpleSolver>(simpleSolver);
     const unsigned timeSteps = 10000;
     const double time = 1.0;
     const double deltaTime = time / double(timeSteps);

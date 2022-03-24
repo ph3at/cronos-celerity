@@ -2,7 +2,7 @@
 
 #include "base-solver.h"
 
-class SimpleSolver : public Solver {
+class SimpleSolver : public Solver<double> {
   public:
-    void computeStep(Grid& grid, const double timeStep);
+    void computeStep(Grid<double>& grid, const double timeStep);
 };
