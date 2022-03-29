@@ -5,18 +5,19 @@
 template <class T> class Solver {
   public:
     virtual void solve() = 0;
-    virtual void computeStep() = 0;
 
   protected:
-    Solver(Grid<T>& grid, const double timeDelta, const double timeEnd);
+    Solver(Grid<T>& grid, const double timeDelta, const double timeStart, const double timeEnd);
 
     Grid<T>& grid;
     double timeDelta;
+    const double timeStart = 0.0;
     const double timeEnd;
 };
 
 template <class T>
-Solver<T>::Solver(Grid<T>& grid, const double timeDelta, const double timeEnd)
-    : grid(grid), timeEnd(timeEnd) {
+Solver<T>::Solver(Grid<T>& grid, const double timeDelta, const double timeStart,
+                  const double timeEnd)
+    : grid(grid), timeStart(timeStart), timeEnd(timeEnd) {
     this->timeDelta = timeDelta;
 }
