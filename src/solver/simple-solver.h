@@ -4,5 +4,12 @@
 
 class SimpleSolver : public Solver<double> {
   public:
-    void computeStep(Grid<double>& grid, const double timeStep);
+    SimpleSolver(Grid<double>& grid, const double timeDelta, const double timeEnd)
+        : Solver(grid, timeDelta, timeEnd){};
+
+    void solve();
+    void computeStep();
+
+  private:
+    SimpleSolver();
 };

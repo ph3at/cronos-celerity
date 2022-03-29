@@ -8,8 +8,6 @@
 
 constexpr size_t CELLS_PER_DIMENSION = 10;
 
-void solve(Grid<double>& grid);
-
 int main(int argc, char** argv) {
 
     SimpleGrid<double> grid = SimpleGrid<double>::initLinear(
@@ -18,19 +16,12 @@ int main(int argc, char** argv) {
     grid.print();
 
     std::cout << "------ Solving Grid ------" << std::endl << std::endl;
-    solve(grid);
+    const double time = 1.0;
+    const unsigned timeSteps = 10000;
+    SimpleSolver solver(grid, time / timeSteps, time);
+    solver.solve();
+
     grid.print();
 
     return EXIT_SUCCESS;
-}
-
-void solve(Grid<double>& grid) {
-    SimpleSolver simpleSolver = SimpleSolver();
-    std::unique_ptr<Solver<double>> solver = std::make_unique<SimpleSolver>(simpleSolver);
-    const unsigned timeSteps = 10000;
-    const double time = 1.0;
-    const double deltaTime = time / double(timeSteps);
-    for (unsigned step = 0; step < timeSteps; step++) {
-        solver->computeStep(grid, deltaTime);
-    }
 }
