@@ -12,6 +12,13 @@ template <class T> class PaddedGrid : public Grid<T> {
     T operator()(const size_t x, const size_t y, const size_t z) const;
     T& operator()(const size_t x, const size_t y, const size_t z);
 
+    size_t xStart() const { return padding; }
+    size_t yStart() const { return padding; }
+    size_t zStart() const { return padding; }
+    size_t xEnd() const { return this->xSize - padding; }
+    size_t yEnd() const { return this->ySize - padding; }
+    size_t zEnd() const { return this->zSize - padding; }
+
   private:
     PaddedGrid();
 

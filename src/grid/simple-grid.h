@@ -16,6 +16,13 @@ template <class T> class SimpleGrid : public Grid<T> {
     void print() const;
     void setBorderConst(const T borderValue);
 
+    size_t xStart() const { return 0; }
+    size_t yStart() const { return 0; }
+    size_t zStart() const { return 0; }
+    size_t xEnd() const { return this->xSize; }
+    size_t yEnd() const { return this->ySize; }
+    size_t zEnd() const { return this->zSize; }
+
   private:
     SimpleGrid();
     std::vector<T> data;
