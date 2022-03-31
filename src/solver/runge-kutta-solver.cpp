@@ -1,4 +1,5 @@
 #include "runge-kutta-solver.h"
+#include "../reconstruction/reconstruction.h"
 
 RungeKuttaSolver::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
                                    const double timeDelta, const double timeStart,
@@ -39,33 +40,29 @@ void RungeKuttaSolver::computeSubstep() {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
                 // TODO: Find more descriptive name than numVals
-                const PhysValues numVals = this->computeChanges(x, y, z);
+                const Changes numVals = this->computeChanges(x, y, z);
 
-                const PhysValues numValsX = this->computeChanges(x + 1, y, z);
+                const Changes numValsX = this->computeChanges(x + 1, y, z);
                 this->applyChanges(Direction::DirX, x, y, z, numVals, numValsX);
 
-                const PhysValues numValsY = this->computeChanges(x, y + 1, z);
+                const Changes numValsY = this->computeChanges(x, y + 1, z);
                 this->applyChanges(Direction::DirY, x, y, z, numVals, numValsY);
 
-                const PhysValues numValsZ = this->computeChanges(x, y, z + 1);
+                const Changes numValsZ = this->computeChanges(x, y, z + 1);
                 this->applyChanges(Direction::DirZ, x, y, z, numVals, numValsZ);
             }
         }
     }
 }
 
-PhysValues RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, const unsigned z) {
-    PhysValues reconstruction = this->reconstruct(x, y, z);
-    return {};
-}
-
-PhysValues RungeKuttaSolver::reconstruct(const unsigned x, const unsigned y, const unsigned z) {
+Changes RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, const unsigned z) {
+    Reconstruction::ReconstValues reconstruction = Reconstruction::reconstruct(this->grid, x, y, z);
     return {};
 }
 
 void RungeKuttaSolver::applyChanges(const Direction direction, const unsigned x, const unsigned y,
-                                    const unsigned z, const PhysValues numVals,
-                                    const PhysValues numValsX) {}
+                                    const unsigned z, const Changes numVals,
+                                    const Changes numValsX) {}
 
 void RungeKuttaSolver::finaliseSubstep() {
     this->timeCurrent += this->timeDelta;

@@ -2,14 +2,15 @@
 
 #include <algorithm>
 
+#include "../field-wrapper/fields.h"
 #include "../grid/padded-grid.h"
 #include "../grid/simple-grid.h"
+#include "../misc/constants.h"
 #include "../misc/direction.h"
-#include "../misc/phys-fields.h"
+#include "../misc/faces.h"
 #include "../solver/base-solver.h"
 
-typedef std::vector<double> PhysValues;
-constexpr unsigned GHOST_CELLS = 2;
+typedef std::array<NumValues, Direction::DirMax> Changes;
 
 class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
   public:
@@ -30,10 +31,9 @@ class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
     bool isFinished() const;
     void prepareSubstep();
     void computeSubstep();
-    PhysValues computeChanges(const unsigned x, const unsigned y, const unsigned z);
-    PhysValues reconstruct(const unsigned x, const unsigned y, const unsigned z);
+    Changes computeChanges(const unsigned x, const unsigned y, const unsigned z);
     void applyChanges(const Direction direction, const unsigned x, const unsigned y,
-                      const unsigned z, const PhysValues numVals, const PhysValues numValsX);
+                      const unsigned z, const Changes numVals, const Changes numValsX);
     void finaliseSubstep();
     void adjustTimeDelta();
 };

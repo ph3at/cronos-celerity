@@ -3,7 +3,7 @@
 #include <array>
 #include <cstddef>
 
-constexpr size_t PHYSICAL_FIELDS = 5;
+constexpr unsigned PHYSICAL_FIELDS = 5;
 typedef std::array<double, PHYSICAL_FIELDS> FieldStruct;
 
 // TODO: Find out meaning of fields
