@@ -4,7 +4,7 @@
 
 #include "grid/padded-grid.h"
 #include "misc/phys-fields.h"
-#include "solver/runge-kutta-solver.h"
+#include "runge-kutta-solver/runge-kutta-solver.h"
 
 constexpr size_t CELLS_PER_DIMENSION = 10;
 constexpr size_t GHOST_CELLS = 2;

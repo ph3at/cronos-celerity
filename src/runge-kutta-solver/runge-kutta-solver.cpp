@@ -55,6 +55,11 @@ void RungeKuttaSolver::computeSubstep() {
 }
 
 PhysValues RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, const unsigned z) {
+    PhysValues reconstruction = this->reconstruct(x, y, z);
+    return {};
+}
+
+PhysValues RungeKuttaSolver::reconstruct(const unsigned x, const unsigned y, const unsigned z) {
     return {};
 }
 
