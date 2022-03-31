@@ -7,11 +7,13 @@
 
 template <class T> class SimpleGrid : public Grid<T> {
   public:
-    SimpleGrid(const size_t xDim, const size_t yDim, const size_t zDim);
+    SimpleGrid(const T defaultValue, const size_t xDim, const size_t yDim, const size_t zDim);
     static SimpleGrid<double> initLinear(const size_t xDim, const size_t yDim, const size_t zDim);
 
     T operator()(const size_t x, const size_t y, const size_t z) const;
     T& operator()(const size_t x, const size_t y, const size_t z);
+
+    void clear();
 
     void print() const;
     void setBorderConst(const T borderValue);
@@ -24,14 +26,16 @@ template <class T> class SimpleGrid : public Grid<T> {
     size_t zEnd() const { return this->zSize; }
 
   private:
-    SimpleGrid();
+    SimpleGrid(const T defaultValue);
     std::vector<T> data;
 };
 
-template <class T> inline SimpleGrid<T>::SimpleGrid(){};
+template <class T> inline SimpleGrid<T>::SimpleGrid(const T defaultValue) : Grid<T>(defaultValue) {}
 
 template <class T>
-inline SimpleGrid<T>::SimpleGrid(const size_t xDim, const size_t yDim, const size_t zDim) {
+inline SimpleGrid<T>::SimpleGrid(const T defaultValue, const size_t xDim, const size_t yDim,
+                                 const size_t zDim)
+    : Grid<T>(defaultValue) {
     this->xSize = xDim;
     this->ySize = yDim;
     this->zSize = zDim;
@@ -39,7 +43,18 @@ inline SimpleGrid<T>::SimpleGrid(const size_t xDim, const size_t yDim, const siz
     const size_t size = this->xSize * this->ySize * this->zSize;
     this->data.reserve(size);
     for (size_t _ = 0; _ < size; _++) {
-        this->data.push_back(T());
+        this->data.push_back(this->defaultValue);
+    }
+}
+
+template <class T> void SimpleGrid<T>::clear() {
+    for (unsigned x = this->xStart(); x < this->xEnd(); x++) {
+        for (unsigned y = this->yStart(); y < this->yEnd(); y++) {
+            for (unsigned z = this->zStart(); z < this->zEnd(); z++) {
+                this->data[x * this->xSize * this->xSize + y * this->ySize + z] =
+                    this->defaultValue;
+            }
+        }
     }
 }
 

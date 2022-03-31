@@ -7,7 +7,10 @@
 
 template <class T> class PaddedGrid : public Grid<T> {
   public:
-    PaddedGrid(const size_t xDim, const size_t yDim, const size_t zDim, size_t padding);
+    PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim, const size_t zDim,
+               size_t padding);
+
+    void clear();
 
     T operator()(const size_t x, const size_t y, const size_t z) const;
     T& operator()(const size_t x, const size_t y, const size_t z);
@@ -27,8 +30,9 @@ template <class T> class PaddedGrid : public Grid<T> {
 };
 
 template <class T>
-inline PaddedGrid<T>::PaddedGrid(const size_t xDim, const size_t yDim, const size_t zDim,
-                                 size_t padding) {
+PaddedGrid<T>::PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim,
+                          const size_t zDim, size_t padding)
+    : Grid<T>(defaultValue) {
     this->xSize = xDim + 2 * padding;
     this->ySize = yDim + 2 * padding;
     this->zSize = zDim + 2 * padding;
@@ -42,12 +46,22 @@ inline PaddedGrid<T>::PaddedGrid(const size_t xDim, const size_t yDim, const siz
     }
 }
 
-template <class T>
-inline T PaddedGrid<T>::operator()(const size_t x, const size_t y, const size_t z) const {
-    return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
+template <class T> void PaddedGrid<T>::clear() {
+    for (unsigned x = this->xStart(); x < this->xEnd(); x++) {
+        for (unsigned y = this->yStart(); y < this->yEnd(); y++) {
+            for (unsigned z = this->zStart(); z < this->zEnd(); z++) {
+                this->data[x * this->xSize * this->xSize + y * this->ySize + z] =
+                    this->defaultValue;
+            }
+        }
+    }
 }
 
 template <class T>
-inline T& PaddedGrid<T>::operator()(const size_t x, const size_t y, const size_t z) {
+T PaddedGrid<T>::operator()(const size_t x, const size_t y, const size_t z) const {
+    return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
+}
+
+template <class T> T& PaddedGrid<T>::operator()(const size_t x, const size_t y, const size_t z) {
     return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
 }

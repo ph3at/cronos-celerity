@@ -7,6 +7,8 @@ template <class T> class Grid {
     virtual T operator()(const size_t x, const size_t y, const size_t z) const = 0;
     virtual T& operator()(const size_t x, const size_t y, const size_t z) = 0;
 
+    virtual void clear() = 0;
+
     size_t xDim() const { return this->xSize; }
     size_t yDim() const { return this->ySize; }
     size_t zDim() const { return this->zSize; }
@@ -18,7 +20,11 @@ template <class T> class Grid {
     virtual size_t yEnd() const = 0;
     virtual size_t zEnd() const = 0;
 
+    const T defaultValue;
+
   protected:
+    Grid(const T defaultValue) : defaultValue(defaultValue) {}
+
     size_t xSize;
     size_t ySize;
     size_t zSize;

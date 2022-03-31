@@ -5,7 +5,7 @@
 template <>
 SimpleGrid<double> SimpleGrid<double>::initLinear(const size_t xDim, const size_t yDim,
                                                   const size_t zDim) {
-    SimpleGrid grid;
+    SimpleGrid grid(0.0);
     grid.xSize = xDim;
     grid.ySize = yDim;
     grid.zSize = yDim;
