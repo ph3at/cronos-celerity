@@ -30,11 +30,11 @@ template <class T> class SimpleGrid : public Grid<T> {
     std::vector<T> data;
 };
 
-template <class T> inline SimpleGrid<T>::SimpleGrid(const T defaultValue) : Grid<T>(defaultValue) {}
+template <class T> SimpleGrid<T>::SimpleGrid(const T defaultValue) : Grid<T>(defaultValue) {}
 
 template <class T>
-inline SimpleGrid<T>::SimpleGrid(const T defaultValue, const size_t xDim, const size_t yDim,
-                                 const size_t zDim)
+SimpleGrid<T>::SimpleGrid(const T defaultValue, const size_t xDim, const size_t yDim,
+                          const size_t zDim)
     : Grid<T>(defaultValue) {
     this->xSize = xDim;
     this->ySize = yDim;
@@ -59,16 +59,15 @@ template <class T> void SimpleGrid<T>::clear() {
 }
 
 template <class T>
-inline T SimpleGrid<T>::operator()(const size_t x, const size_t y, const size_t z) const {
+T SimpleGrid<T>::operator()(const size_t x, const size_t y, const size_t z) const {
     return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
 }
 
-template <class T>
-inline T& SimpleGrid<T>::operator()(const size_t x, const size_t y, const size_t z) {
+template <class T> T& SimpleGrid<T>::operator()(const size_t x, const size_t y, const size_t z) {
     return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
 }
 
-template <class T> inline void SimpleGrid<T>::print() const {
+template <class T> void SimpleGrid<T>::print() const {
     std::cout.width(5);
     for (size_t x = 0; x < this->xSize; x++) {
         for (size_t y = 0; y < this->ySize; y++) {
@@ -81,7 +80,7 @@ template <class T> inline void SimpleGrid<T>::print() const {
     }
 }
 
-template <class T> inline void SimpleGrid<T>::setBorderConst(const T borderValue) {
+template <class T> void SimpleGrid<T>::setBorderConst(const T borderValue) {
     for (size_t x = 0; x < this->xSize; x++) {
         for (size_t y = 0; y < this->ySize; y++) {
             this->data[x * this->xSize * this->xSize + y * this->ySize] = borderValue;
