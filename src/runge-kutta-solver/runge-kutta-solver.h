@@ -9,11 +9,12 @@
 #include "../solver/base-solver.h"
 
 typedef std::vector<double> PhysValues;
+constexpr unsigned GHOST_CELLS = 2;
 
-class RungeKuttaSolver : public Solver<FieldStruct> {
+class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
   public:
-    RungeKuttaSolver(PaddedGrid<FieldStruct>& grid, const double timeDelta, const double timeStart,
-                     const double timeEnd, unsigned rungeKuttaSteps);
+    RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const double timeDelta,
+                     const double timeStart, const double timeEnd, unsigned rungeKuttaSteps);
 
     void solve();
 

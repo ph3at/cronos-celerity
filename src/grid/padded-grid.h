@@ -1,20 +1,21 @@
 #pragma once
 
-#include "base-grid.h"
-
 #include <array>
+#include <cstddef>
 #include <vector>
 
-template <class T> class PaddedGrid : public Grid<T> {
+template <class T, unsigned padding> class PaddedGrid {
   public:
-    PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim, const size_t zDim,
-               size_t padding);
+    PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim, const size_t zDim);
 
     void clear();
 
     T operator()(const size_t x, const size_t y, const size_t z) const;
     T& operator()(const size_t x, const size_t y, const size_t z);
 
+    size_t xDim() const { return this->xSize; }
+    size_t yDim() const { return this->ySize; }
+    size_t zDim() const { return this->zSize; }
     size_t xStart() const { return padding; }
     size_t yStart() const { return padding; }
     size_t zStart() const { return padding; }
@@ -22,31 +23,33 @@ template <class T> class PaddedGrid : public Grid<T> {
     size_t yEnd() const { return this->ySize - padding; }
     size_t zEnd() const { return this->zSize - padding; }
 
+    const T defaultValue;
+
   private:
     PaddedGrid();
 
     std::vector<T> data;
-    size_t padding;
+    size_t xSize;
+    size_t ySize;
+    size_t zSize;
 };
 
-template <class T>
-PaddedGrid<T>::PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim,
-                          const size_t zDim, size_t padding)
-    : Grid<T>(defaultValue) {
+template <class T, unsigned padding>
+PaddedGrid<T, padding>::PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim,
+                                   const size_t zDim)
+    : defaultValue(defaultValue) {
     this->xSize = xDim + 2 * padding;
     this->ySize = yDim + 2 * padding;
     this->zSize = zDim + 2 * padding;
 
-    this->padding = padding;
-
     const size_t size = this->xSize * this->ySize * this->zSize;
     this->data.reserve(size);
     for (size_t _ = 0; _ < size; _++) {
-        this->data.push_back(T());
+        this->data.push_back(defaultValue);
     }
 }
 
-template <class T> void PaddedGrid<T>::clear() {
+template <class T, unsigned padding> void PaddedGrid<T, padding>::clear() {
     for (unsigned x = this->xStart(); x < this->xEnd(); x++) {
         for (unsigned y = this->yStart(); y < this->yEnd(); y++) {
             for (unsigned z = this->zStart(); z < this->zEnd(); z++) {
@@ -57,11 +60,12 @@ template <class T> void PaddedGrid<T>::clear() {
     }
 }
 
-template <class T>
-T PaddedGrid<T>::operator()(const size_t x, const size_t y, const size_t z) const {
+template <class T, unsigned padding>
+T PaddedGrid<T, padding>::operator()(const size_t x, const size_t y, const size_t z) const {
     return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
 }
 
-template <class T> T& PaddedGrid<T>::operator()(const size_t x, const size_t y, const size_t z) {
+template <class T, unsigned padding>
+T& PaddedGrid<T, padding>::operator()(const size_t x, const size_t y, const size_t z) {
     return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
 }

@@ -7,12 +7,11 @@
 #include "runge-kutta-solver/runge-kutta-solver.h"
 
 constexpr size_t CELLS_PER_DIMENSION = 10;
-constexpr size_t GHOST_CELLS = 2;
 
 int main(int argc, char** argv) {
 
-    PaddedGrid<FieldStruct> grid({}, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION,
-                                 GHOST_CELLS);
+    PaddedGrid<FieldStruct, GHOST_CELLS> grid({}, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION,
+                                              CELLS_PER_DIMENSION);
 
     const double timeStart = 0.0;
     const double timeEnd = 1.0;

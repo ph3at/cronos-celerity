@@ -1,9 +1,9 @@
 #include "runge-kutta-solver.h"
 
-RungeKuttaSolver::RungeKuttaSolver(PaddedGrid<FieldStruct>& grid, const double timeDelta,
-                                   const double timeStart, const double timeEnd,
-                                   const unsigned rungeKuttaSteps)
-    : Solver<FieldStruct>(grid, timeDelta, timeStart, timeEnd),
+RungeKuttaSolver::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
+                                   const double timeDelta, const double timeStart,
+                                   const double timeEnd, const unsigned rungeKuttaSteps)
+    : Solver<FieldStruct, GHOST_CELLS>(grid, timeDelta, timeStart, timeEnd),
       changeBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
       rungeKuttaSteps(rungeKuttaSteps) {
     this->timeCurrent = timeStart;
