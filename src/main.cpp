@@ -3,25 +3,26 @@
 #include <memory>
 
 #include "grid/padded-grid.h"
-#include "grid/simple-grid.h"
-#include "solver/simple-solver.h"
+#include "misc/phys-fields.h"
+#include "solver/runge-kutta-solver.h"
 
 constexpr size_t CELLS_PER_DIMENSION = 10;
+constexpr size_t GHOST_CELLS = 2;
 
 int main(int argc, char** argv) {
 
-    SimpleGrid<double> grid = SimpleGrid<double>::initLinear(
-        CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION);
-    grid.setBorderConst(3.0);
-    grid.print();
+    PaddedGrid<FieldStruct> grid({}, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION, CELLS_PER_DIMENSION,
+                                 GHOST_CELLS);
+
+    const double timeStart = 0.0;
+    const double timeEnd = 1.0;
+    const double timeDelta = 0.001;
+    const unsigned rungeKuttaSteps = 2;
+    RungeKuttaSolver solver(grid, timeDelta, timeStart, timeEnd, rungeKuttaSteps);
 
     std::cout << "------ Solving Grid ------" << std::endl << std::endl;
-    const double time = 1.0;
-    const unsigned timeSteps = 10000;
-    SimpleSolver solver(grid, time / timeSteps, time);
     solver.solve();
-
-    grid.print();
+    std::cout << grid(CELLS_PER_DIMENSION / 2, CELLS_PER_DIMENSION / 2, CELLS_PER_DIMENSION / 2)[0];
 
     return EXIT_SUCCESS;
 }
