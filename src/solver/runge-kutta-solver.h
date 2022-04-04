@@ -5,17 +5,17 @@
 #include "../field-wrapper/fields.h"
 #include "../grid/padded-grid.h"
 #include "../grid/simple-grid.h"
-#include "../misc/constants.h"
 #include "../misc/direction.h"
 #include "../misc/faces.h"
+#include "../parameters/constants.h"
 #include "../solver/base-solver.h"
 
 typedef std::array<NumValues, Direction::DirMax> Changes;
 
 class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
   public:
-    RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const double timeDelta,
-                     const double timeStart, const double timeEnd, unsigned rungeKuttaSteps);
+    RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Problem& problem,
+                     unsigned rungeKuttaSteps);
 
     void solve();
 

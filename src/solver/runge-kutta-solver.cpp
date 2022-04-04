@@ -1,13 +1,13 @@
 #include "runge-kutta-solver.h"
+#include "../misc/transformations.h"
 #include "../reconstruction/reconstruction.h"
 
 RungeKuttaSolver::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
-                                   const double timeDelta, const double timeStart,
-                                   const double timeEnd, const unsigned rungeKuttaSteps)
-    : Solver<FieldStruct, GHOST_CELLS>(grid, timeDelta, timeStart, timeEnd),
+                                   const Problem& problem, const unsigned rungeKuttaSteps)
+    : Solver<FieldStruct, GHOST_CELLS>(grid, problem),
       changeBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
       rungeKuttaSteps(rungeKuttaSteps) {
-    this->timeCurrent = timeStart;
+    this->timeCurrent = problem.timeStart;
     this->timeStep = 0;
 };
 
@@ -20,7 +20,7 @@ void RungeKuttaSolver::solve() {
 }
 
 bool RungeKuttaSolver::isFinished() const {
-    return this->timeCurrent >= this->timeEnd;
+    return this->timeCurrent >= this->problem.timeEnd;
 }
 
 void RungeKuttaSolver::computeStep() {
@@ -56,7 +56,9 @@ void RungeKuttaSolver::computeSubstep() {
 }
 
 Changes RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, const unsigned z) {
-    Reconstruction::ReconstValues reconstruction = Reconstruction::reconstruct(this->grid, x, y, z);
+    PerFaceValues reconstruction = Reconstruction::reconstruct(this->grid, x, y, z);
+    PerFaceValues conservatives =
+        Transformation::reconstToConservatives(reconstruction, this->problem);
     return {};
 }
 

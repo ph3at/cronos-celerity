@@ -41,10 +41,10 @@ double derivZ(const PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned x
     return limitMinmod(deltaLeft, deltaRight);
 }
 
-ReconstValues reconstruct(const PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned x,
+PerFaceValues reconstruct(const PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned x,
                           const unsigned y, const unsigned z) {
-    ReconstValues reconst = {};
-    for (unsigned field = 0; field < PHYSICAL_FIELDS; field++) {
+    PerFaceValues reconst = {};
+    for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
         reconst[Faces::FaceWest][field] = grid(x, y, z)[field] - 0.5 * derivX(grid, x, y, z, field);
         reconst[Faces::FaceEast][field] =
             grid(x - 1, y, z)[field] + 0.5 * derivX(grid, x - 1, y, z, field);
