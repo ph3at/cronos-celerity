@@ -59,6 +59,8 @@ Changes RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, con
     PerFaceValues reconstruction = Reconstruction::reconstruct(this->grid, x, y, z);
     PerFaceValues conservatives =
         Transformation::reconstToConservatives(reconstruction, this->problem);
+    PerFaceSingleValue thermalPressure =
+        Transformation::computeThermalPressure(reconstruction, this->problem);
     return {};
 }
 

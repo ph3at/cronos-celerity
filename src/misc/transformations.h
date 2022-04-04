@@ -8,7 +8,5 @@
 namespace Transformation {
 PerFaceValues reconstToConservatives(const PerFaceValues& reconstructions, const Problem& problem);
 
-double thermalEnergyToEnergy(const FieldStruct& fields);
-
-double temperatureToEnergy(const FieldStruct& fields, const double gamma);
+PerFaceSingleValue computeThermalPressure(const PerFaceValues& fields, const Problem& problem);
 }; // namespace Transformation
