@@ -57,11 +57,22 @@ void RungeKuttaSolver::computeSubstep() {
 
 Changes RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, const unsigned z) {
     PerFaceValues reconstruction = Reconstruction::reconstruct(this->grid, x, y, z);
-    PerFaceValues conservatives =
-        Transformation::reconstToConservatives(reconstruction, this->problem);
-    PerFaceSingleValue thermalPressure =
-        Transformation::computeThermalPressure(reconstruction, this->problem);
-    return {};
+
+    std::array<PhysValues, Faces::FaceMax> physicalValues;
+    for (unsigned face = 0; face < Faces::FaceMax; face++) {
+        Transformation::reconstToConservatives(physicalValues[face], reconstruction[face],
+                                               this->problem);
+        physicalValues[face].thermalPressure =
+            Transformation::computeThermalPressure(reconstruction[face], this->problem);
+        // RiemannSolver::computeFluxes();
+    }
+    Changes changes;
+    for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
+        unsigned face = dir * 2;
+        // RiemannSolver::characteristicVelocity(changes, face);
+        // RiemannSolver::numericalFlux(changes, face);
+    }
+    return changes;
 }
 
 void RungeKuttaSolver::applyChanges(const Direction direction, const unsigned x, const unsigned y,
