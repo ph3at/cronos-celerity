@@ -1,6 +1,7 @@
 #include "runge-kutta-solver.h"
 #include "../misc/transformations.h"
 #include "../reconstruction/reconstruction.h"
+#include "../riemann/riemann-solver.h"
 
 RungeKuttaSolver::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
                                    const Problem& problem, const unsigned rungeKuttaSteps)
@@ -64,7 +65,7 @@ Changes RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, con
                                                this->problem);
         physicalValues[face].thermalPressure =
             Transformation::computeThermalPressure(reconstruction[face], this->problem);
-        // RiemannSolver::computeFluxes();
+        RiemannSolver::computeFluxes(physicalValues[face], reconstruction[face], face);
     }
     Changes changes;
     for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
