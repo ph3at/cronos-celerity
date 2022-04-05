@@ -70,10 +70,20 @@ Changes RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, con
     Changes changes;
     for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
         unsigned face = dir * 2;
-        // RiemannSolver::characteristicVelocity(changes, face);
-        // RiemannSolver::numericalFlux(changes, face);
+        std::pair<double, double> characVelocities = RiemannSolver::characteristicVelocity(
+            physicalValues[face], physicalValues[face + 1], reconstruction[face],
+            reconstruction[face + 1], this->problem, dir);
+        this->updateCFL(characVelocities);
+        changes[dir] = RiemannSolver::numericalFlux(characVelocities, physicalValues[face],
+                                                    physicalValues[face + 1], dir);
     }
     return changes;
+}
+
+void RungeKuttaSolver::updateCFL(const std::pair<double, double> characVelocities) {
+    double maxVelocity = std::max(characVelocities.first, characVelocities.second);
+    double localCFL = maxVelocity * 0.1; // TODO: 0.1 -> inverseDX[dir]
+    this->cfl = std::max(this->cfl, localCFL);
 }
 
 void RungeKuttaSolver::applyChanges(const Direction direction, const unsigned x, const unsigned y,
