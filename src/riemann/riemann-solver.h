@@ -12,7 +12,8 @@ std::pair<double, double> characteristicVelocity(const PhysValues& physValsLeft,
                                                  const FieldStruct& reconstRight,
                                                  const Problem& problem, const unsigned dir);
 
-NumValues numericalFlux(const std::pair<double, double>& characVelocities,
+NumValues numericalFlux(const std::pair<double, double>& characteristicVelocities,
                         const PhysValues& physValsLeft, const PhysValues& physValsRight,
-                        const unsigned dir);
+                        const FieldStruct& reconstructionLeft,
+                        const FieldStruct& reconstructionRight, const unsigned dir);
 }; // namespace RiemannSolver

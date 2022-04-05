@@ -75,7 +75,8 @@ Changes RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, con
             reconstruction[face + 1], this->problem, dir);
         this->updateCFL(characVelocities);
         changes[dir] = RiemannSolver::numericalFlux(characVelocities, physicalValues[face],
-                                                    physicalValues[face + 1], dir);
+                                                    physicalValues[face + 1], reconstruction[face],
+                                                    reconstruction[face + 1], dir);
     }
     return changes;
 }
