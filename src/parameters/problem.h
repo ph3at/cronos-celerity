@@ -1,9 +1,18 @@
 #pragma once
 
+#include <array>
+
+#include "../misc/direction.h"
+
 typedef struct problem {
-    bool thermal;
-    double timeDelta;
-    double timeStart;
-    double timeEnd;
-    double gamma;
+    const bool thermal;
+    const double timeDelta;
+    const double timeStart;
+    const double timeEnd;
+    const double gamma;
+    const std::array<std::size_t, Direction::DirMax> numberCells;
+    const std::array<double, Direction::DirMax> cellSize;
+    const std::array<double, Direction::DirMax> inverseCellSize;
+
+    static struct problem initialiseTestProblem();
 } Problem;

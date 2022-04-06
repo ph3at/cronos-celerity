@@ -43,16 +43,16 @@ void RungeKuttaSolver::computeSubstep() {
                 const Changes numericalFluxesCenter = this->computeChanges(x, y, z);
 
                 const Changes numericalFluxesX = this->computeChanges(x + 1, y, z);
-                this->applyChanges(Direction::DirX, x, y, z, numericalFluxesCenter[Direction::DirX],
-                                   numericalFluxesX[Direction::DirX]);
+                this->applyChanges(numericalFluxesCenter[Direction::DirX],
+                                   numericalFluxesX[Direction::DirX], x, y, z, Direction::DirX);
 
                 const Changes numericalFluxesY = this->computeChanges(x, y + 1, z);
-                this->applyChanges(Direction::DirY, x, y, z, numericalFluxesCenter[Direction::DirY],
-                                   numericalFluxesY[Direction::DirY]);
+                this->applyChanges(numericalFluxesCenter[Direction::DirY],
+                                   numericalFluxesY[Direction::DirY], x, y, z, Direction::DirY);
 
                 const Changes numericalFluxesZ = this->computeChanges(x, y, z + 1);
-                this->applyChanges(Direction::DirZ, x, y, z, numericalFluxesCenter[Direction::DirZ],
-                                   numericalFluxesZ[Direction::DirZ]);
+                this->applyChanges(numericalFluxesCenter[Direction::DirZ],
+                                   numericalFluxesZ[Direction::DirZ], x, y, z, Direction::DirZ);
             }
         }
     }
@@ -75,7 +75,7 @@ Changes RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, con
         std::pair<double, double> characVelocities = RiemannSolver::characteristicVelocity(
             physicalValues[face], physicalValues[face + 1], reconstruction[face],
             reconstruction[face + 1], this->problem, dir);
-        this->updateCFL(characVelocities);
+        this->updateCFL(characVelocities, dir);
         changes[dir] = RiemannSolver::numericalFlux(characVelocities, physicalValues[face],
                                                     physicalValues[face + 1], reconstruction[face],
                                                     reconstruction[face + 1], dir);
@@ -83,19 +83,20 @@ Changes RungeKuttaSolver::computeChanges(const unsigned x, const unsigned y, con
     return changes;
 }
 
-void RungeKuttaSolver::updateCFL(const std::pair<double, double> characVelocities) {
+void RungeKuttaSolver::updateCFL(const std::pair<double, double> characVelocities,
+                                 const unsigned direction) {
     double maxVelocity = std::max(characVelocities.first, characVelocities.second);
-    double localCFL = maxVelocity * 0.1; // TODO: 0.1 -> inverseDX[dir]
+    double localCFL = maxVelocity * this->problem.inverseCellSize[direction];
     this->cfl = std::max(this->cfl, localCFL);
 }
 
-void RungeKuttaSolver::applyChanges(const Direction direction, const unsigned x, const unsigned y,
-                                    const unsigned z, const FieldStruct& numericalValuesMinus,
-                                    const FieldStruct& numericalValuesPlus) {
+void RungeKuttaSolver::applyChanges(const FieldStruct& numericalValuesMinus,
+                                    const FieldStruct& numericalValuesPlus, const unsigned x,
+                                    const unsigned y, const unsigned z, const unsigned direction) {
     for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
         this->changeBuffer(x, y, z)[field] +=
             (numericalValuesPlus[field] - numericalValuesMinus[field]) *
-            0.1; // TODO: 0.1 -> inverseDX[dir]
+            this->problem.inverseCellSize[direction];
     }
 }
 

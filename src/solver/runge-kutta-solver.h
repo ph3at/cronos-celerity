@@ -32,10 +32,10 @@ class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
     void prepareSubstep();
     void computeSubstep();
     Changes computeChanges(const unsigned x, const unsigned y, const unsigned z);
-    void updateCFL(std::pair<double, double> characVelocities);
-    void applyChanges(const Direction direction, const unsigned x, const unsigned y,
-                      const unsigned z, const FieldStruct& numericalValuesMinus,
-                      const FieldStruct& numericalValuesPlus);
+    void updateCFL(std::pair<double, double> characVelocities, const unsigned direction);
+    void applyChanges(const FieldStruct& numericalValuesMinus,
+                      const FieldStruct& numericalValuesPlus, const unsigned x, const unsigned y,
+                      const unsigned z, const unsigned direction);
     void finaliseSubstep();
     void adjustTimeDelta();
 };
