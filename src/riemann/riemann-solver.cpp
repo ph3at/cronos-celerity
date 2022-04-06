@@ -49,13 +49,12 @@ std::pair<double, double> characteristicVelocity(const PhysValues& physValsLeft,
     return std::make_pair(characVelLeft, characVelRight);
 }
 
-NumValues numericalFluxOutsideRiemannFan(const PhysValues& physValues) {
-    NumValues numericalValues = {};
-    numericalValues.pressureTotal = physValues.thermalPressure;
+FieldStruct numericalFluxOutsideRiemannFan(const PhysValues& physValues) {
+    FieldStruct numericalFluxes = {};
     for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-        numericalValues.fluxes[field] = physValues.fluxes[field];
+        numericalFluxes[field] = physValues.fluxes[field];
     }
-    return numericalValues;
+    return numericalFluxes;
 }
 
 std::tuple<unsigned, unsigned, unsigned> directionalIndices(unsigned dir) {
@@ -107,31 +106,29 @@ FieldStruct computeStarValues(const PhysValues& physValues, const FieldStruct& r
     return starValues;
 }
 
-NumValues computeNumericalFlux(const PhysValues& physValues, const FieldStruct& reconstruction,
-                               const double characteristicVelocity,
-                               const double relativeSignalVelocity,
-                               const double intermediateWaveSpeed, const unsigned velocityParallel,
-                               const unsigned velocityPerpendicular1,
-                               const unsigned velocityPerpendicular2) {
-    NumValues numericalValues = {};
-    numericalValues.pressureTotal = physValues.thermalPressure;
+FieldStruct
+computeNumericalFlux(const PhysValues& physValues, const FieldStruct& reconstruction,
+                     const double characteristicVelocity, const double relativeSignalVelocity,
+                     const double intermediateWaveSpeed, const unsigned velocityParallel,
+                     const unsigned velocityPerpendicular1, const unsigned velocityPerpendicular2) {
+    FieldStruct numericalFluxes = {};
     FieldStruct starValues = computeStarValues(
         physValues, reconstruction, characteristicVelocity, relativeSignalVelocity,
         intermediateWaveSpeed, velocityParallel, velocityPerpendicular1, velocityPerpendicular2);
     for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-        numericalValues.fluxes[field] =
+        numericalFluxes[field] =
             physValues.fluxes[field] +
             characteristicVelocity * (starValues[field] - physValues.conservatives[field]);
     }
-    return numericalValues;
+    return numericalFluxes;
 }
 
-NumValues numericalFluxInsideRiemannFan(const std::pair<double, double>& characteristicVelocities,
-                                        const PhysValues& physValsLeft,
-                                        const PhysValues physValsRight,
-                                        const FieldStruct& reconstructionLeft,
-                                        const FieldStruct& reconstructionRight,
-                                        const unsigned dir) {
+FieldStruct numericalFluxInsideRiemannFan(const std::pair<double, double>& characteristicVelocities,
+                                          const PhysValues& physValsLeft,
+                                          const PhysValues physValsRight,
+                                          const FieldStruct& reconstructionLeft,
+                                          const FieldStruct& reconstructionRight,
+                                          const unsigned dir) {
     unsigned velocityParallel, velocityPerpendicular1, velocityPerpendicular2;
     std::tie(velocityParallel, velocityPerpendicular1, velocityPerpendicular2) =
         directionalIndices(dir);
@@ -176,10 +173,10 @@ NumValues numericalFluxInsideRiemannFan(const std::pair<double, double>& charact
     }
 }
 
-NumValues numericalFlux(const std::pair<double, double>& characteristicVelocities,
-                        const PhysValues& physValsLeft, const PhysValues& physValsRight,
-                        const FieldStruct& reconstructionLeft,
-                        const FieldStruct& reconstructionRight, const unsigned dir) {
+FieldStruct numericalFlux(const std::pair<double, double>& characteristicVelocities,
+                          const PhysValues& physValsLeft, const PhysValues& physValsRight,
+                          const FieldStruct& reconstructionLeft,
+                          const FieldStruct& reconstructionRight, const unsigned dir) {
     // Reference: Toro E.F. - Riemann Solvers and Numerical Methods for Fluid Dynamics, Chapter 10.6
     if (characteristicVelocities.second <= 0) {
         return numericalFluxOutsideRiemannFan(physValsRight);

@@ -40,17 +40,19 @@ void RungeKuttaSolver::computeSubstep() {
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
-                // TODO: Find more descriptive name than numVals
-                const Changes numVals = this->computeChanges(x, y, z);
+                const Changes numericalFluxesCenter = this->computeChanges(x, y, z);
 
-                const Changes numValsX = this->computeChanges(x + 1, y, z);
-                this->applyChanges(Direction::DirX, x, y, z, numVals, numValsX);
+                const Changes numericalFluxesX = this->computeChanges(x + 1, y, z);
+                this->applyChanges(Direction::DirX, x, y, z, numericalFluxesCenter[Direction::DirX],
+                                   numericalFluxesX[Direction::DirX]);
 
-                const Changes numValsY = this->computeChanges(x, y + 1, z);
-                this->applyChanges(Direction::DirY, x, y, z, numVals, numValsY);
+                const Changes numericalFluxesY = this->computeChanges(x, y + 1, z);
+                this->applyChanges(Direction::DirY, x, y, z, numericalFluxesCenter[Direction::DirY],
+                                   numericalFluxesY[Direction::DirY]);
 
-                const Changes numValsZ = this->computeChanges(x, y, z + 1);
-                this->applyChanges(Direction::DirZ, x, y, z, numVals, numValsZ);
+                const Changes numericalFluxesZ = this->computeChanges(x, y, z + 1);
+                this->applyChanges(Direction::DirZ, x, y, z, numericalFluxesCenter[Direction::DirZ],
+                                   numericalFluxesZ[Direction::DirZ]);
             }
         }
     }
@@ -88,8 +90,14 @@ void RungeKuttaSolver::updateCFL(const std::pair<double, double> characVelocitie
 }
 
 void RungeKuttaSolver::applyChanges(const Direction direction, const unsigned x, const unsigned y,
-                                    const unsigned z, const Changes numVals,
-                                    const Changes numValsX) {}
+                                    const unsigned z, const FieldStruct& numericalValuesMinus,
+                                    const FieldStruct& numericalValuesPlus) {
+    for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+        this->changeBuffer(x, y, z)[field] +=
+            (numericalValuesPlus[field] - numericalValuesMinus[field]) *
+            0.1; // TODO: 0.1 -> inverseDX[dir]
+    }
+}
 
 void RungeKuttaSolver::finaliseSubstep() {
     this->timeCurrent += this->timeDelta;

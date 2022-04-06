@@ -10,7 +10,7 @@
 #include "../parameters/constants.h"
 #include "../solver/base-solver.h"
 
-typedef std::array<NumValues, Direction::DirMax> Changes;
+typedef std::array<FieldStruct, Direction::DirMax> Changes;
 
 class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
   public:
@@ -34,7 +34,8 @@ class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
     Changes computeChanges(const unsigned x, const unsigned y, const unsigned z);
     void updateCFL(std::pair<double, double> characVelocities);
     void applyChanges(const Direction direction, const unsigned x, const unsigned y,
-                      const unsigned z, const Changes numVals, const Changes numValsX);
+                      const unsigned z, const FieldStruct& numericalValuesMinus,
+                      const FieldStruct& numericalValuesPlus);
     void finaliseSubstep();
     void adjustTimeDelta();
 };

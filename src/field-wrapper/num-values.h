@@ -4,5 +4,5 @@
 
 typedef struct numVals {
     double pressureTotal;
-    std::array<double, NUM_PHYSICAL_FIELDS> fluxes;
+    FieldStruct fluxes;
 } NumValues;
