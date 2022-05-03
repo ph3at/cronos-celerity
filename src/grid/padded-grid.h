@@ -10,8 +10,8 @@ template <class T, unsigned padding> class PaddedGrid {
 
     void clear();
 
-    T operator()(const size_t x, const size_t y, const size_t z) const;
     T& operator()(const size_t x, const size_t y, const size_t z);
+    T operator()(const size_t x, const size_t y, const size_t z) const;
 
     size_t xDim() const { return this->xSize; }
     size_t yDim() const { return this->ySize; }
@@ -45,7 +45,7 @@ PaddedGrid<T, padding>::PaddedGrid(const T defaultValue, const size_t xDim, cons
     const size_t size = this->xSize * this->ySize * this->zSize;
     this->data.reserve(size);
     for (size_t _ = 0; _ < size; _++) {
-        this->data.push_back(defaultValue);
+        this->data.push_back(T(defaultValue));
     }
 }
 
@@ -53,7 +53,7 @@ template <class T, unsigned padding> void PaddedGrid<T, padding>::clear() {
     for (unsigned x = this->xStart(); x < this->xEnd(); x++) {
         for (unsigned y = this->yStart(); y < this->yEnd(); y++) {
             for (unsigned z = this->zStart(); z < this->zEnd(); z++) {
-                this->data[x * this->xSize * this->xSize + y * this->ySize + z] =
+                this->data[x * this->ySize * this->zSize + y * this->zSize + z] =
                     this->defaultValue;
             }
         }
@@ -61,11 +61,11 @@ template <class T, unsigned padding> void PaddedGrid<T, padding>::clear() {
 }
 
 template <class T, unsigned padding>
-T PaddedGrid<T, padding>::operator()(const size_t x, const size_t y, const size_t z) const {
-    return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
+T& PaddedGrid<T, padding>::operator()(const size_t x, const size_t y, const size_t z) {
+    return this->data[x * this->ySize * this->zSize + y * this->zSize + z];
 }
 
 template <class T, unsigned padding>
-T& PaddedGrid<T, padding>::operator()(const size_t x, const size_t y, const size_t z) {
-    return this->data[x * this->xSize * this->xSize + y * this->ySize + z];
+T PaddedGrid<T, padding>::operator()(const size_t x, const size_t y, const size_t z) const {
+    return this->data[x * this->ySize * this->zSize + y * this->zSize + z];
 }

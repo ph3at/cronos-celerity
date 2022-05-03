@@ -30,7 +30,7 @@ double energyToTemperature(const FieldStruct& fields, const double gamma) {
 }
 
 void reconstToConservatives(PhysValues& output, const FieldStruct& reconstructions,
-                            const Problem& problem) {
+                            const bool isThermal, const double gamma) {
 
     output.conservatives[FieldNames::DENSITY] = reconstructions[FieldNames::DENSITY];
     output.conservatives[FieldNames::VELOCITY_X] =
@@ -39,11 +39,11 @@ void reconstToConservatives(PhysValues& output, const FieldStruct& reconstructio
         reconstructions[FieldNames::VELOCITY_Y] * reconstructions[FieldNames::DENSITY];
     output.conservatives[FieldNames::VELOCITY_Z] =
         reconstructions[FieldNames::VELOCITY_Z] * reconstructions[FieldNames::DENSITY];
-    if (problem.thermal) {
+    if (isThermal) {
         output.conservatives[FieldNames::THERMAL_ENERGY] = thermalEnergyToEnergy(reconstructions);
     } else {
         output.conservatives[FieldNames::THERMAL_ENERGY] =
-            temperatureToEnergy(reconstructions, problem.gamma);
+            temperatureToEnergy(reconstructions, gamma);
     }
 }
 
@@ -55,9 +55,9 @@ double temperatureToThermalPressure(const FieldStruct& fields) {
     return fields[FieldNames::DENSITY] * fields[FieldNames::THERMAL_ENERGY];
 }
 
-double computeThermalPressure(const FieldStruct& fields, const Problem& problem) {
-    if (problem.thermal) {
-        return thermalEnergyToThermalPressure(fields, problem.gamma);
+double computeThermalPressure(const FieldStruct& fields, const bool isThermal, const double gamma) {
+    if (isThermal) {
+        return thermalEnergyToThermalPressure(fields, gamma);
     } else {
         return temperatureToThermalPressure(fields);
     }
@@ -75,34 +75,36 @@ void momentumToVelocity(FieldStruct& fields) {
     fields[FieldNames::VELOCITY_Z] /= fields[FieldNames::DENSITY];
 }
 
-void primitiveToConservative(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Problem& problem) {
+void primitiveToConservative(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const bool isThermal,
+                             const double gamma) {
     for (unsigned x = 0; x < grid.xDim(); x++) {
         for (unsigned y = 0; y < grid.yDim(); y++) {
             for (unsigned z = 0; z < grid.zDim(); z++) {
                 velocityToMomentum(grid(x, y, z));
-                if (problem.thermal) { // Compiler should pull this out of the loop
+                if (isThermal) { // Compiler should pull this out of the loop
                     grid(x, y, z)[FieldNames::THERMAL_ENERGY] =
                         thermalEnergyToEnergy(grid(x, y, z));
                 } else {
                     grid(x, y, z)[FieldNames::THERMAL_ENERGY] =
-                        temperatureToEnergy(grid(x, y, z), problem.gamma);
+                        temperatureToEnergy(grid(x, y, z), gamma);
                 }
             }
         }
     }
 }
 
-void conservativeToPrimitive(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Problem& problem) {
+void conservativeToPrimitive(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const bool isThermal,
+                             const double gamma) {
     for (unsigned x = 0; x < grid.xDim(); x++) {
         for (unsigned y = 0; y < grid.yDim(); y++) {
             for (unsigned z = 0; z < grid.zDim(); z++) {
                 momentumToVelocity(grid(x, y, z));
-                if (problem.thermal) { // Compiler should pull this out of the loop
+                if (isThermal) { // Compiler should pull this out of the loop
                     grid(x, y, z)[FieldNames::THERMAL_ENERGY] =
                         energyToThermalEnergy(grid(x, y, z));
                 } else {
                     grid(x, y, z)[FieldNames::THERMAL_ENERGY] =
-                        energyToTemperature(grid(x, y, z), problem.gamma);
+                        energyToTemperature(grid(x, y, z), gamma);
                     // boundary
                 }
             }

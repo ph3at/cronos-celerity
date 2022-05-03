@@ -30,13 +30,13 @@ std::pair<double, double> characteristicVelocity(const PhysValues& physValsLeft,
                                                  const PhysValues& physValsRight,
                                                  const FieldStruct& reconstLeft,
                                                  const FieldStruct& reconstRight,
-                                                 const Problem& problem, const unsigned dir) {
+                                                 const double gamma, const unsigned dir) {
     double flowVelocityLeft = reconstLeft[FieldNames::VELOCITY_X + dir];
     double flowVelocityRight = reconstRight[FieldNames::VELOCITY_X + dir];
 
-    double soundVelocityLeft = std::sqrt(problem.gamma * physValsLeft.thermalPressure /
+    double soundVelocityLeft = std::sqrt(gamma * physValsLeft.thermalPressure /
                                          physValsLeft.conservatives[FieldNames::DENSITY]);
-    double soundVelocityRight = std::sqrt(problem.gamma * physValsRight.thermalPressure /
+    double soundVelocityRight = std::sqrt(gamma * physValsRight.thermalPressure /
                                           physValsRight.conservatives[FieldNames::DENSITY]);
 
     double characVelLeft = std::max(

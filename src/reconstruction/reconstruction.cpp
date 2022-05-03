@@ -1,7 +1,5 @@
 #include "reconstruction.h"
 
-constexpr double THETA = 1.0;
-
 namespace Reconstruction {
 
 double limitMinmod(const double deltaLeft, const double deltaRight) {
