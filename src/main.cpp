@@ -11,8 +11,7 @@ int main(int argc, char** argv) {
                                               problem.numberCells[Direction::DirY],
                                               problem.numberCells[Direction::DirZ]);
 
-    const unsigned rungeKuttaSteps = 2;
-    RungeKuttaSolver solver(grid, problem, rungeKuttaSteps);
+    RungeKuttaSolver solver(grid, problem);
 
     std::cout << "------ Solving Grid ------" << std::endl << std::endl;
     solver.solve();

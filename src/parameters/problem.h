@@ -2,7 +2,9 @@
 
 #include <array>
 
+#include "../boundary/boundary-types.h"
 #include "../misc/direction.h"
+#include "../misc/faces.h"
 
 typedef struct problem {
     const bool thermal;
@@ -13,6 +15,8 @@ typedef struct problem {
     const std::array<std::size_t, Direction::DirMax> numberCells;
     const std::array<double, Direction::DirMax> cellSize;
     const std::array<double, Direction::DirMax> inverseCellSize;
+
+    const std::array<BoundaryType, Faces::FaceMax> boundaryTypes;
 
     static struct problem initialiseTestProblem();
 } Problem;

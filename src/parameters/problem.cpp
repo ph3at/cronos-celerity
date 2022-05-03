@@ -25,6 +25,11 @@ Problem Problem::initialiseTestProblem() {
                                                                     1.0 / cellSize[1],
                                                                     1.0 / cellSize[2] };
 
+    const std::array<BoundaryType, Faces::FaceMax> boundaryTypes = {
+        BoundaryType::OUTFLOW,     BoundaryType::CONSTANT,    BoundaryType::EXTRAPOLATE,
+        BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE
+    };
+
     return { .thermal = THERMAL,
              .timeDelta = TIME_DELTA,
              .timeStart = TIME_START,
@@ -32,5 +37,6 @@ Problem Problem::initialiseTestProblem() {
              .gamma = GAMMA,
              .numberCells = numberCells,
              .cellSize = cellSize,
-             .inverseCellSize = inverseCellSize };
+             .inverseCellSize = inverseCellSize,
+             .boundaryTypes = boundaryTypes };
 }

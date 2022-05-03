@@ -1,13 +1,15 @@
 #include "runge-kutta-solver.h"
+#include "../boundary/boundary.h"
+#include "../grid/grid-functions.h"
 #include "../misc/transformations.h"
 #include "../reconstruction/reconstruction.h"
 #include "../riemann/riemann-solver.h"
 
 RungeKuttaSolver::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
-                                   const Problem& problem, const unsigned rungeKuttaSteps)
+                                   const Problem& problem)
     : Solver<FieldStruct, GHOST_CELLS>(grid, problem),
       changeBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
-      rungeKuttaSteps(rungeKuttaSteps) {
+      gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()) {
     this->timeCurrent = problem.timeStart;
     this->timeStep = 0;
 };
@@ -25,15 +27,42 @@ bool RungeKuttaSolver::isFinished() const {
 }
 
 void RungeKuttaSolver::computeStep() {
+    this->saveGrid();
     for (unsigned substep = 0; substep < this->rungeKuttaSteps; substep++) {
         this->prepareSubstep();
         this->computeSubstep();
-        this->finaliseSubstep();
+        this->finaliseSubstep(substep);
+        this->advanceTime(substep);
+    }
+}
+
+void RungeKuttaSolver::saveGrid() {
+    for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
+        for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
+            for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
+                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                    this->gridSubstepBuffer(x, y, z)[field] = this->grid(x, y, z)[field];
+                }
+            }
+        }
     }
 }
 
 void RungeKuttaSolver::prepareSubstep() {
+    // Number of negative temperatures is printed here, seems unnecessary
+
+    // Start clock(s) -- time measurement omitted for now
+
     this->changeBuffer.clear();
+
+    /* This part seems to never be used, so I will not implement it for now.
+     *
+     * Transformation::primitiveToConservative(this->grid, this->problem);
+     * Save old variables
+     * Transformation::conservativeToPrimitive
+     * grid.checkNaN() */
+
+    // CarbuncleFlag computation (not included by default)
 }
 
 void RungeKuttaSolver::computeSubstep() {
@@ -100,8 +129,45 @@ void RungeKuttaSolver::applyChanges(const FieldStruct& numericalValuesMinus,
     }
 }
 
-void RungeKuttaSolver::finaliseSubstep() {
-    this->timeCurrent += this->timeDelta;
+void RungeKuttaSolver::finaliseSubstep(const unsigned substep) {
+    if (GridFunctions::checkNaN(this->grid)) {
+        std::cerr << "Encountered NaN" << std::endl;
+    }
+    Transformation::primitiveToConservative(this->grid, this->problem);
+    this->integrateTime(substep);
+    Transformation::conservativeToPrimitive(this->grid, this->problem);
+    Boundary::applyAll(this->grid, this->problem);
+
+    // Stop clock(s)
+    // runtime estimation -- time measurement omitted for now
+
+    // phystest
+}
+
+void RungeKuttaSolver::integrateTime(const unsigned substep) {
+    for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
+        for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
+            for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
+                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                    if (substep == 0) { // if-statement should be pulled out by compiler
+                        this->grid(x, y, z)[field] -=
+                            this->timeDelta * changeBuffer(x, y, z)[field];
+                    } else {
+                        this->grid(x, y, z)[field] =
+                            0.5 * this->gridSubstepBuffer(x, y, z)[field] +
+                            0.5 * this->grid(x, y, z)[field] -
+                            0.5 * this->timeDelta * changeBuffer(x, y, z)[field];
+                    }
+                }
+            }
+        }
+    }
+}
+
+void RungeKuttaSolver::advanceTime(const unsigned substep) {
+    if (substep == 0) {
+        this->timeCurrent += this->timeDelta;
+    }
 }
 
 void RungeKuttaSolver::adjustTimeDelta() {}

@@ -14,13 +14,13 @@ typedef std::array<FieldStruct, Direction::DirMax> Changes;
 
 class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
   public:
-    RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Problem& problem,
-                     unsigned rungeKuttaSteps);
+    RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Problem& problem);
 
     void solve();
 
   private:
     SimpleGrid<FieldStruct> changeBuffer;
+    SimpleGrid<FieldStruct> gridSubstepBuffer;
 
     double timeCurrent;
     unsigned timeStep;
@@ -29,6 +29,7 @@ class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
 
     void computeStep();
     bool isFinished() const;
+    void saveGrid();
     void prepareSubstep();
     void computeSubstep();
     Changes computeChanges(const unsigned x, const unsigned y, const unsigned z);
@@ -36,6 +37,8 @@ class RungeKuttaSolver : public Solver<FieldStruct, GHOST_CELLS> {
     void applyChanges(const FieldStruct& numericalValuesMinus,
                       const FieldStruct& numericalValuesPlus, const unsigned x, const unsigned y,
                       const unsigned z, const unsigned direction);
-    void finaliseSubstep();
+    void finaliseSubstep(const unsigned substep);
+    void integrateTime(const unsigned substep);
+    void advanceTime(const unsigned substep);
     void adjustTimeDelta();
 };
