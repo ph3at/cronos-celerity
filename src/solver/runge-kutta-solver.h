@@ -73,7 +73,6 @@ template <class ProblemType> bool RungeKuttaSolver<ProblemType>::isFinished() co
 }
 
 template <class ProblemType> void RungeKuttaSolver<ProblemType>::computeStep() {
-    this->saveGrid();
     for (unsigned substep = 0; substep < this->rungeKuttaSteps; substep++) {
         this->prepareSubstep();
         this->computeSubstep();
@@ -185,6 +184,9 @@ void RungeKuttaSolver<ProblemType>::finaliseSubstep(const unsigned substep) {
         std::cerr << "Encountered NaN" << std::endl;
     }
     Transformation::primitiveToConservative(this->grid, this->problem.thermal, this->problem.gamma);
+    if (substep == 0) {
+        this->saveGrid();
+    }
     this->integrateTime(substep);
     Transformation::conservativeToPrimitive(this->grid, this->problem.thermal, this->problem.gamma);
     Boundary::applyAll(this->grid, this->problem);
