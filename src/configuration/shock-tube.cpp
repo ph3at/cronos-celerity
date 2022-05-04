@@ -1,7 +1,7 @@
 #include "shock-tube.h"
 
-ShockTube::ShockTube(const bool thermal, const double timeDelta, const double timeStart,
-                     const double timeEnd, const double gamma,
+ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double timeDelta,
+                     const double timeStart, const double timeEnd, const double gamma,
                      const std::array<std::size_t, Direction::DirMax> numberCells,
                      const std::array<double, Direction::DirMax> cellSize,
                      const std::array<BoundaryType, Faces::FaceMax> boundaryTypes,
@@ -9,8 +9,8 @@ ShockTube::ShockTube(const bool thermal, const double timeDelta, const double ti
                      const double densityRightInit, const double velocityLeftInit,
                      const double velocityRightInit, const double pressureLeftInit,
                      const double pressureRightInit)
-    : Problem<ShockTube>(thermal, timeDelta, timeStart, timeEnd, gamma, numberCells, cellSize,
-                         boundaryTypes),
+    : Problem<ShockTube>(cflThreshold, thermal, timeDelta, timeStart, timeEnd, gamma, numberCells,
+                         cellSize, boundaryTypes),
       shockDir(shockDir), shockPos(shockPos), densityLeftInit(densityLeftInit),
       densityRightInit(densityRightInit),
       velocityXLeftInit(shockDir == Direction::DirX ? velocityLeftInit : 0.0),
@@ -92,6 +92,11 @@ void ShockTube::applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const 
     }
 }
 
+void ShockTube::applySource(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {
+    // No source in shock tube
+}
+
+constexpr double CFL_THRESHOLD = 0.4;
 constexpr bool THERMAL = true;
 constexpr double TIME_DELTA = 0.000002;
 constexpr double TIME_START = 0.0;
@@ -128,8 +133,8 @@ ShockTube ShockTube::initialiseTestProblem() {
         BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE
     };
 
-    return ShockTube(THERMAL, TIME_DELTA, TIME_START, TIME_END, GAMMA, numberCells, cellSize,
-                     boundaryTypes, SHOCK_DIR, SHOCK_POS, DENSITY_LEFT_INIT, DENSITY_RIGHT_INIT,
-                     VELOCITY_LEFT_INIT, VELOCITY_RIGHT_INIT, PRESSURE_LEFT_INIT,
-                     PRESSURE_RIGHT_INIT);
+    return ShockTube(CFL_THRESHOLD, THERMAL, TIME_DELTA, TIME_START, TIME_END, GAMMA, numberCells,
+                     cellSize, boundaryTypes, SHOCK_DIR, SHOCK_POS, DENSITY_LEFT_INIT,
+                     DENSITY_RIGHT_INIT, VELOCITY_LEFT_INIT, VELOCITY_RIGHT_INIT,
+                     PRESSURE_LEFT_INIT, PRESSURE_RIGHT_INIT);
 }

@@ -48,6 +48,7 @@ class RungeKuttaSolver : public Solver<FieldStruct, ProblemType, GHOST_CELLS> {
     void integrateTime(const unsigned substep);
     void advanceTime(const unsigned substep);
     void adjustTimeDelta();
+    void checkErrors();
 };
 
 template <class ProblemType>
@@ -99,12 +100,6 @@ template <class ProblemType> void RungeKuttaSolver<ProblemType>::prepareSubstep(
     // Start clock(s) -- time measurement omitted for now
 
     this->changeBuffer.clear();
-
-    /* This part seems to never be used, so I will not implement it for now.
-     *
-     * Transformation::primitiveToConservative(this->grid, this->problem.thermal,
-     * this->problem.gamma); Save old variables Transformation::conservativeToPrimitive
-     * grid.checkNaN() */
 
     // CarbuncleFlag computation (not included by default)
 }
@@ -180,13 +175,12 @@ void RungeKuttaSolver<ProblemType>::applyChanges(const FieldStruct& numericalVal
 
 template <class ProblemType>
 void RungeKuttaSolver<ProblemType>::finaliseSubstep(const unsigned substep) {
-    if (GridFunctions::checkNaN(this->grid)) {
-        std::cerr << "Encountered NaN" << std::endl;
-    }
+    this->checkErrors();
+
+    this->problem.applySource(this->grid);
+    this->checkErrors();
+
     Transformation::primitiveToConservative(this->grid, this->problem.thermal, this->problem.gamma);
-    if (substep == 0) {
-        this->saveGrid();
-    }
     this->integrateTime(substep);
     Transformation::conservativeToPrimitive(this->grid, this->problem.thermal, this->problem.gamma);
     Boundary::applyAll(this->grid, this->problem);
@@ -199,6 +193,9 @@ void RungeKuttaSolver<ProblemType>::finaliseSubstep(const unsigned substep) {
 
 template <class ProblemType>
 void RungeKuttaSolver<ProblemType>::integrateTime(const unsigned substep) {
+    if (substep == 0) {
+        this->saveGrid();
+    }
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
@@ -225,4 +222,12 @@ void RungeKuttaSolver<ProblemType>::advanceTime(const unsigned substep) {
     }
 }
 
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::adjustTimeDelta() {}
+template <class ProblemType> void RungeKuttaSolver<ProblemType>::adjustTimeDelta() {
+    this->timeDelta = this->problem.cflThreshold / this->cfl;
+}
+
+template <class ProblemType> void RungeKuttaSolver<ProblemType>::checkErrors() {
+    if (GridFunctions::checkNaN(this->grid)) {
+        std::cerr << "Encountered NaN" << std::endl;
+    }
+}

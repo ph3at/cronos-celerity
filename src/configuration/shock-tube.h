@@ -4,8 +4,8 @@
 
 class ShockTube : public Problem<ShockTube> {
   public:
-    ShockTube(const bool thermal, const double timeDelta, const double timeStart,
-              const double timeEnd, const double gamma,
+    ShockTube(const double cflThreshold, const bool thermal, const double timeDelta,
+              const double timeStart, const double timeEnd, const double gamma,
               const std::array<std::size_t, Direction::DirMax> numberCells,
               const std::array<double, Direction::DirMax> cellSize,
               const std::array<BoundaryType, Faces::FaceMax> boundaryTypes,

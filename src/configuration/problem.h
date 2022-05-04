@@ -11,12 +11,13 @@
 
 template <class Specific> class Problem {
   public:
-    Problem(const bool thermal, const double timeDelta, const double timeStart,
-            const double timeEnd, const double gamma,
+    Problem(const double cflThreshold, const bool thermal, const double timeDelta,
+            const double timeStart, const double timeEnd, const double gamma,
             const std::array<std::size_t, Direction::DirMax> numberCells,
             const std::array<double, Direction::DirMax> cellSize,
             const std::array<BoundaryType, Faces::FaceMax> boundaryTypes);
 
+    const double cflThreshold;
     const bool thermal;
     const double timeDelta;
     const double timeStart;
@@ -35,13 +36,13 @@ template <class Specific> class Problem {
 };
 
 template <class Specific>
-Problem<Specific>::Problem(const bool thermal, const double timeDelta, const double timeStart,
-                           const double timeEnd, const double gamma,
+Problem<Specific>::Problem(const double cflThreshold, const bool thermal, const double timeDelta,
+                           const double timeStart, const double timeEnd, const double gamma,
                            const std::array<std::size_t, Direction::DirMax> numberCells,
                            const std::array<double, Direction::DirMax> cellSize,
                            const std::array<BoundaryType, Faces::FaceMax> boundaryTypes)
-    : thermal(thermal), timeDelta(timeDelta), timeStart(timeStart), timeEnd(timeEnd), gamma(gamma),
-      numberCells(numberCells), cellSize(cellSize),
+    : cflThreshold(cflThreshold), thermal(thermal), timeDelta(timeDelta), timeStart(timeStart),
+      timeEnd(timeEnd), gamma(gamma), numberCells(numberCells), cellSize(cellSize),
       inverseCellSize({ 1.0 / cellSize[0], 1.0 / cellSize[1], 1.0 / cellSize[2] }),
       boundaryTypes(boundaryTypes) {}
 
