@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <optional>
 
 #include "../boundary/boundary.h"
 #include "../configuration/constants.h"
@@ -24,19 +25,17 @@ class RungeKuttaSolver
     RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
                      const Problem<ProblemType>& problem);
 
-    void solve();
+    void solve(const std::optional<double> untilTime);
 
   private:
     SimpleGrid<FieldStruct> changeBuffer;
     SimpleGrid<FieldStruct> gridSubstepBuffer;
 
-    double timeCurrent;
-    unsigned timeStep;
     double cfl;
     const unsigned rungeKuttaSteps = 2;
 
     void computeStep();
-    bool isFinished() const;
+    bool isFinished(const double untilTime) const;
     void saveGrid();
     void prepareSubstep();
     void computeSubstep();
@@ -57,21 +56,20 @@ RungeKuttaSolver<ProblemType>::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CE
                                                 const Problem<ProblemType>& problem)
     : Solver<RungeKuttaSolver<ProblemType>, FieldStruct, ProblemType, GHOST_CELLS>(grid, problem),
       changeBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
-      gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()) {
-    this->timeCurrent = problem.timeStart;
-    this->timeStep = 0;
-};
+      gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()) {}
 
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::solve() {
-    while (!this->isFinished()) {
+template <class ProblemType>
+void RungeKuttaSolver<ProblemType>::solve(const std::optional<double> untilTime) {
+    while (!this->isFinished(untilTime.value_or(this->problem.timeEnd))) {
         this->computeStep();
         this->adjustTimeDelta();
         this->timeStep++;
     }
 }
 
-template <class ProblemType> bool RungeKuttaSolver<ProblemType>::isFinished() const {
-    return this->timeCurrent >= this->problem.timeEnd;
+template <class ProblemType>
+bool RungeKuttaSolver<ProblemType>::isFinished(const double untilTime) const {
+    return this->timeCurrent >= untilTime;
 }
 
 template <class ProblemType> void RungeKuttaSolver<ProblemType>::computeStep() {

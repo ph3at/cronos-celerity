@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
     RungeKuttaSolver<ShockTube> solver(grid, problem);
 
     std::cout << "------ Solving Grid ------" << std::endl << std::endl;
-    solver.solve();
+    solver.solve(std::nullopt);
     std::cout << grid(GHOST_CELLS, GHOST_CELLS, GHOST_CELLS)[0];
 
     return EXIT_SUCCESS;
