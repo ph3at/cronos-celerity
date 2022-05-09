@@ -18,7 +18,8 @@
 typedef std::array<FieldStruct, Direction::DirMax> Changes;
 
 template <class ProblemType>
-class RungeKuttaSolver : public Solver<FieldStruct, ProblemType, GHOST_CELLS> {
+class RungeKuttaSolver
+    : public Solver<RungeKuttaSolver<ProblemType>, FieldStruct, ProblemType, GHOST_CELLS> {
   public:
     RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
                      const Problem<ProblemType>& problem);
@@ -54,7 +55,7 @@ class RungeKuttaSolver : public Solver<FieldStruct, ProblemType, GHOST_CELLS> {
 template <class ProblemType>
 RungeKuttaSolver<ProblemType>::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
                                                 const Problem<ProblemType>& problem)
-    : Solver<FieldStruct, ProblemType, GHOST_CELLS>(grid, problem),
+    : Solver<RungeKuttaSolver<ProblemType>, FieldStruct, ProblemType, GHOST_CELLS>(grid, problem),
       changeBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
       gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()) {
     this->timeCurrent = problem.timeStart;
