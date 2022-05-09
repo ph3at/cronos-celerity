@@ -16,6 +16,7 @@ template <class Specific, class Fields, class ProblemType, unsigned ghostCells> 
     const Problem<ProblemType>& problem;
     double timeDelta;
     double timeCurrent;
+    double timeEnd;
     unsigned timeStep;
 };
 
@@ -25,11 +26,13 @@ Solver<Specific, Fields, ProblemType, ghostCells>::Solver(PaddedGrid<Fields, gho
     : grid(grid), problem(problem) {
     this->timeDelta = problem.timeDelta;
     this->timeCurrent = problem.timeStart;
+    this->timeEnd = problem.timeEnd;
     this->timeStep = 0;
 }
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
 void Solver<Specific, Fields, ProblemType, ghostCells>::solve(
     const std::optional<double> untilTime) {
-    static_cast<Specific*>(this)->solve(untilTime);
+    this->timeEnd = untilTime.value_or(this->problem.timeEnd);
+    static_cast<Specific*>(this)->integrate();
 }
