@@ -44,7 +44,7 @@ void Solver<Specific, Fields, ProblemType, ghostCells>::solve(
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
 void Solver<Specific, Fields, ProblemType, ghostCells>::initialise() {
     this->problem.initialiseGrid(this->grid);
-    // Boundary::applyAll(this->grid, this->problem);
+    Boundary::applyAll(this->grid, this->problem);
 }
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>

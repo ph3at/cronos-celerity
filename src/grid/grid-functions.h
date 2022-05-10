@@ -42,9 +42,9 @@ void GridFunctions::printGrid(const PaddedGrid<FieldStruct, padding>& grid) {
 template <unsigned padding1, unsigned padding2>
 void GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
                             const PaddedGrid<FieldStruct, padding2>& other) {
-    /* assert(baseline.xEnd() - baseline.xStart() == other.xEnd() - other.xStart()); */
-    /* assert(baseline.yEnd() - baseline.yStart() == other.yEnd() - other.yStart()); */
-    /* assert(baseline.zEnd() - baseline.zStart() == other.zEnd() - other.zStart()); */
+    assert(baseline.xEnd() - baseline.xStart() == other.xEnd() - other.xStart());
+    assert(baseline.yEnd() - baseline.yStart() == other.yEnd() - other.yStart());
+    assert(baseline.zEnd() - baseline.zStart() == other.zEnd() - other.zStart());
     const int offset = 2;
 
     double maxDiff = 0;
@@ -53,16 +53,15 @@ void GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
         for (int y = baseline.yStart(); y < static_cast<int>(baseline.yEnd()); y++) {
             for (int z = baseline.zStart(); z < static_cast<int>(baseline.zEnd()); z++) {
                 for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-                    double diff = std::abs(baseline(x, y, z)[field] -
-                                           other(offset + x, offset + y, offset + z)[field]);
+                    double correct = baseline(x, y, z)[field];
+                    double actual = other(offset + x, offset + y, offset + z)[field];
+                    double diff = std::abs(correct - actual);
                     if (diff > maxDiff) {
                         maxDiff = diff;
                     }
-                    if (diff > 0.5 || x == 100) {
-                        std::cout << "(" << x << "," << y << "," << z << ")[" << field << "]: ("
-                                  << baseline(x, y, z)[field] << ","
-                                  << other(offset + x, offset + y, offset + z)[field] << ")"
-                                  << std::endl;
+                    if (correct != 0 && diff / std::abs(correct) > 0.05) {
+                        std::cerr << "(" << x << "," << y << "," << z << ")[" << field << "]: ("
+                                  << correct << "," << actual << ")" << std::endl;
                     }
                     sumSquaredError += diff * diff;
                 }

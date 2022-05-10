@@ -136,6 +136,7 @@ Changes RungeKuttaSolver<ProblemType>::computeChanges(const unsigned x, const un
             reconstruction[face], this->problem.thermal, this->problem.gamma);
         RiemannSolver::computeFluxes(physicalValues[face], reconstruction[face], face);
     }
+
     Changes changes;
     for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
         unsigned face = dir * 2;
@@ -176,12 +177,6 @@ void RungeKuttaSolver<ProblemType>::finaliseSubstep(const unsigned substep) {
 
     this->problem.applySource(this->grid);
     this->checkErrors();
-
-    if (this->timeStep == 0 && substep == 0) {
-        const SimpleGrid<FieldStruct> resultOfOld =
-            GridFunctions::readFromFile("test-data/changes-1.dat");
-        GridFunctions::compare(resultOfOld, this->changeBuffer);
-    }
 
     Transformation::primitiveToConservative(this->grid, this->problem.thermal, this->problem.gamma);
     this->integrateTime(substep);
