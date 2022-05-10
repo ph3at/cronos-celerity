@@ -177,6 +177,12 @@ void RungeKuttaSolver<ProblemType>::finaliseSubstep(const unsigned substep) {
     this->problem.applySource(this->grid);
     this->checkErrors();
 
+    if (this->timeStep == 0 && substep == 0) {
+        const SimpleGrid<FieldStruct> resultOfOld =
+            GridFunctions::readFromFile("test-data/changes-1.dat");
+        GridFunctions::compare(resultOfOld, this->changeBuffer);
+    }
+
     Transformation::primitiveToConservative(this->grid, this->problem.thermal, this->problem.gamma);
     this->integrateTime(substep);
     Transformation::conservativeToPrimitive(this->grid, this->problem.thermal, this->problem.gamma);

@@ -21,7 +21,7 @@ ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double
       velocityZRightInit(shockDir == Direction::DirZ ? velocityRightInit : 0.0),
       pressureLeftInit(pressureLeftInit), pressureRightInit(pressureRightInit) {}
 
-void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) {
+void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {
     double posParallel;
     for (unsigned x = 0; x < grid.xDim(); x++) {
         for (unsigned y = 0; y < grid.yDim(); y++) {

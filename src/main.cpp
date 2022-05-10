@@ -11,13 +11,12 @@ int main(int argc, char** argv) {
     PaddedGrid<FieldStruct, GHOST_CELLS> grid({}, problem.numberCells[Direction::DirX],
                                               problem.numberCells[Direction::DirY],
                                               problem.numberCells[Direction::DirZ]);
-    problem.initialiseGrid(grid);
 
     RungeKuttaSolver<ShockTube> solver(grid, problem);
-
-    std::cout << "------ Solving Grid ------" << std::endl << std::endl;
+    solver.initialise();
+    std::cout << "----------------- Solving Grid -----------------" << std::endl << std::endl;
     solver.solve(std::nullopt);
-    std::cout << grid(GHOST_CELLS, GHOST_CELLS, GHOST_CELLS)[0];
+    solver.report();
 
     return EXIT_SUCCESS;
 }

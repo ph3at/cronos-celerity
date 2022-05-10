@@ -14,7 +14,7 @@ class ShockTube : public Problem<ShockTube> {
               const double velocityRightInit, const double pressureLeftInit,
               const double pressureRightInit);
 
-    void initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid);
+    void initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const;
     void applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned field,
                        const unsigned face) const;
     void applySource(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const;

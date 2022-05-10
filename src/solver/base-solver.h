@@ -3,12 +3,14 @@
 #include <iostream>
 #include <optional>
 
+#include "../boundary/boundary.h"
 #include "../configuration/problem.h"
 #include "../grid/padded-grid.h"
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells> class Solver {
   public:
     void solve(const std::optional<double> untilTime);
+    void initialise();
     void report() const;
 
   protected:
@@ -37,6 +39,12 @@ void Solver<Specific, Fields, ProblemType, ghostCells>::solve(
     const std::optional<double> untilTime) {
     this->timeEnd = untilTime.value_or(this->problem.timeEnd);
     static_cast<Specific*>(this)->integrate();
+}
+
+template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
+void Solver<Specific, Fields, ProblemType, ghostCells>::initialise() {
+    this->problem.initialiseGrid(this->grid);
+    // Boundary::applyAll(this->grid, this->problem);
 }
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
