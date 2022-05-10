@@ -6,9 +6,9 @@ project( cronos-amr )
 ####################
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 set( CMAKE_CPP_COMPILER clang )
-set ( CXX_STANDARD C++20 )
 add_compile_options( -Wall -Wextra -Wpedantic -O2 -march=native )
-
+set( CMAKE_CXX_STANDARD 20 )
+set( CMAKE_CXX_STANDARD_REQUIRED ON )
 
 #########
 # Build #
