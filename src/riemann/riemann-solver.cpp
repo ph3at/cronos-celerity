@@ -13,7 +13,7 @@ void computeFluxes(PhysValues& fields, const FieldStruct& reconstruction, const 
     fields.fluxes[FieldNames::DENSITY] =
         reconstruction[FieldNames::VELOCITY_X + dir] * reconstruction[FieldNames::DENSITY];
     for (unsigned fluxDir = FieldNames::VELOCITY_X; fluxDir <= FieldNames::VELOCITY_Z; fluxDir++) {
-        if (fluxDir == dir) {
+        if (fluxDir == dir + 1) {
             fields.fluxes[fluxDir] =
                 fields.conservatives[fluxDir] * reconstruction[fluxDir] + fields.thermalPressure;
         } else {
