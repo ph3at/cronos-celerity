@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <optional>
 
 #include "../configuration/problem.h"
@@ -8,6 +9,7 @@
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells> class Solver {
   public:
     void solve(const std::optional<double> untilTime);
+    void report() const;
 
   protected:
     Solver(PaddedGrid<Fields, ghostCells>& grid, const Problem<ProblemType>& problem);
@@ -35,4 +37,10 @@ void Solver<Specific, Fields, ProblemType, ghostCells>::solve(
     const std::optional<double> untilTime) {
     this->timeEnd = untilTime.value_or(this->problem.timeEnd);
     static_cast<Specific*>(this)->integrate();
+}
+
+template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
+void Solver<Specific, Fields, ProblemType, ghostCells>::report() const {
+    std::cout << "Stopped at time " << this->timeCurrent << ", after " << this->timeStep
+              << " steps." << std::endl;
 }
