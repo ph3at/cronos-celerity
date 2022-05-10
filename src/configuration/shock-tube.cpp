@@ -27,11 +27,14 @@ void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) {
         for (unsigned y = 0; y < grid.yDim(); y++) {
             for (unsigned z = 0; z < grid.zDim(); z++) {
                 if (this->shockDir == Direction::DirX) {
-                    posParallel = this->cellSize[Direction::DirX] * (static_cast<double>(x) + 0.5);
+                    posParallel = this->cellSize[Direction::DirX] *
+                                  (static_cast<double>(x) - GHOST_CELLS + 0.5);
                 } else if (this->shockDir == Direction::DirY) {
-                    posParallel = this->cellSize[Direction::DirY] * (static_cast<double>(y) + 0.5);
+                    posParallel = this->cellSize[Direction::DirY] *
+                                  (static_cast<double>(y) - GHOST_CELLS + 0.5);
                 } else {
-                    posParallel = this->cellSize[Direction::DirZ] * (static_cast<double>(z) + 0.5);
+                    posParallel = this->cellSize[Direction::DirZ] *
+                                  (static_cast<double>(z) - GHOST_CELLS + 0.5);
                 }
                 if (posParallel < this->shockPos) {
                     grid(x, y, z)[FieldNames::DENSITY] = this->densityLeftInit;
@@ -92,7 +95,7 @@ void ShockTube::applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const 
     }
 }
 
-void ShockTube::applySource(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {
+void ShockTube::applySource([[maybe_unused]] PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {
     // No source in shock tube
 }
 
@@ -100,15 +103,15 @@ constexpr double CFL_THRESHOLD = 0.4;
 constexpr bool THERMAL = true;
 constexpr double TIME_DELTA = 0.000002;
 constexpr double TIME_START = 0.0;
-constexpr double TIME_END = 0.00005; // 0.000012?
+constexpr double TIME_END = 0.0005; // 0.000012?
 constexpr double GAMMA = 1.4;
 constexpr std::size_t NUMBER_CELLS_X = 200;
 constexpr double X_START = 0.0;
 constexpr double X_END = 1.0;
-constexpr std::size_t NUMBER_CELLS_Y = 1;
+constexpr std::size_t NUMBER_CELLS_Y = 5;
 constexpr double Y_START = 0.0;
 constexpr double Y_END = 1.0;
-constexpr std::size_t NUMBER_CELLS_Z = 1;
+constexpr std::size_t NUMBER_CELLS_Z = 5;
 constexpr double Z_START = 0.0;
 constexpr double Z_END = 1.0;
 constexpr Direction SHOCK_DIR = Direction::DirX;
