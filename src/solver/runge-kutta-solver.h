@@ -200,12 +200,12 @@ void RungeKuttaSolver<ProblemType>::integrateTime(const unsigned substep) {
                 for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
                     if (substep == 0) { // if-statement should be pulled out by compiler
                         this->grid(x, y, z)[field] -=
-                            this->timeDelta * changeBuffer(x, y, z)[field];
+                            this->timeDelta * this->changeBuffer(x, y, z)[field];
                     } else {
                         this->grid(x, y, z)[field] =
                             0.5 * this->gridSubstepBuffer(x, y, z)[field] +
                             0.5 * this->grid(x, y, z)[field] -
-                            0.5 * this->timeDelta * changeBuffer(x, y, z)[field];
+                            0.5 * this->timeDelta * this->changeBuffer(x, y, z)[field];
                     }
                 }
             }

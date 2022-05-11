@@ -45,7 +45,7 @@ void GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
     assert(baseline.xEnd() - baseline.xStart() == other.xEnd() - other.xStart());
     assert(baseline.yEnd() - baseline.yStart() == other.yEnd() - other.yStart());
     assert(baseline.zEnd() - baseline.zStart() == other.zEnd() - other.zStart());
-    const int offset = 2;
+    const int offset = padding2 - padding1;
 
     double maxDiff = 0;
     double sumSquaredError = 0;
