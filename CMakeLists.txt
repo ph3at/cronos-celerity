@@ -14,6 +14,22 @@ set( CMAKE_CXX_STANDARD_REQUIRED ON )
 # Build #
 #########
 file(GLOB_RECURSE SRC src/*.cpp)
+list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 file(GLOB_RECURSE HDR src/*.h)
 
-add_executable(cronos-amr ${SRC} ${HDR})
+add_executable(cronos-amr src/main.cpp ${SRC} ${HDR})
+
+###########
+# Testing #
+###########
+find_package(Catch2 2 REQUIRED)
+add_executable(tests test/test.cpp ${SRC} ${HDR})
+target_link_libraries(tests PRIVATE Catch2::Catch2)
+
+# Automatically register tests
+include(CTest)
+include(Catch)
+catch_discover_tests(tests)
+
+# Copy test data to build folder
+file(COPY test/test-data DESTINATION .)
