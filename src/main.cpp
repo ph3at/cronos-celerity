@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
     RungeKuttaSolver<ShockTube> solver(grid, problem);
     solver.initialise();
     std::cout << "----------------- Solving Grid -----------------" << std::endl << std::endl;
-    solver.solve(std::nullopt);
+    solver.solve();
     solver.report();
 
     const SimpleGrid<FieldStruct> resultOfOld = GridFunctions::readFromFile("test-data/after.dat");

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <iostream>
-#include <optional>
 
 #include "../boundary/boundary.h"
 #include "../configuration/problem.h"
@@ -9,7 +8,9 @@
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells> class Solver {
   public:
-    void solve(const std::optional<double> untilTime);
+    void solve();
+    void solve(const double untilTime);
+    void step();
     void initialise();
     void report() const;
 
@@ -22,6 +23,9 @@ template <class Specific, class Fields, class ProblemType, unsigned ghostCells> 
     double timeCurrent;
     double timeEnd;
     unsigned timeStep;
+
+  private:
+    void doSolve();
 };
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
@@ -35,10 +39,27 @@ Solver<Specific, Fields, ProblemType, ghostCells>::Solver(PaddedGrid<Fields, gho
 }
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
-void Solver<Specific, Fields, ProblemType, ghostCells>::solve(
-    const std::optional<double> untilTime) {
-    this->timeEnd = untilTime.value_or(this->problem.timeEnd);
-    static_cast<Specific*>(this)->integrate();
+void Solver<Specific, Fields, ProblemType, ghostCells>::solve() {
+    this->timeEnd = this->problem.timeEnd;
+    this->doSolve();
+}
+
+template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
+void Solver<Specific, Fields, ProblemType, ghostCells>::solve(const double untilTime) {
+    this->timeEnd = untilTime;
+    this->doSolve();
+}
+
+template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
+void Solver<Specific, Fields, ProblemType, ghostCells>::doSolve() {
+    while (!static_cast<Specific*>(this)->isFinished()) {
+        static_cast<Specific*>(this)->singleStep();
+    }
+}
+
+template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
+void Solver<Specific, Fields, ProblemType, ghostCells>::step() {
+    static_cast<Specific*>(this)->singleStep();
 }
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>

@@ -25,7 +25,8 @@ class RungeKuttaSolver
     RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
                      const Problem<ProblemType>& problem);
 
-    void integrate();
+    void singleStep();
+    bool isFinished() const;
 
   private:
     SimpleGrid<FieldStruct> changeBuffer;
@@ -35,7 +36,6 @@ class RungeKuttaSolver
     const unsigned rungeKuttaSteps = 2;
 
     void computeStep();
-    bool isFinished() const;
     void saveGrid();
     void prepareSubstep();
     void computeSubstep();
@@ -58,12 +58,10 @@ RungeKuttaSolver<ProblemType>::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CE
       changeBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
       gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()) {}
 
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::integrate() {
-    while (!this->isFinished()) {
-        this->computeStep();
-        this->adjustTimeDelta();
-        this->timeStep++;
-    }
+template <class ProblemType> void RungeKuttaSolver<ProblemType>::singleStep() {
+    this->computeStep();
+    this->adjustTimeDelta();
+    this->timeStep++;
 }
 
 template <class ProblemType> bool RungeKuttaSolver<ProblemType>::isFinished() const {
