@@ -13,8 +13,8 @@ namespace GridFunctions {
 bool checkNaN(const PaddedGrid<FieldStruct, GHOST_CELLS>& grid);
 template <unsigned padding> void printGrid(const PaddedGrid<FieldStruct, padding>& grid);
 template <unsigned padding1, unsigned padding2>
-void compare(const PaddedGrid<FieldStruct, padding1>& baseline,
-             const PaddedGrid<FieldStruct, padding2>& other);
+double compare(const PaddedGrid<FieldStruct, padding1>& baseline,
+               const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput);
 SimpleGrid<FieldStruct> readFromFile(const std::string filename);
 }; // namespace GridFunctions
 
@@ -40,15 +40,16 @@ void GridFunctions::printGrid(const PaddedGrid<FieldStruct, padding>& grid) {
 }
 
 template <unsigned padding1, unsigned padding2>
-void GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
-                            const PaddedGrid<FieldStruct, padding2>& other) {
+double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
+                              const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput) {
     assert(baseline.xEnd() - baseline.xStart() == other.xEnd() - other.xStart());
     assert(baseline.yEnd() - baseline.yStart() == other.yEnd() - other.yStart());
     assert(baseline.zEnd() - baseline.zStart() == other.zEnd() - other.zStart());
     const int offset = padding2 - padding1;
 
-    double maxDiff = 0;
-    double sumSquaredError = 0;
+    double maxDiff = 0.0;
+    double sumSquaredError = 0.0;
+    double averageDeviation = 0.0;
     for (int x = baseline.xStart(); x < static_cast<int>(baseline.xEnd()); x++) {
         for (int y = baseline.yStart(); y < static_cast<int>(baseline.yEnd()); y++) {
             for (int z = baseline.zStart(); z < static_cast<int>(baseline.zEnd()); z++) {
@@ -59,9 +60,19 @@ void GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
                     if (diff > maxDiff) {
                         maxDiff = diff;
                     }
-                    if (correct != 0 && diff / std::abs(correct) > 0.05) {
-                        std::cerr << "(" << x << "," << y << "," << z << ")[" << field << "]: ("
-                                  << correct << "," << actual << ")" << std::endl;
+                    if (diff != 0) {
+                        double factor;
+                        if (correct != 0) {
+                            factor = correct;
+                        } else {
+                            factor = actual;
+                        }
+                        double deviation = diff / factor;
+                        if (doOutput && deviation > 0.05) {
+                            std::cerr << "(" << x << "," << y << "," << z << ")[" << field << "]: ("
+                                      << correct << "," << actual << ")" << std::endl;
+                        }
+                        averageDeviation += deviation;
                     }
                     sumSquaredError += diff * diff;
                 }
@@ -71,8 +82,13 @@ void GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
     double numValues = static_cast<double>(
         (baseline.xEnd() - baseline.xStart()) * (baseline.yEnd() - baseline.yStart()) *
         (baseline.zEnd() - baseline.zStart()) * NUM_PHYSICAL_FIELDS);
-    double rms = std::sqrt(sumSquaredError / numValues);
-    std::cout << "Root of mean squared error: " << rms << ", with a maximum deviation of "
-              << maxDiff << std::endl;
+    averageDeviation /= numValues;
+    if (doOutput) {
+        double rms = std::sqrt(sumSquaredError / numValues);
+        std::cout << "Root of mean squared error: " << rms << ", with a maximum deviation of "
+                  << maxDiff << std::endl
+                  << " and average percentile deviation " << averageDeviation * 100.0 << ".";
+    }
+    return averageDeviation;
 }
 
