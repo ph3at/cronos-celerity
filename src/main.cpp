@@ -15,12 +15,14 @@ int main(int argc, char** argv) {
     RungeKuttaSolver<ShockTube> solver(grid, problem);
     solver.initialise();
     std::cout << "----------------- Solving Grid -----------------" << std::endl << std::endl;
-    solver.solve();
-    solver.report();
 
-    const SimpleGrid<FieldStruct> resultOfOld =
-        GridFunctions::readFromFile("test-data/step-16.dat");
-    GridFunctions::compare(resultOfOld, grid, true);
+    for (unsigned timeStep = 1; timeStep <= 16; timeStep++) {
+        solver.step();
+        const SimpleGrid<FieldStruct> baseline =
+            GridFunctions::readFromFile("test-data/step-" + std::to_string(timeStep) + ".dat");
+        GridFunctions::compare(baseline, grid, true, false);
+    }
+    solver.report();
 
     return EXIT_SUCCESS;
 }

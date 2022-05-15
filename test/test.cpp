@@ -15,16 +15,14 @@ TEST_CASE("Shock-Tube integration test", "[IntegrationTest]") {
     RungeKuttaSolver<ShockTube> solver(grid, problem);
     solver.initialise();
 
-    double deviationPerSteps = 1.0 + 1e-4;
-    double deviationThreshold = deviationPerSteps;
+    double deviationPerStep = 1.0005;
+    double deviationThreshold = deviationPerStep;
     for (unsigned timeStep = 1; timeStep <= 16; timeStep++) {
         solver.step();
-        if (timeStep % 4 == 0) {
-            const SimpleGrid<FieldStruct> baseline =
-                GridFunctions::readFromFile("test-data/step-" + std::to_string(timeStep) + ".dat");
-            double averageDeviation = GridFunctions::compare(baseline, grid, false);
-            REQUIRE(averageDeviation < deviationThreshold - 1.0);
-            deviationThreshold *= deviationPerSteps;
-        }
+        const SimpleGrid<FieldStruct> baseline =
+            GridFunctions::readFromFile("test-data/step-" + std::to_string(timeStep) + ".dat");
+        double averageDeviation = GridFunctions::compare(baseline, grid, false, false);
+        REQUIRE(averageDeviation < deviationThreshold - 1.0);
+        deviationThreshold *= deviationPerStep;
     }
 }

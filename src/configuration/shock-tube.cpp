@@ -2,6 +2,8 @@
 
 ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double timeDelta,
                      const double timeStart, const double timeEnd, const double gamma,
+                     const std::array<double, Direction::DirMax> posLeft,
+                     const std::array<double, Direction::DirMax> posRight,
                      const std::array<std::size_t, Direction::DirMax> numberCells,
                      const std::array<double, Direction::DirMax> cellSize,
                      const std::array<BoundaryType, Faces::FaceMax> boundaryTypes,
@@ -9,8 +11,8 @@ ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double
                      const double densityRightInit, const double velocityLeftInit,
                      const double velocityRightInit, const double pressureLeftInit,
                      const double pressureRightInit)
-    : Problem<ShockTube>(cflThreshold, thermal, timeDelta, timeStart, timeEnd, gamma, numberCells,
-                         cellSize, boundaryTypes),
+    : Problem<ShockTube>(cflThreshold, thermal, timeDelta, timeStart, timeEnd, gamma, posLeft,
+                         posRight, numberCells, cellSize, boundaryTypes),
       shockDir(shockDir), shockPos(shockPos), densityLeftInit(densityLeftInit),
       densityRightInit(densityRightInit),
       velocityXLeftInit(shockDir == Direction::DirX ? velocityLeftInit : 0.0),
@@ -27,14 +29,17 @@ void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const
         for (unsigned y = 0; y < grid.yDim(); y++) {
             for (unsigned z = 0; z < grid.zDim(); z++) {
                 if (this->shockDir == Direction::DirX) {
-                    posParallel = this->cellSize[Direction::DirX] *
-                                  (static_cast<double>(x) - GHOST_CELLS + 0.5);
+                    posParallel = this->posLeft[Direction::DirX] +
+                                  this->cellSize[Direction::DirX] *
+                                      (static_cast<double>(x) - GHOST_CELLS + 0.5);
                 } else if (this->shockDir == Direction::DirY) {
-                    posParallel = this->cellSize[Direction::DirY] *
-                                  (static_cast<double>(y) - GHOST_CELLS + 0.5);
+                    posParallel = this->posLeft[Direction::DirY] +
+                                  this->cellSize[Direction::DirY] *
+                                      (static_cast<double>(y) - GHOST_CELLS + 0.5);
                 } else {
-                    posParallel = this->cellSize[Direction::DirZ] *
-                                  (static_cast<double>(z) - GHOST_CELLS + 0.5);
+                    posParallel = this->posLeft[Direction::DirZ] +
+                                  this->cellSize[Direction::DirZ] *
+                                      (static_cast<double>(z) - GHOST_CELLS + 0.5);
                 }
                 if (posParallel < this->shockPos) {
                     grid(x, y, z)[FieldNames::DENSITY] = this->densityLeftInit;
@@ -105,15 +110,15 @@ constexpr double TIME_DELTA = 0.000002;
 constexpr double TIME_START = 0.0;
 constexpr double TIME_END = 0.0005;
 constexpr double GAMMA = 1.4;
-constexpr std::size_t NUMBER_CELLS_X = 200;
-constexpr double X_START = 0.0;
-constexpr double X_END = 1.0;
+constexpr std::size_t NUMBER_CELLS_X = 20;
+constexpr double X_START = 0.45;
+constexpr double X_END = 0.55;
 constexpr std::size_t NUMBER_CELLS_Y = 5;
-constexpr double Y_START = 0.0;
-constexpr double Y_END = 1.0;
+constexpr double Y_START = 0.45;
+constexpr double Y_END = 0.55;
 constexpr std::size_t NUMBER_CELLS_Z = 5;
-constexpr double Z_START = 0.0;
-constexpr double Z_END = 1.0;
+constexpr double Z_START = 0.45;
+constexpr double Z_END = 0.55;
 constexpr Direction SHOCK_DIR = Direction::DirX;
 constexpr double SHOCK_POS = 0.5;
 constexpr double DENSITY_LEFT_INIT = 1.0;
@@ -124,6 +129,9 @@ constexpr double PRESSURE_LEFT_INIT = 1000.0;
 constexpr double PRESSURE_RIGHT_INIT = 0.01;
 
 ShockTube ShockTube::initialiseTestProblem() {
+    const std::array<double, Direction::DirMax> posLeft = { X_START, Y_START, Z_START };
+    const std::array<double, Direction::DirMax> posRight = { X_END, Y_END, Z_END };
+
     const std::array<std::size_t, Direction::DirMax> numberCells = { NUMBER_CELLS_X, NUMBER_CELLS_Y,
                                                                      NUMBER_CELLS_Z };
 
@@ -136,8 +144,8 @@ ShockTube ShockTube::initialiseTestProblem() {
         BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE
     };
 
-    return ShockTube(CFL_THRESHOLD, THERMAL, TIME_DELTA, TIME_START, TIME_END, GAMMA, numberCells,
-                     cellSize, boundaryTypes, SHOCK_DIR, SHOCK_POS, DENSITY_LEFT_INIT,
-                     DENSITY_RIGHT_INIT, VELOCITY_LEFT_INIT, VELOCITY_RIGHT_INIT,
+    return ShockTube(CFL_THRESHOLD, THERMAL, TIME_DELTA, TIME_START, TIME_END, GAMMA, posLeft,
+                     posRight, numberCells, cellSize, boundaryTypes, SHOCK_DIR, SHOCK_POS,
+                     DENSITY_LEFT_INIT, DENSITY_RIGHT_INIT, VELOCITY_LEFT_INIT, VELOCITY_RIGHT_INIT,
                      PRESSURE_LEFT_INIT, PRESSURE_RIGHT_INIT);
 }

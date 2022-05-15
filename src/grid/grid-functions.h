@@ -14,7 +14,8 @@ bool checkNaN(const PaddedGrid<FieldStruct, GHOST_CELLS>& grid);
 template <unsigned padding> void printGrid(const PaddedGrid<FieldStruct, padding>& grid);
 template <unsigned padding1, unsigned padding2>
 double compare(const PaddedGrid<FieldStruct, padding1>& baseline,
-               const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput);
+               const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput,
+               const bool verbose);
 SimpleGrid<FieldStruct> readFromFile(const std::string filename);
 }; // namespace GridFunctions
 
@@ -41,7 +42,8 @@ void GridFunctions::printGrid(const PaddedGrid<FieldStruct, padding>& grid) {
 
 template <unsigned padding1, unsigned padding2>
 double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
-                              const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput) {
+                              const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput,
+                              const bool verbose) {
     assert(baseline.xEnd() - baseline.xStart() == other.xEnd() - other.xStart());
     assert(baseline.yEnd() - baseline.yStart() == other.yEnd() - other.yStart());
     assert(baseline.zEnd() - baseline.zStart() == other.zEnd() - other.zStart());
@@ -72,8 +74,8 @@ double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
                         } else {
                             factor = actual;
                         }
-                        double deviation = diff / factor;
-                        if (doOutput && deviation > 0.05) {
+                        double deviation = diff / std::abs(factor);
+                        if (doOutput && verbose && deviation > 0.01) {
                             std::cerr << "(" << x << "," << y << "," << z << ")[" << field << "]: ("
                                       << correct << "," << actual << ")" << std::endl;
                         }
