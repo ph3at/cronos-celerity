@@ -1,7 +1,7 @@
 #include <cmath>
 #include <tuple>
 
-#include "../misc/direction.h"
+#include "../data-types/direction.h"
 #include "riemann-solver.h"
 
 constexpr double HLLCSOLVER_HYDRO_VEPS = 1.e-120;

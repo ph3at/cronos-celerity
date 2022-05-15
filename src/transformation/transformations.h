@@ -3,8 +3,8 @@
 #include <array>
 
 #include "../configuration/constants.h"
-#include "../field-wrapper/face-values.h"
-#include "../field-wrapper/phys-values.h"
+#include "../data-types/face-values.h"
+#include "../data-types/phys-values.h"
 #include "../grid/padded-grid.h"
 
 constexpr double DEFAULT_GAMMA = 1.4;

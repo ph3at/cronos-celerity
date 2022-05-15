@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../field-wrapper/fields.h"
+#include "../data-types/fields.h"
 
 namespace RiemannSolver {
 void computeFluxes(PhysValues& fields, const FieldStruct& reconstruction, const unsigned face);

@@ -5,16 +5,16 @@
 
 #include "../boundary/boundary.h"
 #include "../configuration/constants.h"
-#include "../field-wrapper/fields.h"
+#include "../data-types/direction.h"
+#include "../data-types/faces.h"
+#include "../data-types/fields.h"
 #include "../grid/grid-functions.h"
 #include "../grid/padded-grid.h"
 #include "../grid/simple-grid.h"
-#include "../misc/direction.h"
-#include "../misc/faces.h"
-#include "../misc/transformations.h"
 #include "../riemann/reconstruction.h"
 #include "../riemann/riemann-solver.h"
 #include "../solver/base-solver.h"
+#include "../transformation/transformations.h"
 
 typedef std::array<FieldStruct, Direction::DirMax> Changes;
 

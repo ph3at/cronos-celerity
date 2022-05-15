@@ -3,10 +3,10 @@
 #include <array>
 
 #include "../boundary/boundary-types.h"
-#include "../field-wrapper/phys-fields.h"
+#include "../data-types/direction.h"
+#include "../data-types/faces.h"
+#include "../data-types/phys-fields.h"
 #include "../grid/padded-grid.h"
-#include "../misc/direction.h"
-#include "../misc/faces.h"
 #include "constants.h"
 
 template <class Specific> class Problem {

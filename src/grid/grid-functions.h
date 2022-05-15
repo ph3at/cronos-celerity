@@ -7,7 +7,7 @@
 #include "simple-grid.h"
 
 #include "../configuration/constants.h"
-#include "../field-wrapper/phys-fields.h"
+#include "../data-types/phys-fields.h"
 
 namespace GridFunctions {
 bool checkNaN(const PaddedGrid<FieldStruct, GHOST_CELLS>& grid);

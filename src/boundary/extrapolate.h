@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../field-wrapper/phys-fields.h"
+#include "../data-types/faces.h"
+#include "../data-types/phys-fields.h"
 #include "../grid/padded-grid.h"
-#include "../misc/faces.h"
 
 namespace Extrapolate {
 template <unsigned padding>

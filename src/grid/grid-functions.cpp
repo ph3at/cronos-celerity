@@ -1,7 +1,7 @@
 #include <cmath>
 #include <fstream>
 
-#include "../misc/faces.h"
+#include "../data-types/faces.h"
 #include "grid-functions.h"
 
 namespace GridFunctions {
