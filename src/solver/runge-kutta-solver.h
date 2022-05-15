@@ -12,7 +12,7 @@
 #include "../misc/direction.h"
 #include "../misc/faces.h"
 #include "../misc/transformations.h"
-#include "../reconstruction/reconstruction.h"
+#include "../riemann/reconstruction.h"
 #include "../riemann/riemann-solver.h"
 #include "../solver/base-solver.h"
 

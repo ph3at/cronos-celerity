@@ -18,7 +18,8 @@ int main(int argc, char** argv) {
     solver.solve();
     solver.report();
 
-    const SimpleGrid<FieldStruct> resultOfOld = GridFunctions::readFromFile("test-data/after.dat");
+    const SimpleGrid<FieldStruct> resultOfOld =
+        GridFunctions::readFromFile("test-data/step-16.dat");
     GridFunctions::compare(resultOfOld, grid, true);
 
     return EXIT_SUCCESS;
