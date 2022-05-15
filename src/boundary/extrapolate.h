@@ -19,20 +19,20 @@ void applyZ(PaddedGrid<FieldStruct, padding>& grid, const unsigned field, const 
 template <unsigned padding>
 void Extrapolate::applyX(PaddedGrid<FieldStruct, padding>& grid, const unsigned field,
                          const bool isLeft) {
-    unsigned xInner, xOuter;
+    int xInner, xOuter;
     int direction;
     if (isLeft) {
         xInner = grid.xStart() - 1;
-        xOuter = 0;
+        xOuter = -1;
         direction = -1;
     } else {
         xInner = grid.xEnd();
-        xOuter = grid.xDim() - 1;
+        xOuter = grid.xDim();
         direction = 1;
     }
-    for (unsigned x = xInner; x != xOuter; x += direction) {
-        for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
-            for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
+    for (int x = xInner; x != xOuter; x += direction) {
+        for (unsigned y = 0; y < grid.yDim(); y++) {
+            for (unsigned z = 0; z < grid.zDim(); z++) {
                 grid(x, y, z)[field] = grid(x - direction, y, z)[field];
             }
         }
@@ -42,20 +42,20 @@ void Extrapolate::applyX(PaddedGrid<FieldStruct, padding>& grid, const unsigned 
 template <unsigned padding>
 void Extrapolate::applyY(PaddedGrid<FieldStruct, padding>& grid, const unsigned field,
                          const bool isLeft) {
-    unsigned yInner, yOuter;
+    int yInner, yOuter;
     int direction;
     if (isLeft) {
         yInner = grid.yStart() - 1;
-        yOuter = 0;
+        yOuter = -1;
         direction = -1;
     } else {
         yInner = grid.yEnd();
-        yOuter = grid.yDim() - 1;
+        yOuter = grid.yDim();
         direction = 1;
     }
-    for (unsigned x = grid.xStart(); x < grid.xEnd(); x++) {
-        for (unsigned y = yInner; y != yOuter; y += direction) {
-            for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
+    for (unsigned x = 0; x < grid.xDim(); x++) {
+        for (int y = yInner; y != yOuter; y += direction) {
+            for (unsigned z = 0; z < grid.zDim(); z++) {
                 grid(x, y, z)[field] = grid(x, y - direction, z)[field];
             }
         }
@@ -65,20 +65,20 @@ void Extrapolate::applyY(PaddedGrid<FieldStruct, padding>& grid, const unsigned 
 template <unsigned padding>
 void Extrapolate::applyZ(PaddedGrid<FieldStruct, padding>& grid, const unsigned field,
                          const bool isLeft) {
-    unsigned zInner, zOuter;
+    int zInner, zOuter;
     int direction;
     if (isLeft) {
         zInner = grid.zStart() - 1;
-        zOuter = 0;
+        zOuter = -1;
         direction = -1;
     } else {
         zInner = grid.zEnd();
-        zOuter = grid.zDim() - 1;
+        zOuter = grid.zDim();
         direction = 1;
     }
-    for (unsigned x = grid.xStart(); x < grid.xEnd(); x++) {
-        for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
-            for (unsigned z = zInner; z != zOuter; z += direction) {
+    for (unsigned x = 0; x < grid.xDim(); x++) {
+        for (unsigned y = 0; y < grid.yDim(); y++) {
+            for (int z = zInner; z != zOuter; z += direction) {
                 grid(x, y, z)[field] = grid(x, y, z - direction)[field];
             }
         }

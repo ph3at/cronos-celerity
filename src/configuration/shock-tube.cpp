@@ -46,7 +46,7 @@ void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const
                             this->pressureLeftInit / (this->gamma - 1.0);
                     } else {
                         grid(x, y, z)[FieldNames::THERMAL_ENERGY] =
-                            this->pressureLeftInit / (this->pressureLeftInit);
+                            this->pressureLeftInit / (this->densityLeftInit);
                     }
                 } else {
                     grid(x, y, z)[FieldNames::DENSITY] = this->densityRightInit;
@@ -58,7 +58,7 @@ void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const
                             this->pressureRightInit / (this->gamma - 1.0);
                     } else {
                         grid(x, y, z)[FieldNames::THERMAL_ENERGY] =
-                            this->pressureRightInit / (this->pressureRightInit);
+                            this->pressureRightInit / (this->densityRightInit);
                     }
                 }
             }
@@ -103,7 +103,7 @@ constexpr double CFL_THRESHOLD = 0.4;
 constexpr bool THERMAL = true;
 constexpr double TIME_DELTA = 0.000002;
 constexpr double TIME_START = 0.0;
-constexpr double TIME_END = 0.0005; // 0.000012?
+constexpr double TIME_END = 0.0005;
 constexpr double GAMMA = 1.4;
 constexpr std::size_t NUMBER_CELLS_X = 200;
 constexpr double X_START = 0.0;

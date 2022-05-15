@@ -50,6 +50,7 @@ double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
     double maxDiff = 0.0;
     double sumSquaredError = 0.0;
     double averageDeviation = 0.0;
+    int maxX = 0, maxY = 0, maxZ = 0, fieldMax = 0;
     for (int x = baseline.xStart(); x < static_cast<int>(baseline.xEnd()); x++) {
         for (int y = baseline.yStart(); y < static_cast<int>(baseline.yEnd()); y++) {
             for (int z = baseline.zStart(); z < static_cast<int>(baseline.zEnd()); z++) {
@@ -59,6 +60,10 @@ double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
                     double diff = std::abs(correct - actual);
                     if (diff > maxDiff) {
                         maxDiff = diff;
+                        maxX = x;
+                        maxY = y;
+                        maxZ = z;
+                        fieldMax = field;
                     }
                     if (diff != 0) {
                         double factor;
@@ -86,8 +91,10 @@ double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
     if (doOutput) {
         double rms = std::sqrt(sumSquaredError / numValues);
         std::cout << "Root of mean squared error: " << rms << ", with a maximum deviation of "
-                  << maxDiff << std::endl
-                  << " and average percentile deviation " << averageDeviation * 100.0 << ".";
+                  << maxDiff << " at (" << maxX << "," << maxY << "," << maxZ << ")[" << fieldMax
+                  << "]"
+                  << " and average percentile deviation " << averageDeviation * 100.0 << "."
+                  << std::endl;
     }
     return averageDeviation;
 }

@@ -179,6 +179,7 @@ void RungeKuttaSolver<ProblemType>::finaliseSubstep(const unsigned substep) {
     Transformation::primitiveToConservative(this->grid, this->problem.thermal, this->problem.gamma);
     this->integrateTime(substep);
     Transformation::conservativeToPrimitive(this->grid, this->problem.thermal, this->problem.gamma);
+
     Boundary::applyAll(this->grid, this->problem);
 
     // Stop clock(s)
