@@ -39,14 +39,14 @@ std::pair<double, double> characteristicVelocity(const PhysValues& physValsLeft,
     double soundVelocityRight = std::sqrt(gamma * physValsRight.thermalPressure /
                                           physValsRight.conservatives[FieldNames::DENSITY]);
 
-    double characVelLeft = std::max(
+    double characVelPlus = std::max(
         std::max(soundVelocityLeft + flowVelocityLeft, soundVelocityRight + flowVelocityRight),
         0.0);
-    double characVelRight = std::max(
+    double characVelMinus = std::max(
         std::max(soundVelocityLeft - flowVelocityLeft, soundVelocityRight - flowVelocityRight),
         0.0);
 
-    return std::make_pair(characVelLeft, characVelRight);
+    return std::make_pair(characVelPlus, characVelMinus);
 }
 
 FieldStruct numericalFluxOutsideRiemannFan(const PhysValues& physValues) {
