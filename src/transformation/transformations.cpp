@@ -40,10 +40,15 @@ void reconstToConservatives(PhysValues& output, const FieldStruct& reconstructio
     output.conservatives[FieldNames::VELOCITY_Z] =
         reconstructions[FieldNames::VELOCITY_Z] * reconstructions[FieldNames::DENSITY];
     if (isThermal) {
-        output.conservatives[FieldNames::THERMAL_ENERGY] = thermalEnergyToEnergy(reconstructions);
+        output.conservatives[FieldNames::THERMAL_ENERGY] =
+            reconstructions[FieldNames::THERMAL_ENERGY];
+        output.conservatives[FieldNames::THERMAL_ENERGY] =
+            thermalEnergyToEnergy(output.conservatives);
     } else {
         output.conservatives[FieldNames::THERMAL_ENERGY] =
-            temperatureToEnergy(reconstructions, gamma);
+            reconstructions[FieldNames::THERMAL_ENERGY];
+        output.conservatives[FieldNames::THERMAL_ENERGY] =
+            temperatureToEnergy(output.conservatives, gamma);
     }
 }
 
@@ -105,7 +110,6 @@ void conservativeToPrimitive(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const b
                 } else {
                     grid(x, y, z)[FieldNames::THERMAL_ENERGY] =
                         energyToTemperature(grid(x, y, z), gamma);
-                    // boundary
                 }
             }
         }
