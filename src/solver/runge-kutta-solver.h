@@ -140,7 +140,7 @@ template <class ProblemType>
 void RungeKuttaSolver<ProblemType>::updateCFL(const std::pair<double, double> characVelocities,
                                               const unsigned direction) {
     double maxVelocity = std::max(characVelocities.first, characVelocities.second);
-    double localCFL = maxVelocity * this->problem.inverseCellSize[direction];
+    double localCFL = maxVelocity * this->grid.inverseCellSize[direction];
     this->cfl = std::max(this->cfl, localCFL);
 }
 
@@ -176,15 +176,15 @@ void RungeKuttaSolver<ProblemType>::integrateTime(const unsigned substep) {
                     const double changeX =
                         (this->changeBuffer(x + 1, y, z)[Direction::DirX][field] -
                          this->changeBuffer(x, y, z)[Direction::DirX][field]) *
-                        this->problem.inverseCellSize[Direction::DirX];
+                        this->grid.inverseCellSize[Direction::DirX];
                     const double changeY =
                         (this->changeBuffer(x, y + 1, z)[Direction::DirY][field] -
                          this->changeBuffer(x, y, z)[Direction::DirY][field]) *
-                        this->problem.inverseCellSize[Direction::DirY];
+                        this->grid.inverseCellSize[Direction::DirY];
                     const double changeZ =
                         (this->changeBuffer(x, y, z + 1)[Direction::DirZ][field] -
                          this->changeBuffer(x, y, z)[Direction::DirZ][field]) *
-                        this->problem.inverseCellSize[Direction::DirZ];
+                        this->grid.inverseCellSize[Direction::DirZ];
                     const double change = changeX + changeY + changeZ;
                     if (substep == 0) { // if-statement should be pulled out by compiler
                         this->grid(x, y, z)[field] -= this->timeDelta * change;

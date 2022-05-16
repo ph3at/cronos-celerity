@@ -13,10 +13,6 @@ template <class Specific> class Problem {
   public:
     Problem(const double cflThreshold, const bool thermal, const double timeDelta,
             const double timeStart, const double timeEnd, const double gamma,
-            const std::array<double, Direction::DirMax> posLeft,
-            const std::array<double, Direction::DirMax> posRight,
-            const std::array<std::size_t, Direction::DirMax> numberCells,
-            const std::array<double, Direction::DirMax> cellSize,
             const std::array<BoundaryType, Faces::FaceMax> boundaryTypes);
 
     const double cflThreshold;
@@ -25,11 +21,6 @@ template <class Specific> class Problem {
     const double timeStart;
     const double timeEnd;
     const double gamma;
-    const std::array<double, Direction::DirMax> posLeft;
-    const std::array<double, Direction::DirMax> posRight;
-    const std::array<std::size_t, Direction::DirMax> numberCells;
-    const std::array<double, Direction::DirMax> cellSize;
-    const std::array<double, Direction::DirMax> inverseCellSize;
 
     const std::array<BoundaryType, Faces::FaceMax> boundaryTypes;
 
@@ -42,16 +33,9 @@ template <class Specific> class Problem {
 template <class Specific>
 Problem<Specific>::Problem(const double cflThreshold, const bool thermal, const double timeDelta,
                            const double timeStart, const double timeEnd, const double gamma,
-                           const std::array<double, Direction::DirMax> posLeft,
-                           const std::array<double, Direction::DirMax> posRight,
-                           const std::array<std::size_t, Direction::DirMax> numberCells,
-                           const std::array<double, Direction::DirMax> cellSize,
                            const std::array<BoundaryType, Faces::FaceMax> boundaryTypes)
     : cflThreshold(cflThreshold), thermal(thermal), timeDelta(timeDelta), timeStart(timeStart),
-      timeEnd(timeEnd), gamma(gamma), posLeft(posLeft), posRight(posRight),
-      numberCells(numberCells), cellSize(cellSize),
-      inverseCellSize({ 1.0 / cellSize[0], 1.0 / cellSize[1], 1.0 / cellSize[2] }),
-      boundaryTypes(boundaryTypes) {}
+      timeEnd(timeEnd), gamma(gamma), boundaryTypes(boundaryTypes) {}
 
 template <class Specific>
 void Problem<Specific>::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {

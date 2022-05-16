@@ -6,13 +6,10 @@
 
 int main(int argc, char** argv) {
 
-    ShockTube problem = ShockTube::initialiseTestProblem();
+    std::pair<PaddedGrid<FieldStruct, GHOST_CELLS>, ShockTube> shockTube =
+        ShockTube::initialiseTestProblem();
 
-    PaddedGrid<FieldStruct, GHOST_CELLS> grid({}, problem.numberCells[Direction::DirX],
-                                              problem.numberCells[Direction::DirY],
-                                              problem.numberCells[Direction::DirZ]);
-
-    RungeKuttaSolver<ShockTube> solver(grid, problem);
+    RungeKuttaSolver<ShockTube> solver(shockTube.first, shockTube.second);
     solver.initialise();
     std::cout << "----------------- Solving Grid -----------------" << std::endl << std::endl;
 
@@ -20,7 +17,7 @@ int main(int argc, char** argv) {
         solver.step();
         const SimpleGrid<FieldStruct> baseline =
             GridFunctions::readFromFile("test-data/step-" + std::to_string(timeStep) + ".dat");
-        GridFunctions::compare(baseline, grid, true, false);
+        GridFunctions::compare(baseline, shockTube.first, true, false);
     }
     solver.report();
 

@@ -2,17 +2,13 @@
 
 ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double timeDelta,
                      const double timeStart, const double timeEnd, const double gamma,
-                     const std::array<double, Direction::DirMax> posLeft,
-                     const std::array<double, Direction::DirMax> posRight,
-                     const std::array<std::size_t, Direction::DirMax> numberCells,
-                     const std::array<double, Direction::DirMax> cellSize,
                      const std::array<BoundaryType, Faces::FaceMax> boundaryTypes,
                      const Direction shockDir, const double shockPos, const double densityLeftInit,
                      const double densityRightInit, const double velocityLeftInit,
                      const double velocityRightInit, const double pressureLeftInit,
                      const double pressureRightInit)
-    : Problem<ShockTube>(cflThreshold, thermal, timeDelta, timeStart, timeEnd, gamma, posLeft,
-                         posRight, numberCells, cellSize, boundaryTypes),
+    : Problem<ShockTube>(cflThreshold, thermal, timeDelta, timeStart, timeEnd, gamma,
+                         boundaryTypes),
       shockDir(shockDir), shockPos(shockPos), densityLeftInit(densityLeftInit),
       densityRightInit(densityRightInit),
       velocityXLeftInit(shockDir == Direction::DirX ? velocityLeftInit : 0.0),
@@ -29,17 +25,17 @@ void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const
         for (unsigned y = 0; y < grid.yDim(); y++) {
             for (unsigned z = 0; z < grid.zDim(); z++) {
                 if (this->shockDir == Direction::DirX) {
-                    posParallel = this->posLeft[Direction::DirX] +
-                                  this->cellSize[Direction::DirX] *
-                                      (static_cast<double>(x) - GHOST_CELLS + 0.5);
+                    posParallel = grid.posLeft[Direction::DirX] +
+                                  (static_cast<double>(x) - GHOST_CELLS + 0.5) /
+                                      grid.inverseCellSize[Direction::DirX];
                 } else if (this->shockDir == Direction::DirY) {
-                    posParallel = this->posLeft[Direction::DirY] +
-                                  this->cellSize[Direction::DirY] *
-                                      (static_cast<double>(y) - GHOST_CELLS + 0.5);
+                    posParallel = grid.posLeft[Direction::DirY] +
+                                  (static_cast<double>(y) - GHOST_CELLS + 0.5) /
+                                      grid.inverseCellSize[Direction::DirY];
                 } else {
-                    posParallel = this->posLeft[Direction::DirZ] +
-                                  this->cellSize[Direction::DirZ] *
-                                      (static_cast<double>(z) - GHOST_CELLS + 0.5);
+                    posParallel = grid.posLeft[Direction::DirZ] +
+                                  (static_cast<double>(z) - GHOST_CELLS + 0.5) /
+                                      grid.inverseCellSize[Direction::DirZ];
                 }
                 if (posParallel < this->shockPos) {
                     grid(x, y, z)[FieldNames::DENSITY] = this->densityLeftInit;
@@ -128,24 +124,22 @@ constexpr double VELOCITY_RIGHT_INIT = -19.59745;
 constexpr double PRESSURE_LEFT_INIT = 1000.0;
 constexpr double PRESSURE_RIGHT_INIT = 0.01;
 
-ShockTube ShockTube::initialiseTestProblem() {
+std::pair<PaddedGrid<FieldStruct, GHOST_CELLS>, ShockTube> ShockTube::initialiseTestProblem() {
     const std::array<double, Direction::DirMax> posLeft = { X_START, Y_START, Z_START };
     const std::array<double, Direction::DirMax> posRight = { X_END, Y_END, Z_END };
 
-    const std::array<std::size_t, Direction::DirMax> numberCells = { NUMBER_CELLS_X, NUMBER_CELLS_Y,
-                                                                     NUMBER_CELLS_Z };
-
-    const std::array<double, Direction::DirMax> cellSize = { (X_END - X_START) / NUMBER_CELLS_X,
-                                                             (Y_END - Y_START) / NUMBER_CELLS_Y,
-                                                             (Z_END - Z_START) / NUMBER_CELLS_Z };
+    PaddedGrid<FieldStruct, GHOST_CELLS> grid({}, NUMBER_CELLS_X, NUMBER_CELLS_Y, NUMBER_CELLS_Z,
+                                              posLeft, posRight);
 
     const std::array<BoundaryType, Faces::FaceMax> boundaryTypes = {
         BoundaryType::OUTFLOW,     BoundaryType::USER,        BoundaryType::EXTRAPOLATE,
         BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE
     };
 
-    return ShockTube(CFL_THRESHOLD, THERMAL, TIME_DELTA, TIME_START, TIME_END, GAMMA, posLeft,
-                     posRight, numberCells, cellSize, boundaryTypes, SHOCK_DIR, SHOCK_POS,
-                     DENSITY_LEFT_INIT, DENSITY_RIGHT_INIT, VELOCITY_LEFT_INIT, VELOCITY_RIGHT_INIT,
-                     PRESSURE_LEFT_INIT, PRESSURE_RIGHT_INIT);
+    ShockTube problem(CFL_THRESHOLD, THERMAL, TIME_DELTA, TIME_START, TIME_END, GAMMA,
+                      boundaryTypes, SHOCK_DIR, SHOCK_POS, DENSITY_LEFT_INIT, DENSITY_RIGHT_INIT,
+                      VELOCITY_LEFT_INIT, VELOCITY_RIGHT_INIT, PRESSURE_LEFT_INIT,
+                      PRESSURE_RIGHT_INIT);
+
+    return std::make_pair(grid, problem);
 }

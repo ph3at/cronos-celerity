@@ -4,9 +4,13 @@
 #include <cstddef>
 #include <vector>
 
+#include "../data-types/direction.h"
+
 template <class T, unsigned padding> class PaddedGrid {
   public:
-    PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim, const size_t zDim);
+    PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim, const size_t zDim,
+               const std::array<double, 3> posLeft = { 0.0, 0.0, 0.0 },
+               const std::array<double, 3> posRight = { 1.0, 1.0, 1.0 });
 
     void clear();
 
@@ -24,6 +28,9 @@ template <class T, unsigned padding> class PaddedGrid {
     size_t zEnd() const { return this->zSize - padding; }
 
     const T defaultValue;
+    const std::array<double, 3> posLeft;
+    const std::array<double, 3> posRight;
+    const std::array<double, Direction::DirMax> inverseCellSize;
 
   private:
     PaddedGrid();
@@ -36,8 +43,13 @@ template <class T, unsigned padding> class PaddedGrid {
 
 template <class T, unsigned padding>
 PaddedGrid<T, padding>::PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim,
-                                   const size_t zDim)
-    : defaultValue(defaultValue) {
+                                   const size_t zDim, const std::array<double, 3> posLeft,
+                                   const std::array<double, 3> posRight)
+    : defaultValue(defaultValue), posLeft(posLeft), posRight(posRight),
+      inverseCellSize(
+          { static_cast<double>(xDim) / (posRight[Direction::DirX] - posLeft[Direction::DirX]),
+            static_cast<double>(yDim) / (posRight[Direction::DirY] - posLeft[Direction::DirY]),
+            static_cast<double>(zDim) / (posRight[Direction::DirZ] - posLeft[Direction::DirZ]) }) {
     this->xSize = xDim + 2 * padding;
     this->ySize = yDim + 2 * padding;
     this->zSize = zDim + 2 * padding;
