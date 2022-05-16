@@ -30,7 +30,7 @@ class RungeKuttaSolver
     bool isFinished() const;
 
   private:
-    SimpleGrid<FieldStruct> changeBuffer;
+    SimpleGrid<Changes> changeBuffer;
     SimpleGrid<FieldStruct> gridSubstepBuffer;
 
     double cfl;
@@ -42,9 +42,6 @@ class RungeKuttaSolver
     void computeSubstep();
     Changes computeChanges(const unsigned x, const unsigned y, const unsigned z);
     void updateCFL(std::pair<double, double> characVelocities, const unsigned direction);
-    void applyChanges(const FieldStruct& numericalValuesMinus,
-                      const FieldStruct& numericalValuesPlus, const unsigned x, const unsigned y,
-                      const unsigned z, const unsigned direction);
     void finaliseSubstep(const unsigned substep);
     void integrateTime(const unsigned substep);
     void advanceTime(const unsigned substep);
@@ -56,7 +53,7 @@ template <class ProblemType>
 RungeKuttaSolver<ProblemType>::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
                                                 const Problem<ProblemType>& problem)
     : Solver<RungeKuttaSolver<ProblemType>, FieldStruct, ProblemType, GHOST_CELLS>(grid, problem),
-      changeBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
+      changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
       gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()) {}
 
 template <class ProblemType> void RungeKuttaSolver<ProblemType>::singleStep() {
@@ -102,22 +99,10 @@ template <class ProblemType> void RungeKuttaSolver<ProblemType>::prepareSubstep(
 
 template <class ProblemType> void RungeKuttaSolver<ProblemType>::computeSubstep() {
 #pragma omp parallel for
-    for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
-        for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
-            for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
-                const Changes numericalFluxesCenter = this->computeChanges(x, y, z);
-
-                const Changes numericalFluxesX = this->computeChanges(x + 1, y, z);
-                this->applyChanges(numericalFluxesCenter[Direction::DirX],
-                                   numericalFluxesX[Direction::DirX], x, y, z, Direction::DirX);
-
-                const Changes numericalFluxesY = this->computeChanges(x, y + 1, z);
-                this->applyChanges(numericalFluxesCenter[Direction::DirY],
-                                   numericalFluxesY[Direction::DirY], x, y, z, Direction::DirY);
-
-                const Changes numericalFluxesZ = this->computeChanges(x, y, z + 1);
-                this->applyChanges(numericalFluxesCenter[Direction::DirZ],
-                                   numericalFluxesZ[Direction::DirZ], x, y, z, Direction::DirZ);
+    for (unsigned x = this->grid.xStart(); x < this->grid.xEnd() + 1; x++) {
+        for (unsigned y = this->grid.yStart(); y < this->grid.yEnd() + 1; y++) {
+            for (unsigned z = this->grid.zStart(); z < this->grid.zEnd() + 1; z++) {
+                this->changeBuffer(x, y, z) = this->computeChanges(x, y, z);
             }
         }
     }
@@ -160,18 +145,6 @@ void RungeKuttaSolver<ProblemType>::updateCFL(const std::pair<double, double> ch
 }
 
 template <class ProblemType>
-void RungeKuttaSolver<ProblemType>::applyChanges(const FieldStruct& numericalValuesMinus,
-                                                 const FieldStruct& numericalValuesPlus,
-                                                 const unsigned x, const unsigned y,
-                                                 const unsigned z, const unsigned direction) {
-    for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-        this->changeBuffer(x, y, z)[field] +=
-            (numericalValuesPlus[field] - numericalValuesMinus[field]) *
-            this->problem.inverseCellSize[direction];
-    }
-}
-
-template <class ProblemType>
 void RungeKuttaSolver<ProblemType>::finaliseSubstep(const unsigned substep) {
     this->checkErrors();
 
@@ -199,14 +172,25 @@ void RungeKuttaSolver<ProblemType>::integrateTime(const unsigned substep) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
                 for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                    const double changeX =
+                        (this->changeBuffer(x + 1, y, z)[Direction::DirX][field] -
+                         this->changeBuffer(x, y, z)[Direction::DirX][field]) *
+                        this->problem.inverseCellSize[Direction::DirX];
+                    const double changeY =
+                        (this->changeBuffer(x, y + 1, z)[Direction::DirY][field] -
+                         this->changeBuffer(x, y, z)[Direction::DirY][field]) *
+                        this->problem.inverseCellSize[Direction::DirY];
+                    const double changeZ =
+                        (this->changeBuffer(x, y, z + 1)[Direction::DirZ][field] -
+                         this->changeBuffer(x, y, z)[Direction::DirZ][field]) *
+                        this->problem.inverseCellSize[Direction::DirZ];
+                    const double change = changeX + changeY + changeZ;
                     if (substep == 0) { // if-statement should be pulled out by compiler
-                        this->grid(x, y, z)[field] -=
-                            this->timeDelta * this->changeBuffer(x, y, z)[field];
+                        this->grid(x, y, z)[field] -= this->timeDelta * change;
                     } else {
-                        this->grid(x, y, z)[field] =
-                            0.5 * this->gridSubstepBuffer(x, y, z)[field] +
-                            0.5 * this->grid(x, y, z)[field] -
-                            0.5 * this->timeDelta * this->changeBuffer(x, y, z)[field];
+                        this->grid(x, y, z)[field] = 0.5 * this->gridSubstepBuffer(x, y, z)[field] +
+                                                     0.5 * this->grid(x, y, z)[field] -
+                                                     0.5 * this->timeDelta * change;
                     }
                 }
             }
