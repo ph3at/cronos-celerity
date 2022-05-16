@@ -9,7 +9,7 @@ int main(int argc, char** argv) {
     std::pair<PaddedGrid<FieldStruct, GHOST_CELLS>, ShockTube> shockTube =
         ShockTube::initialiseTestProblem();
 
-    RungeKuttaSolver<ShockTube> solver(shockTube.first, shockTube.second);
+    RungeKuttaSolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube.first, shockTube.second);
     solver.initialise();
     std::cout << "----------------- Solving Grid -----------------" << std::endl << std::endl;
 
