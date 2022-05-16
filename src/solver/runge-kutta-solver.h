@@ -168,6 +168,7 @@ void RungeKuttaSolver<ProblemType>::integrateTime(const unsigned substep) {
     if (substep == 0) {
         this->saveGrid();
     }
+#pragma omp parallel for
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
