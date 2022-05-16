@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <omp.h>
 #include <optional>
 
 #include "../boundary/boundary.h"
@@ -100,6 +101,7 @@ template <class ProblemType> void RungeKuttaSolver<ProblemType>::prepareSubstep(
 }
 
 template <class ProblemType> void RungeKuttaSolver<ProblemType>::computeSubstep() {
+#pragma omp parallel for
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
