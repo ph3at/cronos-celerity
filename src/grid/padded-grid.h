@@ -30,6 +30,7 @@ template <class T, unsigned padding> class PaddedGrid {
     const T defaultValue;
     const std::array<double, 3> posLeft;
     const std::array<double, 3> posRight;
+    const std::array<double, Direction::DirMax> cellSize;
     const std::array<double, Direction::DirMax> inverseCellSize;
 
   private:
@@ -46,10 +47,12 @@ PaddedGrid<T, padding>::PaddedGrid(const T defaultValue, const size_t xDim, cons
                                    const size_t zDim, const std::array<double, 3> posLeft,
                                    const std::array<double, 3> posRight)
     : defaultValue(defaultValue), posLeft(posLeft), posRight(posRight),
-      inverseCellSize(
-          { static_cast<double>(xDim) / (posRight[Direction::DirX] - posLeft[Direction::DirX]),
-            static_cast<double>(yDim) / (posRight[Direction::DirY] - posLeft[Direction::DirY]),
-            static_cast<double>(zDim) / (posRight[Direction::DirZ] - posLeft[Direction::DirZ]) }) {
+      cellSize(
+          { (posRight[Direction::DirX] - posLeft[Direction::DirX]) / static_cast<double>(xDim),
+            (posRight[Direction::DirY] - posLeft[Direction::DirY]) / static_cast<double>(yDim),
+            (posRight[Direction::DirZ] - posLeft[Direction::DirZ]) / static_cast<double>(zDim) }),
+      inverseCellSize({ 1.0 / cellSize[Direction::DirX], 1.0 / cellSize[Direction::DirY],
+                        1.0 / cellSize[Direction::DirZ] }) {
     this->xSize = xDim + 2 * padding;
     this->ySize = yDim + 2 * padding;
     this->zSize = zDim + 2 * padding;

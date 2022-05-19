@@ -26,16 +26,16 @@ void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const
             for (unsigned z = 0; z < grid.zDim(); z++) {
                 if (this->shockDir == Direction::DirX) {
                     posParallel = grid.posLeft[Direction::DirX] +
-                                  (static_cast<double>(x) - GHOST_CELLS + 0.5) /
-                                      grid.inverseCellSize[Direction::DirX];
+                                  (static_cast<double>(x) - GHOST_CELLS + 0.5) *
+                                      grid.cellSize[Direction::DirX];
                 } else if (this->shockDir == Direction::DirY) {
                     posParallel = grid.posLeft[Direction::DirY] +
-                                  (static_cast<double>(y) - GHOST_CELLS + 0.5) /
-                                      grid.inverseCellSize[Direction::DirY];
+                                  (static_cast<double>(y) - GHOST_CELLS + 0.5) *
+                                      grid.cellSize[Direction::DirY];
                 } else {
                     posParallel = grid.posLeft[Direction::DirZ] +
-                                  (static_cast<double>(z) - GHOST_CELLS + 0.5) /
-                                      grid.inverseCellSize[Direction::DirZ];
+                                  (static_cast<double>(z) - GHOST_CELLS + 0.5) *
+                                      grid.cellSize[Direction::DirZ];
                 }
                 if (posParallel < this->shockPos) {
                     grid(x, y, z)[FieldNames::DENSITY] = this->densityLeftInit;
