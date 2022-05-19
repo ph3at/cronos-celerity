@@ -12,17 +12,19 @@ template <class Specific, class Fields, class ProblemType, unsigned ghostCells> 
     void solve(const double untilTime);
     void step();
     void initialise();
+    bool isFinished() const;
     void report() const;
+
+    double timeDelta;
+    double timeCurrent;
+    unsigned timeStep;
+    double timeEnd;
 
   protected:
     Solver(PaddedGrid<Fields, ghostCells>& grid, const Problem<ProblemType>& problem);
 
     PaddedGrid<Fields, ghostCells>& grid;
     const Problem<ProblemType>& problem;
-    double timeDelta;
-    double timeCurrent;
-    double timeEnd;
-    unsigned timeStep;
 
   private:
     void doSolve();
@@ -34,7 +36,6 @@ Solver<Specific, Fields, ProblemType, ghostCells>::Solver(PaddedGrid<Fields, gho
     : grid(grid), problem(problem) {
     this->timeDelta = problem.timeDelta;
     this->timeCurrent = problem.timeStart;
-    this->timeEnd = problem.timeEnd;
     this->timeStep = 0;
 }
 
@@ -66,6 +67,11 @@ template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
 void Solver<Specific, Fields, ProblemType, ghostCells>::initialise() {
     this->problem.initialiseGrid(this->grid);
     Boundary::applyAll(this->grid, this->problem);
+}
+
+template <class Specific, class ProblemType, class Fields, unsigned padding>
+bool Solver<Specific, ProblemType, Fields, padding>::isFinished() const {
+    return this->timeCurrent >= this->timeEnd;
 }
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>

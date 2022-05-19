@@ -24,7 +24,6 @@ class RungeKuttaSolver
     RungeKuttaSolver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem);
 
     void singleStep();
-    bool isFinished() const;
 
   private:
     SimpleGrid<Changes<Fields>> changeBuffer;
@@ -59,11 +58,6 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::singleStep() {
     this->computeStep();
     this->adjustTimeDelta();
     this->timeStep++;
-}
-
-template <class ProblemType, class Fields, unsigned padding>
-bool RungeKuttaSolver<ProblemType, Fields, padding>::isFinished() const {
-    return this->timeCurrent >= this->timeEnd;
 }
 
 template <class ProblemType, class Fields, unsigned padding>
