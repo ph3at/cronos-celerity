@@ -21,7 +21,8 @@ template <class ProblemType, class Fields, unsigned padding>
 class RungeKuttaSolver
     : public Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding> {
   public:
-    RungeKuttaSolver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem);
+    RungeKuttaSolver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
+                     const unsigned rungeKuttaSteps = 2);
 
     void singleStep();
 
@@ -30,7 +31,7 @@ class RungeKuttaSolver
     SimpleGrid<Fields> gridSubstepBuffer;
 
     double cfl;
-    const unsigned rungeKuttaSteps = 2;
+    const unsigned rungeKuttaSteps;
 
     void computeStep();
     void saveGrid();
@@ -47,11 +48,13 @@ class RungeKuttaSolver
 
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(
-    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem)
+    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
+    const unsigned rungeKuttaSteps)
     : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(grid,
                                                                                            problem),
       changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
-      gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()) {}
+      gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
+      rungeKuttaSteps(rungeKuttaSteps) {}
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::singleStep() {
@@ -164,7 +167,7 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsig
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::integrateTime(const unsigned substep) {
-    if (substep == 0) {
+    if (substep == 0 && this->rungeKuttaSteps > 1) {
         this->saveGrid();
     }
 #pragma omp parallel for
