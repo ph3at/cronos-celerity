@@ -4,13 +4,17 @@
 #include <cstddef>
 #include <vector>
 
+#include "../boundary/boundary-types.h"
 #include "../data-types/direction.h"
+#include "../data-types/faces.h"
 
 template <class T, unsigned padding> class PaddedGrid {
   public:
     PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim, const size_t zDim,
                const std::array<double, 3> posLeft = { 0.0, 0.0, 0.0 },
-               const std::array<double, 3> posRight = { 1.0, 1.0, 1.0 });
+               const std::array<double, 3> posRight = { 1.0, 1.0, 1.0 },
+               const std::array<BoundaryType, Faces::FaceMax> boundaryTypes = {
+                   BoundaryType::EMPTY });
 
     void clear();
 
@@ -32,6 +36,7 @@ template <class T, unsigned padding> class PaddedGrid {
     const std::array<double, 3> posRight;
     const std::array<double, Direction::DirMax> cellSize;
     const std::array<double, Direction::DirMax> inverseCellSize;
+    const std::array<BoundaryType, Faces::FaceMax> boundaryTypes;
 
   private:
     PaddedGrid();
@@ -45,14 +50,16 @@ template <class T, unsigned padding> class PaddedGrid {
 template <class T, unsigned padding>
 PaddedGrid<T, padding>::PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim,
                                    const size_t zDim, const std::array<double, 3> posLeft,
-                                   const std::array<double, 3> posRight)
+                                   const std::array<double, 3> posRight,
+                                   const std::array<BoundaryType, Faces::FaceMax> boundaryTypes)
     : defaultValue(defaultValue), posLeft(posLeft), posRight(posRight),
       cellSize(
           { (posRight[Direction::DirX] - posLeft[Direction::DirX]) / static_cast<double>(xDim),
             (posRight[Direction::DirY] - posLeft[Direction::DirY]) / static_cast<double>(yDim),
             (posRight[Direction::DirZ] - posLeft[Direction::DirZ]) / static_cast<double>(zDim) }),
       inverseCellSize({ 1.0 / cellSize[Direction::DirX], 1.0 / cellSize[Direction::DirY],
-                        1.0 / cellSize[Direction::DirZ] }) {
+                        1.0 / cellSize[Direction::DirZ] }),
+      boundaryTypes(boundaryTypes) {
     this->xSize = xDim + 2 * padding;
     this->ySize = yDim + 2 * padding;
     this->zSize = zDim + 2 * padding;

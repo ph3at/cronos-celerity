@@ -1,3 +1,3 @@
 #pragma once
 
-enum BoundaryType { EXTRAPOLATE = 0, OUTFLOW, USER };
+enum BoundaryType { EMPTY, EXTRAPOLATE, OUTFLOW, USER };

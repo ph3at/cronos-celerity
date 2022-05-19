@@ -2,13 +2,11 @@
 
 ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double timeDelta,
                      const double timeStart, const double timeEnd, const double gamma,
-                     const std::array<BoundaryType, Faces::FaceMax> boundaryTypes,
                      const Direction shockDir, const double shockPos, const double densityLeftInit,
                      const double densityRightInit, const double velocityLeftInit,
                      const double velocityRightInit, const double pressureLeftInit,
                      const double pressureRightInit)
-    : Problem<ShockTube>(cflThreshold, thermal, timeDelta, timeStart, timeEnd, gamma,
-                         boundaryTypes),
+    : Problem<ShockTube>(cflThreshold, thermal, timeDelta, timeStart, timeEnd, gamma),
       shockDir(shockDir), shockPos(shockPos), densityLeftInit(densityLeftInit),
       densityRightInit(densityRightInit),
       velocityXLeftInit(shockDir == Direction::DirX ? velocityLeftInit : 0.0),
@@ -128,18 +126,17 @@ std::pair<PaddedGrid<FieldStruct, GHOST_CELLS>, ShockTube> ShockTube::initialise
     const std::array<double, Direction::DirMax> posLeft = { X_START, Y_START, Z_START };
     const std::array<double, Direction::DirMax> posRight = { X_END, Y_END, Z_END };
 
-    PaddedGrid<FieldStruct, GHOST_CELLS> grid({}, NUMBER_CELLS_X, NUMBER_CELLS_Y, NUMBER_CELLS_Z,
-                                              posLeft, posRight);
-
     const std::array<BoundaryType, Faces::FaceMax> boundaryTypes = {
         BoundaryType::OUTFLOW,     BoundaryType::USER,        BoundaryType::EXTRAPOLATE,
         BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE
     };
 
-    ShockTube problem(CFL_THRESHOLD, THERMAL, TIME_DELTA, TIME_START, TIME_END, GAMMA,
-                      boundaryTypes, SHOCK_DIR, SHOCK_POS, DENSITY_LEFT_INIT, DENSITY_RIGHT_INIT,
-                      VELOCITY_LEFT_INIT, VELOCITY_RIGHT_INIT, PRESSURE_LEFT_INIT,
-                      PRESSURE_RIGHT_INIT);
+    PaddedGrid<FieldStruct, GHOST_CELLS> grid({}, NUMBER_CELLS_X, NUMBER_CELLS_Y, NUMBER_CELLS_Z,
+                                              posLeft, posRight, boundaryTypes);
+
+    ShockTube problem(CFL_THRESHOLD, THERMAL, TIME_DELTA, TIME_START, TIME_END, GAMMA, SHOCK_DIR,
+                      SHOCK_POS, DENSITY_LEFT_INIT, DENSITY_RIGHT_INIT, VELOCITY_LEFT_INIT,
+                      VELOCITY_RIGHT_INIT, PRESSURE_LEFT_INIT, PRESSURE_RIGHT_INIT);
 
     return std::make_pair(grid, problem);
 }

@@ -12,8 +12,7 @@
 template <class Specific> class Problem {
   public:
     Problem(const double cflThreshold, const bool thermal, const double timeDelta,
-            const double timeStart, const double timeEnd, const double gamma,
-            const std::array<BoundaryType, Faces::FaceMax> boundaryTypes);
+            const double timeStart, const double timeEnd, const double gamma);
 
     const double cflThreshold;
     const bool thermal;
@@ -21,8 +20,6 @@ template <class Specific> class Problem {
     const double timeStart;
     const double timeEnd;
     const double gamma;
-
-    const std::array<BoundaryType, Faces::FaceMax> boundaryTypes;
 
     void initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const;
     void applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned field,
@@ -32,10 +29,9 @@ template <class Specific> class Problem {
 
 template <class Specific>
 Problem<Specific>::Problem(const double cflThreshold, const bool thermal, const double timeDelta,
-                           const double timeStart, const double timeEnd, const double gamma,
-                           const std::array<BoundaryType, Faces::FaceMax> boundaryTypes)
+                           const double timeStart, const double timeEnd, const double gamma)
     : cflThreshold(cflThreshold), thermal(thermal), timeDelta(timeDelta), timeStart(timeStart),
-      timeEnd(timeEnd), gamma(gamma), boundaryTypes(boundaryTypes) {}
+      timeEnd(timeEnd), gamma(gamma) {}
 
 template <class Specific>
 void Problem<Specific>::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {

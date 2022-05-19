@@ -34,15 +34,18 @@ void Boundary::applyField(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Prob
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
         /* GPUs only support compile time polymorphism, so we are using this Frankenstein here.
          * Sorry. */
-        if (problem.boundaryTypes[face] == EXTRAPOLATE) {
+        if (grid.boundaryTypes[face] == EMPTY) {
+            /* Used for applying boundaries at a different point (e.g. AMR) or for keeping the
+             * boundary at its initial values. */
+        } else if (grid.boundaryTypes[face] == EXTRAPOLATE) {
             Extrapolate::apply(grid, field, face);
-        } else if (problem.boundaryTypes[face] == OUTFLOW) {
+        } else if (grid.boundaryTypes[face] == OUTFLOW) {
             Outflow::apply(grid, field, face);
-        } else if (problem.boundaryTypes[face] == USER) {
+        } else if (grid.boundaryTypes[face] == USER) {
             problem.applyBoundary(grid, field, face);
         } else {
             std::cerr << "Unknown boundary condition type encountered : "
-                      << problem.boundaryTypes[face] << std::endl;
+                      << grid.boundaryTypes[face] << std::endl;
         }
     }
 }
