@@ -23,6 +23,8 @@ class RungeKuttaSolver
                      const unsigned rungeKuttaSteps = 2);
 
     void singleStep();
+    void adjust();
+    void init(){};
 
   private:
     SimpleGrid<Changes<Fields>> changeBuffer;
@@ -31,7 +33,6 @@ class RungeKuttaSolver
     double cfl;
     const unsigned rungeKuttaSteps;
 
-    void computeStep();
     void saveGrid();
     void prepareSubstep();
     void computeSubstep();
@@ -40,7 +41,6 @@ class RungeKuttaSolver
     void finaliseSubstep(const unsigned substep);
     void integrateTime(const unsigned substep);
     void advanceTime(const unsigned substep);
-    void adjustTimeDelta();
     void checkErrors();
 };
 
@@ -56,13 +56,6 @@ RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::singleStep() {
-    this->computeStep();
-    this->adjustTimeDelta();
-    this->timeStep++;
-}
-
-template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSolver<ProblemType, Fields, padding>::computeStep() {
     for (unsigned substep = 0; substep < this->rungeKuttaSteps; substep++) {
         this->prepareSubstep();
         this->computeSubstep();
@@ -207,7 +200,7 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::advanceTime(const unsigned 
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSolver<ProblemType, Fields, padding>::adjustTimeDelta() {
+void RungeKuttaSolver<ProblemType, Fields, padding>::adjust() {
     this->timeDelta = this->problem.cflThreshold / this->cfl;
 }
 

@@ -15,6 +15,7 @@ int main(int argc, char** argv) {
 
     for (unsigned timeStep = 1; timeStep <= 16; timeStep++) {
         solver.step();
+        solver.adjust();
         const SimpleGrid<FieldStruct> baseline =
             GridFunctions::readFromFile("test-data/step-" + std::to_string(timeStep) + ".dat");
         GridFunctions::compare(baseline, shockTube.first, true, false);
