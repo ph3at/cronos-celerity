@@ -10,18 +10,18 @@
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding> class AMRNode {
   public:
-    AMRNode(PaddedGrid<Fields, padding> grid, const Problem<ProblemType>& problem,
-            const AMRParameters& configuration,
-            AMRNode<SolverType, ProblemType, Fields, padding>& parent);
+    AMRNode(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
+            const AMRParameters& configuration, const double timeDelta, const double timeCurrent);
 
     void integrate(const double untilTime);
+    void step();
     std::optional<Fields> valueAt(const double xPos, const double yPos, const double zPos) const;
 
   private:
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>&> parents;
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>&> children;
 
-    PaddedGrid<FieldStruct, GHOST_CELLS> grid;
+    PaddedGrid<FieldStruct, GHOST_CELLS>& grid;
     const AMRParameters& configuration;
     Solver<SolverType, Fields, ProblemType, padding> solver;
 
@@ -30,30 +30,36 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(
-    PaddedGrid<Fields, padding> grid, const Problem<ProblemType>& problem,
-    const AMRParameters& configuration, AMRNode<SolverType, ProblemType, Fields, padding>& parent)
+AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(PaddedGrid<Fields, padding>& grid,
+                                                           const Problem<ProblemType>& problem,
+                                                           const AMRParameters& configuration,
+                                                           const double timeDelta,
+                                                           const double timeCurrent)
     : configuration(configuration) {
     this->grid = grid;
     this->parents();
-    this->parents.push_back(parent);
     this->children();
-    solver = SolverType(grid, problem);
-    solver.timeDelta = parent.timeDelta / configuration.refinementFactor;
-    solver.timeCurrent = parent.timeCurrent;
-    solver.timeStep = 0;
+    this->solver = SolverType(grid, problem);
+    this->solver.timeDelta = timeDelta;
+    this->solver.timeCurrent = timeCurrent;
+    this->solver.timeStep = 0;
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRNode<SolverType, ProblemType, Fields, padding>::integrate(const double untilTime) {
     this->solver.timeEnd = untilTime;
     while (!this->solver.isFinished()) {
-        for (AMRNode<SolverType, ProblemType, Fields, padding> childGrid : this->children) {
-            childGrid.integrate(this->solver.timeCurrent + this->solver.timeDelta);
-        }
-        this->solver.step();
-        this->inject();
+        this->step();
     }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::step() {
+    for (AMRNode<SolverType, ProblemType, Fields, padding> childGrid : this->children) {
+        childGrid.integrate(this->solver.timeCurrent + this->solver.timeDelta);
+    }
+    this->solver.step();
+    this->inject();
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
