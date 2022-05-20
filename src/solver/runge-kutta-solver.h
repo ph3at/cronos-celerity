@@ -1,8 +1,6 @@
 #pragma once
 
-#include <algorithm>
 #include <omp.h>
-#include <optional>
 
 #include "../boundary/boundary.h"
 #include "../data-types/direction.h"
