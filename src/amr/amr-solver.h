@@ -3,6 +3,7 @@
 #include "../solver/base-solver.h"
 #include "amr-node.h"
 #include "amr-parameters.h"
+#include "refinement.h"
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 class AMRSolver
@@ -17,7 +18,8 @@ class AMRSolver
 
   private:
     const AMRParameters& configuration;
-    AMRNode<SolverType, ProblemType, Fields, padding> root;
+    Refinery<SolverType, ProblemType, Fields, padding> refinery;
+    AMRNode<SolverType, ProblemType, Fields, padding>& root;
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -27,12 +29,12 @@ AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(PaddedGrid<Fields
     : Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields, ProblemType, padding>(
           grid, problem),
       configuration(configuration) {
-    this->root(grid, problem, configuration, problem.timeDelta, 0.0);
+    this->refinery();
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::initialise() {
-    // Refine
+    this->root = refinery.initialRefine(this->grid, this->problem, this->configuration);
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
