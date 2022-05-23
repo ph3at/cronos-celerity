@@ -5,8 +5,12 @@ project( cronos-amr )
 # Compiler Options #
 ####################
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
-set( CMAKE_CPP_COMPILER clang )
-add_compile_options( -Wall -Wextra -Wpedantic -O2 -march=native )
+
+IF(MSVC)
+  add_compile_options( /MP /W3 )
+ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+  add_compile_options( -Wall -Wextra -Wpedantic -O2 -march=native )
+ENDIF()
 set( CMAKE_CXX_STANDARD 20 )
 set( CMAKE_CXX_STANDARD_REQUIRED ON )
 
@@ -14,7 +18,7 @@ set( CMAKE_CXX_STANDARD_REQUIRED ON )
 # OpenMP #
 ##########
 OPTION (USE_OpenMP "Use OpenMP" ON)
-IF(USE_OpenMP)
+IF(USE_OpenMP AND NOT MSVC)
   FIND_PACKAGE(OpenMP)
   IF(OPENMP_FOUND)
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")

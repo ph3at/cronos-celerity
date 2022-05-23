@@ -1,3 +1,5 @@
+#include <string>
+
 #include "configuration/constants.h"
 #include "configuration/shock-tube.h"
 #include "grid/grid-functions.h"
