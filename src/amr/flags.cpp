@@ -162,5 +162,118 @@ Flags translateFlags(const Flags& flags, const unsigned resolutionFactor) {
     return std::make_pair(xStart, flagsX);
 }
 
-void addBuffer(Flags& flags, const unsigned bufferSize) {}
+FlagsZ mergeFlagsZ(const FlagsY& flags) {
+    FlagsZ newFlags;
+    std::vector<unsigned> indices(flags.size(), 0);
+    unsigned counter = static_cast<unsigned>(flags.size());
+    unsigned left = minLeft(indices, flags);
+    unsigned right = left;
+    while (counter > 0) {
+        for (unsigned candidate = 0; candidate <= indices.size(); candidate++) {
+            if (candidate == indices.size()) {
+                newFlags.push_back(std::make_pair(left, right));
+                left = minLeft(indices, flags);
+                right = left;
+            } else if (indices[candidate] == flags[candidate].size()) {
+                counter--;
+                indices[candidate]++;
+            } else if (indices[candidate] < flags[candidate].size()) {
+                const std::pair<unsigned, unsigned>& pair = flags[candidate][indices[candidate]];
+                if (right + 1 >= pair.first) {
+                    right = std::max(right, pair.second);
+                    indices[candidate]++;
+                    break;
+                }
+            }
+        }
+    }
+    return newFlags;
+}
+
+std::pair<unsigned, FlagsY> mergeFlagsY(const FlagsX& flags) {
+    FlagsY newFlags;
+    unsigned yMin = std::numeric_limits<unsigned>::max();
+    unsigned yEnd = 0;
+    for (std::pair<unsigned, FlagsY> flagsY : flags) {
+        yMin = std::min(yMin, flagsY.first);
+        yEnd = std::max(yEnd, flagsY.first + static_cast<unsigned>(flagsY.second.size()));
+    }
+    newFlags.reserve(yEnd - yMin);
+    for (unsigned y = yMin; y < yEnd; y++) {
+        FlagsY flagCandidates;
+        for (std::pair<unsigned, FlagsY> flagsY : flags) {
+            if (y >= flagsY.first &&
+                y < flagsY.first + static_cast<unsigned>(flagsY.second.size())) {
+                flagCandidates.push_back(flagsY.second[y - flagsY.first]);
+            }
+        }
+        newFlags.push_back(mergeFlagsZ(flagCandidates));
+    }
+    return std::make_pair(yMin, newFlags);
+}
+
+void addBuffer(Flags& flags, const unsigned bufferSize) {
+    for (std::pair<unsigned, FlagsY>& flagsY : flags.second) {
+        FlagsY newFlagsY;
+        for (FlagsZ& flagsZ : flagsY.second) {
+            FlagsZ newPairs;
+            for (unsigned pair = 0; pair < flagsZ.size(); pair++) {
+                unsigned left = flagsZ[pair].first;
+                if (left > bufferSize) {
+                    left -= bufferSize;
+                } else {
+                    left = 0;
+                }
+                unsigned right = flagsZ[pair].second + bufferSize;
+                while (pair + 1 < flagsZ.size() &&
+                       right + bufferSize + 1 >= flagsZ[pair + 1].first) {
+                    pair++;
+                    right = flagsZ[pair].second + bufferSize;
+                }
+                newPairs.push_back(std::make_pair(left, right));
+            }
+            newFlagsY.push_back(newPairs);
+        }
+        FlagsY newNewFlagsY;
+        newNewFlagsY.reserve(newFlagsY.size() + 4);
+        for (unsigned y = std::max(flagsY.first, bufferSize) - flagsY.first; y < bufferSize; y++) {
+            const unsigned offset = std::min(y + 1, static_cast<unsigned>(flagsY.second.size()));
+            newNewFlagsY.push_back(
+                mergeFlagsZ(FlagsY(newFlagsY.begin(), newFlagsY.begin() + offset)));
+        }
+        for (unsigned y = 0; y < flagsY.second.size(); y++) {
+            const unsigned beginOffset = std::max(bufferSize, y) - bufferSize;
+            const unsigned endOffset =
+                std::min(y + bufferSize + 1, static_cast<unsigned>(flagsY.second.size()));
+            newNewFlagsY.push_back(mergeFlagsZ(
+                FlagsY(newFlagsY.begin() + beginOffset, newFlagsY.begin() + endOffset)));
+        }
+        for (unsigned y = bufferSize; y > 0; y--) {
+            const unsigned offset = std::min(static_cast<unsigned>(flagsY.second.size()), y);
+            newNewFlagsY.push_back(mergeFlagsZ(FlagsY(newFlagsY.end() - offset, newFlagsY.end())));
+        }
+        flagsY.second = newNewFlagsY;
+        flagsY.first = std::max(flagsY.first, bufferSize) - bufferSize;
+    }
+    FlagsX newFlagsX;
+    newFlagsX.reserve(flags.second.size() + 4);
+    for (unsigned x = std::max(flags.first, bufferSize) - flags.first; x < bufferSize; x++) {
+        const unsigned offset = std::min(x + 1, static_cast<unsigned>(flags.second.size()));
+        newFlagsX.push_back(
+            mergeFlagsY(FlagsX(flags.second.begin(), flags.second.begin() + offset)));
+    }
+    for (unsigned x = 0; x < flags.second.size(); x++) {
+        const unsigned beginOffset = std::max(bufferSize, x) - bufferSize;
+        const unsigned endOffset =
+            std::min(x + bufferSize + 1, static_cast<unsigned>(flags.second.size()));
+        newFlagsX.push_back(mergeFlagsY(
+            FlagsX(flags.second.begin() + beginOffset, flags.second.begin() + endOffset)));
+    }
+    for (unsigned x = bufferSize; x > 0; x--) {
+        const unsigned offset = std::min(static_cast<unsigned>(flags.second.size()), x);
+        newFlagsX.push_back(mergeFlagsY(FlagsX(flags.second.end() - offset, flags.second.end())));
+    }
+    flags.second = newFlagsX;
+    flags.first = std::max(flags.first, bufferSize) - bufferSize;
+}
 }; // namespace CellFlags
