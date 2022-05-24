@@ -14,15 +14,14 @@ typedef std::pair<
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding> class Refinery {
   public:
-    Refinery(const unsigned refinementFactor);
+    Refinery(const AMRParameters& configuration);
 
     void refine();
     AMRNode<SolverType, ProblemType, Fields, padding>&
-    initialRefine(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
-                  const AMRParameters& configuration);
+    initialRefine(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem);
 
   private:
-    const unsigned refinementFactor;
+    const AMRParameters& configuration;
 
     std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>> amrNodes;
 
@@ -33,8 +32,8 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const unsigned refinementFactor)
-    : refinementFactor(refinementFactor) {}
+Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const AMRParameters& configuration)
+    : configuration(configuration) {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
@@ -43,15 +42,15 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<Flags> Refinery<SolverType, ProblemType, Fields, padding>::flagCells() {
-    const unsigned maxLevel = this->amrNodes.size();
+    const int maxLevel = static_cast<int>(this->amrNodes.size());
     std::vector<Flags> levelFlags;
     levelFlags.reserve(maxLevel);
-    for (unsigned level = maxLevel - 1; level >= 0; level--) {
+    for (int level = maxLevel - 1; level >= 0; level--) {
         for (AMRNode<SolverType, ProblemType, Fields, padding> node : this->amrNodes[level]) {
             Flags nodeFlags = {}; // truncation error stuff
             this->addFlags(levelFlags[level], nodeFlags);
         }
-        if (level < maxLevel) {
+        if (level < maxLevel - 1) {
             Flags higherLevelFlags = this->translateFlags(levelFlags[level + 1]);
             this->addFlags(levelFlags[level], higherLevelFlags);
         }
@@ -136,13 +135,12 @@ void Refinery<SolverType, ProblemType, Fields, padding>::addFlags(Flags& levelFl
     }
 }
 
-inline unsigned
-minLeft(const std::vector<unsigned>& indices,
-        const std::vector<std::vector<std::pair<unsigned, unsigned>>*>& candidates) {
+inline unsigned minLeft(const std::vector<unsigned>& indices,
+                        const std::vector<std::vector<std::pair<unsigned, unsigned>>>& candidates) {
     unsigned minValue = std::numeric_limits<unsigned>::max();
     for (unsigned candidate = 0; candidate < indices.size(); candidate++) {
-        if (indices[candidate] < candidates[candidate]->size()) {
-            minValue = std::min(minValue, (*(candidates[candidate]))[indices[candidate]].first);
+        if (indices[candidate] < candidates[candidate].size()) {
+            minValue = std::min(minValue, candidates[candidate][indices[candidate]].first);
         }
     }
     return minValue;
@@ -150,8 +148,8 @@ minLeft(const std::vector<unsigned>& indices,
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 Flags Refinery<SolverType, ProblemType, Fields, padding>::translateFlags(const Flags& flags) {
-    const unsigned xStart = flags.first / this->refinementFactor;
-    const unsigned xSize = flags.second.size() / this->refinementFactor - xStart + 1;
+    const unsigned xStart = flags.first / this->configuration.refinementFactor;
+    const unsigned xSize = flags.second.size() / this->configuration.refinementFactor - xStart + 1;
     std::vector<std::pair<unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>>
         flagsX;
     flagsX.reserve(xSize);
@@ -160,29 +158,32 @@ Flags Refinery<SolverType, ProblemType, Fields, padding>::translateFlags(const F
 
         unsigned yStart = std::numeric_limits<unsigned>::max();
         unsigned yEnd = 0;
-        for (unsigned xOffset = 0; xOffset < this->refinementFactor; xOffset++) {
-            if (x * this->refinementFactor + xOffset >= flags.first) {
-                std::pair<unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>&
-                    flagsHere = flags.second[x * this->refinementFactor + xOffset - flags.first];
+        for (unsigned xOffset = 0; xOffset < this->configuration.refinementFactor; xOffset++) {
+            if (x * this->configuration.refinementFactor + xOffset >= flags.first) {
+                const std::pair<
+                    unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>& flagsHere =
+                    flags.second[x * this->configuration.refinementFactor + xOffset - flags.first];
                 yStart = std::min(yStart, flagsHere.first);
                 yEnd = std::max(yEnd,
                                 static_cast<unsigned>(flagsHere.second.size()) + flagsHere.first);
             }
         }
-        yStart /= this->refinementFactor;
-        yEnd = yEnd / this->refinementFactor - yStart + 1;
+        yStart /= this->configuration.refinementFactor;
+        yEnd = yEnd / this->configuration.refinementFactor - yStart + 1;
         for (unsigned y = 0; y < yEnd; y++) {
-            std::vector<std::vector<std::pair<unsigned, unsigned>>*> flagsZCandidates;
-            for (unsigned xOffset = 0; xOffset < this->refinementFactor; xOffset++) {
-                if (x * this->refinementFactor + xOffset >= flags.first) {
-                    std::pair<unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>&
-                        flagsHere =
-                            flags.second[x * this->refinementFactor + xOffset - flags.first];
-                    for (unsigned yOffset = 0; yOffset < this->refinementFactor; yOffset++) {
-                        if (y * this->refinementFactor + yOffset >= flags.first) {
+            std::vector<std::vector<std::pair<unsigned, unsigned>>> flagsZCandidates;
+            for (unsigned xOffset = 0; xOffset < this->configuration.refinementFactor; xOffset++) {
+                if (x * this->configuration.refinementFactor + xOffset >= flags.first) {
+                    const std::pair<unsigned,
+                                    std::vector<std::vector<std::pair<unsigned, unsigned>>>>&
+                        flagsHere = flags.second[x * this->configuration.refinementFactor +
+                                                 xOffset - flags.first];
+                    for (unsigned yOffset = 0; yOffset < this->configuration.refinementFactor;
+                         yOffset++) {
+                        if (y * this->configuration.refinementFactor + yOffset >= flags.first) {
                             flagsZCandidates.push_back(
-                                &flagsHere.second[y * this->refinementFactor + yOffset -
-                                                  flagsHere.first]);
+                                flagsHere.second[y * this->configuration.refinementFactor +
+                                                 yOffset - flagsHere.first]);
                         }
                     }
                 }
@@ -197,14 +198,15 @@ Flags Refinery<SolverType, ProblemType, Fields, padding>::translateFlags(const F
                     if (candidate == indices.size()) {
                         flagsZ.push_back(std::make_pair(left, right));
                         left = minLeft(indices, flagsZCandidates);
-                    } else if (indices[candidate] == flagsZCandidates[candidate]->size()) {
+                    } else if (indices[candidate] == flagsZCandidates[candidate].size()) {
                         counter--;
                         indices[candidate]++;
-                    } else if (indices[candidate] < flagsZCandidates[candidate]->size()) {
+                    } else if (indices[candidate] < flagsZCandidates[candidate].size()) {
                         std::pair<unsigned, unsigned>& pair =
-                            (*(flagsZCandidates[candidate]))[indices[candidate]];
-                        if (right >= pair.first / this->refinementFactor) {
-                            right = std::max(right, pair.second / this->refinementFactor);
+                            flagsZCandidates[candidate][indices[candidate]];
+                        if (right >= pair.first / this->configuration.refinementFactor) {
+                            right =
+                                std::max(right, pair.second / this->configuration.refinementFactor);
                             indices[candidate]++;
                             break;
                         }
@@ -224,9 +226,8 @@ void Refinery<SolverType, ProblemType, Fields, padding>::addBuffer(Flags& flags)
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 AMRNode<SolverType, ProblemType, Fields, padding>&
 Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
-    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
-    const AMRParameters& configuration) {
-    AMRNode<SolverType, ProblemType, Fields, padding> root(grid, problem, configuration,
+    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem) {
+    AMRNode<SolverType, ProblemType, Fields, padding> root(grid, problem, this->configuration,
                                                            problem.timeDelta, 0.0);
     this->amrNodes.push_back(
         std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>(1, root));

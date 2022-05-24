@@ -29,11 +29,8 @@ AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(PaddedGrid<Fields
     : Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields, ProblemType, padding>(
           grid, problem),
       configuration(configuration),
-      refinery(Refinery<SolverType, ProblemType, Fields, padding>(configuration.refinementFactor)),
-      root(this->refinery.initialRefine(grid, problem, configuration)) {
-    // this->refinery(configuration.refinementFactor);
-    // this->root = refinery.initialRefine(this->grid, this->problem, this->configuration);
-}
+      refinery(Refinery<SolverType, ProblemType, Fields, padding>(configuration)),
+      root(this->refinery.initialRefine(grid, problem)) {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::singleStep() {
@@ -43,5 +40,5 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::singleStep() {
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::adjust() {
     // Adjust time
-    // Refine
+    this->refinery.refine();
 }
