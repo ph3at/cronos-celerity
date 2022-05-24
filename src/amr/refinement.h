@@ -92,8 +92,6 @@ void Refinery<SolverType, ProblemType, Fields, padding>::addFlags(Flags& levelFl
                 unsigned left = std::min(levelPairs[0].first, nodePairs[0].first);
                 unsigned right = left;
                 while (true) {
-                    std::cout << left << " " << right << " | " << levelZ << " " << nodeZ
-                              << std::endl;
                     if (levelZ < levelZEnd && right >= levelPairs[levelZ].first - 1) {
                         right = std::max(right, levelPairs[levelZ].second);
                         levelZ++;
@@ -161,42 +159,46 @@ inline unsigned minLeft(const std::vector<unsigned>& indices,
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 Flags Refinery<SolverType, ProblemType, Fields, padding>::translateFlags(const Flags& flags) {
+    const unsigned xFirst = flags.first;
+    const unsigned xLast = xFirst + flags.second.size();
     const unsigned xStart = flags.first / this->configuration.refinementFactor;
-    const unsigned xSize = flags.second.size() / this->configuration.refinementFactor - xStart + 1;
+    const unsigned xEnd =
+        (flags.second.size() + flags.first - 1) / this->configuration.refinementFactor;
     std::vector<std::pair<unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>>
         flagsX;
-    flagsX.reserve(xSize);
-    for (unsigned x = 0; x < xSize; x++) {
+    flagsX.reserve(xEnd - xStart + 1);
+    std::cout << xFirst << ":" << xLast << std::endl;
+    for (unsigned x = xStart; x <= xEnd; x++) {
         std::vector<std::vector<std::pair<unsigned, unsigned>>> flagsY;
-
-        unsigned yStart = std::numeric_limits<unsigned>::max();
-        unsigned yEnd = 0;
+        unsigned yFirst = std::numeric_limits<unsigned>::max();
+        unsigned yLast = 0;
         for (unsigned xOffset = 0; xOffset < this->configuration.refinementFactor; xOffset++) {
-            if (x * this->configuration.refinementFactor + xOffset >= flags.first) {
-                const std::pair<
-                    unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>& flagsHere =
-                    flags.second[x * this->configuration.refinementFactor + xOffset - flags.first];
-                yStart = std::min(yStart, flagsHere.first);
-                yEnd = std::max(yEnd,
-                                static_cast<unsigned>(flagsHere.second.size()) + flagsHere.first);
+            unsigned xx = x * this->configuration.refinementFactor + xOffset;
+            if (xx >= xFirst && xx < xLast) {
+                const std::pair<unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>&
+                    flagsHere = flags.second[xx - flags.first];
+                yFirst = std::min(yFirst, flagsHere.first);
+                yLast = std::max(yLast,
+                                 static_cast<unsigned>(flagsHere.second.size()) + flagsHere.first);
             }
         }
-        yStart /= this->configuration.refinementFactor;
-        yEnd = yEnd / this->configuration.refinementFactor - yStart + 1;
-        for (unsigned y = 0; y < yEnd; y++) {
+        unsigned yStart = yFirst / this->configuration.refinementFactor;
+        unsigned yEnd = (yLast - 1) / this->configuration.refinementFactor;
+        std::cout << yFirst << ":" << yLast << std::endl;
+        for (unsigned y = yStart; y <= yEnd; y++) {
             std::vector<std::vector<std::pair<unsigned, unsigned>>> flagsZCandidates;
             for (unsigned xOffset = 0; xOffset < this->configuration.refinementFactor; xOffset++) {
-                if (x * this->configuration.refinementFactor + xOffset >= flags.first) {
+                const unsigned xx = x * this->configuration.refinementFactor + xOffset;
+                if (xx >= xFirst && xx < xLast) {
                     const std::pair<unsigned,
                                     std::vector<std::vector<std::pair<unsigned, unsigned>>>>&
-                        flagsHere = flags.second[x * this->configuration.refinementFactor +
-                                                 xOffset - flags.first];
+                        flagsHere = flags.second[xx - flags.first];
                     for (unsigned yOffset = 0; yOffset < this->configuration.refinementFactor;
                          yOffset++) {
-                        if (y * this->configuration.refinementFactor + yOffset >= flags.first) {
-                            flagsZCandidates.push_back(
-                                flagsHere.second[y * this->configuration.refinementFactor +
-                                                 yOffset - flagsHere.first]);
+                        unsigned yy = y * this->configuration.refinementFactor + yOffset;
+                        if (yy >= flagsHere.first &&
+                            yy < flagsHere.first + flagsHere.second.size()) {
+                            flagsZCandidates.push_back(flagsHere.second[yy - flagsHere.first]);
                         }
                     }
                 }
@@ -204,13 +206,15 @@ Flags Refinery<SolverType, ProblemType, Fields, padding>::translateFlags(const F
             std::vector<std::pair<unsigned, unsigned>> flagsZ;
             std::vector<unsigned> indices(flagsZCandidates.size(), 0);
             unsigned counter = static_cast<unsigned>(flagsZCandidates.size());
-            unsigned left = minLeft(indices, flagsZCandidates);
+            unsigned left =
+                minLeft(indices, flagsZCandidates) / this->configuration.refinementFactor;
             unsigned right = left;
             while (counter > 0) {
                 for (unsigned candidate = 0; candidate <= indices.size(); candidate++) {
                     if (candidate == indices.size()) {
                         flagsZ.push_back(std::make_pair(left, right));
-                        left = minLeft(indices, flagsZCandidates);
+                        left = minLeft(indices, flagsZCandidates) /
+                               this->configuration.refinementFactor;
                         right = left;
                     } else if (indices[candidate] == flagsZCandidates[candidate].size()) {
                         counter--;
@@ -218,7 +222,7 @@ Flags Refinery<SolverType, ProblemType, Fields, padding>::translateFlags(const F
                     } else if (indices[candidate] < flagsZCandidates[candidate].size()) {
                         std::pair<unsigned, unsigned>& pair =
                             flagsZCandidates[candidate][indices[candidate]];
-                        if (right >= pair.first / this->configuration.refinementFactor) {
+                        if (right + 1 >= pair.first / this->configuration.refinementFactor) {
                             right =
                                 std::max(right, pair.second / this->configuration.refinementFactor);
                             indices[candidate]++;
