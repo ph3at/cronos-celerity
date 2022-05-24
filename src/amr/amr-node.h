@@ -18,8 +18,8 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     std::optional<Fields> valueAt(const double xPos, const double yPos, const double zPos) const;
 
   private:
-    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>&> parents;
-    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>&> children;
+    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> parents;
+    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> children;
 
     PaddedGrid<FieldStruct, GHOST_CELLS>& grid;
     const AMRParameters& configuration;
@@ -35,11 +35,7 @@ AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(PaddedGrid<Fields, pa
                                                            const AMRParameters& configuration,
                                                            const double timeDelta,
                                                            const double timeCurrent)
-    : configuration(configuration) {
-    this->grid = grid;
-    this->parents();
-    this->children();
-    this->solver = SolverType(grid, problem);
+    : grid(grid), configuration(configuration), solver(SolverType(grid, problem)) {
     this->solver.timeDelta = timeDelta;
     this->solver.timeCurrent = timeCurrent;
     this->solver.timeStep = 0;
@@ -55,8 +51,8 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::integrate(const double u
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRNode<SolverType, ProblemType, Fields, padding>::step() {
-    for (AMRNode<SolverType, ProblemType, Fields, padding> childGrid : this->children) {
-        childGrid.integrate(this->solver.timeCurrent + this->solver.timeDelta);
+    for (AMRNode<SolverType, ProblemType, Fields, padding>* childGrid : this->children) {
+        childGrid->integrate(this->solver.timeCurrent + this->solver.timeDelta);
     }
     this->solver.step();
     this->inject();
@@ -75,11 +71,11 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::inject() {
                  z++, zPos += this->grid.cellSize[Direction::DirZ]) {
                 // Could/Should be optimised to try last child with value first.
                 // Potentially switch to child calling parent
-                for (AMRNode<SolverType, ProblemType, Fields, padding>& child : this->children) {
-                    const std::optional<Fields> childValues = child.valueAt(xPos, yPos, zPos);
+                for (AMRNode<SolverType, ProblemType, Fields, padding>* child : this->children) {
+                    const std::optional<Fields> childValues = child->valueAt(xPos, yPos, zPos);
                     if (childValues.has_value()) {
                         for (unsigned field = 0; field < Fields().size(); field++) {
-                            this->grid(x, y, z)[field] = childValues.value[field];
+                            this->grid(x, y, z)[field] = childValues.value()[field];
                         }
                         break;
                     }
@@ -131,4 +127,5 @@ Fields AMRNode<SolverType, ProblemType, Fields, padding>::interpolate(const doub
     for (unsigned field = 0; field < fields.size(); field++) {
         fields[field] *= invSqrRefinementFactor;
     }
+    return fields;
 }

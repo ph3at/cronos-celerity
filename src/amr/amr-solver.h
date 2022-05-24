@@ -6,13 +6,13 @@
 #include "refinement.h"
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-class AMRSolver
-    : Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields, ProblemType, padding> {
+class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields,
+                                ProblemType, padding> {
   public:
     AMRSolver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
               const AMRParameters& configuration);
 
-    void initialise();
+    void initialise() {}
     void singleStep();
     void adjust();
 
@@ -28,13 +28,11 @@ AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(PaddedGrid<Fields
                                                                const AMRParameters& configuration)
     : Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields, ProblemType, padding>(
           grid, problem),
-      configuration(configuration) {
-    this->refinery();
-}
-
-template <class SolverType, class ProblemType, class Fields, unsigned padding>
-void AMRSolver<SolverType, ProblemType, Fields, padding>::initialise() {
-    this->root = refinery.initialRefine(this->grid, this->problem, this->configuration);
+      configuration(configuration),
+      refinery(Refinery<SolverType, ProblemType, Fields, padding>(configuration.refinementFactor)),
+      root(this->refinery.initialRefine(grid, problem, configuration)) {
+    // this->refinery(configuration.refinementFactor);
+    // this->root = refinery.initialRefine(this->grid, this->problem, this->configuration);
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>

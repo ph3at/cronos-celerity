@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits>
+
 #include "amr-node.h"
 
 /* Each vector represents one of the dimensions. The unsigned is the offset to the first index in
@@ -12,19 +14,27 @@ typedef std::pair<
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding> class Refinery {
   public:
+    Refinery(const unsigned refinementFactor);
+
     void refine();
     AMRNode<SolverType, ProblemType, Fields, padding>&
     initialRefine(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
                   const AMRParameters& configuration);
 
   private:
+    const unsigned refinementFactor;
+
     std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>> amrNodes;
 
     std::vector<Flags> flagCells();
     void addFlags(Flags& levelFlags, const Flags& nodeFlags);
-    void translateAndAddFlags(Flags& levelFlags, const Flags& subLevelFlags);
+    Flags translateFlags(const Flags& subLevelFlags);
     void addBuffer(Flags& flags);
 };
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const unsigned refinementFactor)
+    : refinementFactor(refinementFactor) {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
@@ -42,7 +52,8 @@ std::vector<Flags> Refinery<SolverType, ProblemType, Fields, padding>::flagCells
             this->addFlags(levelFlags[level], nodeFlags);
         }
         if (level < maxLevel) {
-            this->translateAndAddFlags(levelFlags[level], levelFlags[level + 1]);
+            Flags higherLevelFlags = this->translateFlags(levelFlags[level + 1]);
+            this->addFlags(levelFlags[level], higherLevelFlags);
         }
         this->addBuffer(levelFlags[level]);
     }
@@ -125,9 +136,87 @@ void Refinery<SolverType, ProblemType, Fields, padding>::addFlags(Flags& levelFl
     }
 }
 
+inline unsigned
+minLeft(const std::vector<unsigned>& indices,
+        const std::vector<std::vector<std::pair<unsigned, unsigned>>*>& candidates) {
+    unsigned minValue = std::numeric_limits<unsigned>::max();
+    for (unsigned candidate = 0; candidate < indices.size(); candidate++) {
+        if (indices[candidate] < candidates[candidate]->size()) {
+            minValue = std::min(minValue, (*(candidates[candidate]))[indices[candidate]].first);
+        }
+    }
+    return minValue;
+}
+
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-void Refinery<SolverType, ProblemType, Fields, padding>::translateAndAddFlags(
-    Flags& levelFlags, const Flags& subLevelFlags) {}
+Flags Refinery<SolverType, ProblemType, Fields, padding>::translateFlags(const Flags& flags) {
+    const unsigned xStart = flags.first / this->refinementFactor;
+    const unsigned xSize = flags.second.size() / this->refinementFactor - xStart + 1;
+    std::vector<std::pair<unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>>
+        flagsX;
+    flagsX.reserve(xSize);
+    for (unsigned x = 0; x < xSize; x++) {
+        std::vector<std::vector<std::pair<unsigned, unsigned>>> flagsY;
+
+        unsigned yStart = std::numeric_limits<unsigned>::max();
+        unsigned yEnd = 0;
+        for (unsigned xOffset = 0; xOffset < this->refinementFactor; xOffset++) {
+            if (x * this->refinementFactor + xOffset >= flags.first) {
+                std::pair<unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>&
+                    flagsHere = flags.second[x * this->refinementFactor + xOffset - flags.first];
+                yStart = std::min(yStart, flagsHere.first);
+                yEnd = std::max(yEnd,
+                                static_cast<unsigned>(flagsHere.second.size()) + flagsHere.first);
+            }
+        }
+        yStart /= this->refinementFactor;
+        yEnd = yEnd / this->refinementFactor - yStart + 1;
+        for (unsigned y = 0; y < yEnd; y++) {
+            std::vector<std::vector<std::pair<unsigned, unsigned>>*> flagsZCandidates;
+            for (unsigned xOffset = 0; xOffset < this->refinementFactor; xOffset++) {
+                if (x * this->refinementFactor + xOffset >= flags.first) {
+                    std::pair<unsigned, std::vector<std::vector<std::pair<unsigned, unsigned>>>>&
+                        flagsHere =
+                            flags.second[x * this->refinementFactor + xOffset - flags.first];
+                    for (unsigned yOffset = 0; yOffset < this->refinementFactor; yOffset++) {
+                        if (y * this->refinementFactor + yOffset >= flags.first) {
+                            flagsZCandidates.push_back(
+                                &flagsHere.second[y * this->refinementFactor + yOffset -
+                                                  flagsHere.first]);
+                        }
+                    }
+                }
+            }
+            std::vector<std::pair<unsigned, unsigned>> flagsZ;
+            std::vector<unsigned> indices(flagsZCandidates.size(), 0);
+            unsigned counter = static_cast<unsigned>(flagsZCandidates.size());
+            unsigned left = minLeft(indices, flagsZCandidates);
+            unsigned right;
+            while (counter > 0) {
+                for (unsigned candidate = 0; candidate <= indices.size(); candidate++) {
+                    if (candidate == indices.size()) {
+                        flagsZ.push_back(std::make_pair(left, right));
+                        left = minLeft(indices, flagsZCandidates);
+                    } else if (indices[candidate] == flagsZCandidates[candidate]->size()) {
+                        counter--;
+                        indices[candidate]++;
+                    } else if (indices[candidate] < flagsZCandidates[candidate]->size()) {
+                        std::pair<unsigned, unsigned>& pair =
+                            (*(flagsZCandidates[candidate]))[indices[candidate]];
+                        if (right >= pair.first / this->refinementFactor) {
+                            right = std::max(right, pair.second / this->refinementFactor);
+                            indices[candidate]++;
+                            break;
+                        }
+                    }
+                }
+            }
+            flagsY.push_back(flagsZ);
+        }
+        flagsX.push_back(std::make_pair(yStart, flagsY));
+    }
+    return std::make_pair(xStart, flagsX);
+}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::addBuffer(Flags& flags) {}
@@ -136,4 +225,10 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding>
 AMRNode<SolverType, ProblemType, Fields, padding>&
 Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
     PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
-    const AMRParameters& configuration) {}
+    const AMRParameters& configuration) {
+    AMRNode<SolverType, ProblemType, Fields, padding> root(grid, problem, configuration,
+                                                           problem.timeDelta, 0.0);
+    this->amrNodes.push_back(
+        std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>(1, root));
+    return this->amrNodes[0][0];
+}
