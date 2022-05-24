@@ -77,6 +77,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::addFlags(Flags& levelFl
         const int levelYOffset = std::max(0, nodeYStart - levelYStart);
         const int nodeYOffset = std::max(0, levelYStart - nodeYStart);
         const int yUntil = std::min(levelYSize - levelYOffset, nodeYSize - nodeYOffset);
+
         for (int y = 0; y < yUntil; y++) {
             unsigned levelZ = 0;
             unsigned nodeZ = 0;
@@ -90,32 +91,42 @@ void Refinery<SolverType, ProblemType, Fields, padding>::addFlags(Flags& levelFl
             if (levelZ < levelZEnd && nodeZ < nodeZEnd) {
                 unsigned left = std::min(levelPairs[0].first, nodePairs[0].first);
                 unsigned right = left;
-                while (levelZ < levelZEnd && nodeZ < nodeZEnd) {
-                    if (right >= levelPairs[levelZ].first - 1) {
+                while (true) {
+                    std::cout << left << " " << right << " | " << levelZ << " " << nodeZ
+                              << std::endl;
+                    if (levelZ < levelZEnd && right >= levelPairs[levelZ].first - 1) {
                         right = std::max(right, levelPairs[levelZ].second);
                         levelZ++;
-                    } else if (right >= nodePairs[nodeZ].first - 1) {
+                    } else if (nodeZ < nodeZEnd && right >= nodePairs[nodeZ].first - 1) {
                         right = std::max(right, nodePairs[nodeZ].second);
                         nodeZ++;
                     } else {
                         pairs.push_back(std::make_pair(left, right));
-                        left = std::min(levelPairs[levelZ].first, nodePairs[nodeZ].first);
+                        if (levelZ >= levelZEnd) {
+                            pairs.insert(pairs.end(), nodePairs.begin() + nodeZ, nodePairs.end());
+                            break;
+                        } else if (nodeZ >= nodeZEnd) {
+                            pairs.insert(pairs.end(), levelPairs.begin() + levelZ,
+                                         levelPairs.end());
+                            break;
+                        } else {
+                            left = std::min(levelPairs[levelZ].first, nodePairs[nodeZ].first);
+                            right = left;
+                        }
                     }
                 }
             }
-            if (nodeZ < nodeZEnd) {
-                pairs.insert(pairs.end(), nodePairs.begin() + nodeZ, nodePairs.end());
-            }
             levelFlags.second[x + levelXOffset].second[y + levelYOffset] = pairs;
         }
+
         if (levelYStart > nodeYStart) {
             levelFlags.second[x + levelXOffset].second.insert(
                 levelFlags.second[x + levelXOffset].second.begin(),
                 nodeFlags.second[x + nodeXOffset].second.begin(),
-                nodeFlags.second[x + nodeXOffset].second.begin() + nodeYStart - levelYStart);
+                nodeFlags.second[x + nodeXOffset].second.begin() + levelYStart - nodeYStart);
             levelFlags.second[x + levelXOffset].first = nodeFlags.second[x + nodeXOffset].first;
         }
-        const unsigned yExtra = nodeYStart + nodeYSize - (levelYStart + levelYSize);
+        const int yExtra = nodeYStart + nodeYSize - (levelYStart + levelYSize);
         if (yExtra > 0) {
             levelFlags.second[x + levelXOffset].second.insert(
                 levelFlags.second[x + levelXOffset].second.end(),
@@ -124,11 +135,13 @@ void Refinery<SolverType, ProblemType, Fields, padding>::addFlags(Flags& levelFl
         }
     }
     if (levelXStart > nodeXStart) {
-        levelFlags.second.insert(levelFlags.second.begin(), nodeFlags.second.begin(),
-                                 nodeFlags.second.begin() + nodeXStart - levelXStart);
+        levelFlags.second.insert(
+            levelFlags.second.begin(), nodeFlags.second.begin(),
+            nodeFlags.second.begin() +
+                std::min(levelXStart - nodeXStart, static_cast<int>(nodeFlags.second.size())));
         levelFlags.first = nodeFlags.first;
     }
-    const unsigned xExtra = nodeXStart + nodeXSize - (levelXStart + levelXSize);
+    const int xExtra = nodeXStart + nodeXSize - (levelXStart + levelXSize);
     if (xExtra > 0) {
         levelFlags.second.insert(levelFlags.second.end(), nodeFlags.second.end() - xExtra,
                                  nodeFlags.second.end());
@@ -192,12 +205,13 @@ Flags Refinery<SolverType, ProblemType, Fields, padding>::translateFlags(const F
             std::vector<unsigned> indices(flagsZCandidates.size(), 0);
             unsigned counter = static_cast<unsigned>(flagsZCandidates.size());
             unsigned left = minLeft(indices, flagsZCandidates);
-            unsigned right;
+            unsigned right = left;
             while (counter > 0) {
                 for (unsigned candidate = 0; candidate <= indices.size(); candidate++) {
                     if (candidate == indices.size()) {
                         flagsZ.push_back(std::make_pair(left, right));
                         left = minLeft(indices, flagsZCandidates);
+                        right = left;
                     } else if (indices[candidate] == flagsZCandidates[candidate].size()) {
                         counter--;
                         indices[candidate]++;
