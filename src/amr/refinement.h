@@ -22,6 +22,12 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
 
     std::vector<CellFlags::Flags> flagCells() const;
     double efficiency(const GridBoundary& grid, const CellFlags::Flags& flags) const;
+    GridBoundary fullGrid(const CellFlags::Flags& flags) const;
+    std::vector<GridBoundary> divideGrid(const GridBoundary& grid,
+                                         const CellFlags::Flags& flags) const;
+    std::vector<GridBoundary> mergeGrids(const std::vector<GridBoundary>& grids,
+                                         const CellFlags::Flags& flags) const;
+    void createGrids(const std::vector<GridBoundary>& grids, const unsigned level);
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -31,6 +37,13 @@ Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const AMRParameters
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
     std::vector<CellFlags::Flags> flags = this->flagCells();
+    for (unsigned level = 0; level < flags.size(); level++) {
+        CellFlags::Flags& levelFlags = flags[level];
+        std::vector<GridBoundary> minimalGrids =
+            this->divideGrid(this->fullGrid(levelFlags), levelFlags);
+        std::vector<GridBoundary> newGrids = this->mergeGrids(minimalGrids, levelFlags);
+        createGrids(newGrids, level + 1);
+    }
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -80,6 +93,73 @@ double Refinery<SolverType, ProblemType, Fields, padding>::efficiency(
                             (grid[2].second - grid[2].first));
     return static_cast<double>(flaggedCells) / gridSize;
 }
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+GridBoundary
+Refinery<SolverType, ProblemType, Fields, padding>::fullGrid(const CellFlags::Flags& flags) const {
+    const unsigned xStart = flags.first;
+    const unsigned xEnd = xStart + flags.second.size();
+    unsigned yStart = std::numeric_limits<unsigned>::max();
+    unsigned yEnd = 0;
+    unsigned zStart = std::numeric_limits<unsigned>::max();
+    unsigned zEnd = 0;
+    for (std::pair<unsigned, CellFlags::FlagsY> flagsY : flags.second) {
+        yStart = std::min(yStart, flagsY.first);
+        yEnd = std::max(yEnd, flagsY.first + static_cast<unsigned>(flagsY.second.size()));
+        for (CellFlags::FlagsZ flagsZ : flagsY.second) {
+            const size_t nPairs = flagsZ.size();
+            if (nPairs > 0) {
+                zStart = std::min(zStart, flagsZ[0].first);
+                zEnd = std::max(zEnd, flagsZ[nPairs - 1].second);
+            }
+        }
+    }
+    return { std::make_pair(xStart, xEnd), std::make_pair(yStart, yEnd),
+             std::make_pair(zStart, zEnd) };
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::divideGrid(
+    const GridBoundary& grid, const CellFlags::Flags& flags) const {
+    if (this->efficiency(grid, flags) < this->configuration.efficiencyThreshold) {
+        GridBoundary subGrid1;
+        GridBoundary subGrid2;
+        unsigned longest =
+            std::max(grid[0].second - grid[0].first,
+                     std::max(grid[1].second - grid[1].first, grid[2].second - grid[2].first));
+        if (grid[0].second - grid[0].first == longest) {
+            subGrid1 = { std::make_pair(grid[0].first, grid[0].first + grid[0].second / 2), grid[1],
+                         grid[2] };
+            subGrid2 = { std::make_pair(grid[0].first + grid[0].second / 2 + 1, grid[0].second),
+                         grid[1], grid[2] };
+        } else if (grid[1].second - grid[1].first == longest) {
+            subGrid1 = { grid[0], std::make_pair(grid[1].first, grid[1].first + grid[1].second / 2),
+                         grid[2] };
+            subGrid2 = { grid[0],
+                         std::make_pair(grid[1].first + grid[1].second / 2 + 1, grid[1].second),
+                         grid[2] };
+        } else {
+            subGrid1 = { grid[0], grid[1],
+                         std::make_pair(grid[2].first, grid[2].first + grid[2].second / 2) };
+            subGrid2 = { grid[0], grid[1],
+                         std::make_pair(grid[2].first + grid[2].second / 2 + 1, grid[2].second) };
+        }
+        std::vector<GridBoundary> grids1 = this->divideGrid(subGrid1, flags);
+        std::vector<GridBoundary> grids2 = this->divideGrid(subGrid2, flags);
+        grids1.insert(grids1.end(), grids2.begin(), grids2.end());
+        return grids1;
+    } else {
+        return std::vector<GridBoundary>({ grid });
+    }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::mergeGrids(
+    const std::vector<GridBoundary>& grids, const CellFlags::Flags& flags) const {}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
+    const std::vector<GridBoundary>& grids, const unsigned level) {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 AMRNode<SolverType, ProblemType, Fields, padding>&
