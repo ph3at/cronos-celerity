@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <limits>
 
 #include "amr-node.h"
@@ -9,13 +10,14 @@ typedef std::array<std::pair<unsigned, unsigned>, 3> GridBoundary;
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding> class Refinery {
   public:
-    Refinery(const AMRParameters& configuration);
+    Refinery(const Problem<ProblemType>& problem, const AMRParameters& configuration);
 
     void refine();
     AMRNode<SolverType, ProblemType, Fields, padding>&
     initialRefine(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem);
 
   private:
+    const Problem<ProblemType>& problem;
     const AMRParameters& configuration;
 
     std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>> amrNodes;
@@ -27,12 +29,16 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
                                          const CellFlags::Flags& flags) const;
     std::vector<GridBoundary> mergeGrids(const std::vector<GridBoundary>& grids,
                                          const CellFlags::Flags& flags) const;
-    void createGrids(const std::vector<GridBoundary>& grids, const unsigned level);
+    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
+    createGrids(std::vector<GridBoundary>& grids, const unsigned level);
+    void initialiseGrid(PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary,
+                        const unsigned level);
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const AMRParameters& configuration)
-    : configuration(configuration) {}
+Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const Problem<ProblemType>& problem,
+                                                             const AMRParameters& configuration)
+    : problem(problem), configuration(configuration) {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
@@ -158,8 +164,104 @@ std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::me
     const std::vector<GridBoundary>& grids, const CellFlags::Flags& flags) const {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-void Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
-    const std::vector<GridBoundary>& grids, const unsigned level) {}
+std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
+Refinery<SolverType, ProblemType, Fields, padding>::createGrids(std::vector<GridBoundary>& grids,
+                                                                const unsigned level) {
+
+    AMRNode<SolverType, ProblemType, Fields, padding>& root = this->amrNodes[0][0];
+
+    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>> newGrids;
+    newGrids.reserve(grids.size());
+    const double factor =
+        1.0 / static_cast<double>(std::pow(this->configuration.refinementFactor, level));
+    const std::array<double, 3> cellSize = { root.grid.cellSize[0] * factor,
+                                             root.grid.cellSize[1] * factor,
+                                             root.grid.cellSize[2] * factor };
+    const double timeDelta = root.solver.timeDelta * factor;
+    const double timeCurrent = root.solver.timeCurrent;
+    for (GridBoundary grid : grids) {
+        std::array<double, 3> dim;
+        std::array<double, 3> posLeft;
+        std::array<double, 3> posRight;
+        for (unsigned dir = 0; dir < 3; dir++) {
+            posLeft[dir] = static_cast<double>(grid[dir].first) * cellSize[dir];
+            if (posLeft[dir] < (root.grid.posLeft[dir])) {
+                posLeft[dir] = root.grid.posLeft[dir];
+                grid[dir].first = static_cast<unsigned>(posLeft[dir] / cellSize[dir]);
+            }
+            posRight[dir] = static_cast<double>(grid[dir].second) * cellSize[dir];
+            if (posRight[dir] < (root.grid.posRight[dir])) {
+                posRight[dir] = root.grid.posRight[dir];
+                grid[dir].second = static_cast<unsigned>(posRight[dir] / cellSize[dir]);
+            }
+            dim[dir] = grid[dir].second - grid[dir].first;
+        }
+        PaddedGrid<Fields, padding> newGrid(this->amrNodes[0][0].grid.defaultValue, dim[0], dim[1],
+                                            dim[2], posLeft, posRight);
+        this->initialiseGrid(newGrid, grid, level);
+        newGrids.push_back(AMRNode<SolverType, ProblemType, Fields, padding>(
+            newGrid, this->problem, this->configuration, timeDelta, timeCurrent));
+    }
+    return newGrids;
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void Refinery<SolverType, ProblemType, Fields, padding>::initialiseGrid(
+    PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary, const unsigned level) {
+    // Could be optimised with smaller search space for siblings and parents
+    for (unsigned x = 0; x < grid.xDim(); x++) {
+        const unsigned xGlobal = x + gridBoundary[0].first;
+        for (unsigned y = 0; y < grid.yDim(); y++) {
+            const unsigned yGlobal = y + gridBoundary[1].first;
+            for (unsigned z = 0; z < grid.zDim(); z++) {
+                const unsigned zGlobal = z + gridBoundary[2].first;
+                bool foundCell = false;
+                if (level < this->amrNodes.size()) {
+                    for (AMRNode<SolverType, ProblemType, Fields, padding>& sibling :
+                         this->amrNodes[level]) {
+                        if (xGlobal >= sibling.gridBoundary[0].first &&
+                            xGlobal < sibling.gridBoundary[0].second &&
+                            yGlobal >= sibling.gridBoundary[1].first &&
+                            yGlobal < sibling.gridBoundary[1].second &&
+                            zGlobal >= sibling.gridBoundary[2].first &&
+                            zGlobal < sibling.gridBoundary[2].second) {
+                            const unsigned xSibling = xGlobal - sibling.gridBoundary[0].first;
+                            const unsigned ySibling = yGlobal - sibling.gridBoundary[1].first;
+                            unsigned zSibling = zGlobal - sibling.gridBoundary[2].first;
+                            while (z < grid.zDim() && zSibling < sibling.grid.zDim()) {
+                                grid(x, y, z) = sibling.grid(xSibling, ySibling, zSibling);
+                                z++;
+                                zSibling++;
+                            }
+                            foundCell = true;
+                            break;
+                        }
+                    }
+                }
+                if (!foundCell) {
+                    const unsigned xGlobalUp = xGlobal / this->configuration.refinementFactor;
+                    const unsigned yGlobalUp = yGlobal / this->configuration.refinementFactor;
+                    const unsigned zGlobalUp = zGlobal / this->configuration.refinementFactor;
+                    for (AMRNode<SolverType, ProblemType, Fields, padding>& parent :
+                         this->amrNodes[level - 1]) {
+                        if (xGlobalUp >= parent.gridBoundary[0].first &&
+                            xGlobalUp < parent.gridBoundary[0].second &&
+                            yGlobalUp >= parent.gridBoundary[1].first &&
+                            yGlobalUp < parent.gridBoundary[1].second &&
+                            zGlobalUp >= parent.gridBoundary[2].first &&
+                            zGlobalUp < parent.gridBoundary[2].second) {
+                            const unsigned xParent = xGlobal - parent.gridBoundary[0].first;
+                            const unsigned yParent = yGlobal - parent.gridBoundary[1].first;
+                            const unsigned zParent = zGlobal - parent.gridBoundary[2].first;
+                            // TODO: Interpolation
+                            grid(x, y, z) = parent.grid(xParent, yParent, zParent);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 AMRNode<SolverType, ProblemType, Fields, padding>&

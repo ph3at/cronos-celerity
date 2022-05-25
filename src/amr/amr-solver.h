@@ -29,7 +29,7 @@ AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(PaddedGrid<Fields
     : Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields, ProblemType, padding>(
           grid, problem),
       configuration(configuration),
-      refinery(Refinery<SolverType, ProblemType, Fields, padding>(configuration)),
+      refinery(Refinery<SolverType, ProblemType, Fields, padding>(problem, configuration)),
       root(this->refinery.initialRefine(grid, problem)) {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>

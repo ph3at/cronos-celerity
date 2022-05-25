@@ -17,13 +17,16 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     void step();
     std::optional<Fields> valueAt(const double xPos, const double yPos, const double zPos) const;
 
+    PaddedGrid<FieldStruct, GHOST_CELLS>& grid;
+    std::array<std::pair<unsigned, unsigned>, 3> gridBoundary;
+
+    Solver<SolverType, Fields, ProblemType, padding> solver;
+
   private:
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> parents;
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> children;
 
-    PaddedGrid<FieldStruct, GHOST_CELLS>& grid;
     const AMRParameters& configuration;
-    Solver<SolverType, Fields, ProblemType, padding> solver;
 
     void inject();
     Fields interpolate(const double xPos, const double yPos, const double zPos) const;
@@ -35,7 +38,7 @@ AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(PaddedGrid<Fields, pa
                                                            const AMRParameters& configuration,
                                                            const double timeDelta,
                                                            const double timeCurrent)
-    : grid(grid), configuration(configuration), solver(SolverType(grid, problem)) {
+    : grid(grid), solver(SolverType(grid, problem)), configuration(configuration) {
     this->solver.timeDelta = timeDelta;
     this->solver.timeCurrent = timeCurrent;
     this->solver.timeStep = 0;
