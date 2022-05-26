@@ -29,6 +29,9 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
                                          const CellFlags::Flags& flags) const;
     std::vector<GridBoundary> mergeGrids(const std::vector<GridBoundary>& grids,
                                          const CellFlags::Flags& flags) const;
+    double gridCost(const GridBoundary& grid, const CellFlags::Flags& flags);
+    void checkNesting(std::vector<GridBoundary>& grids,
+                      const std::vector<GridBoundary>& parentGrids);
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
     createGrids(std::vector<GridBoundary>& grids, const unsigned level);
     void initialiseGrid(PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary,
@@ -42,14 +45,24 @@ Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const Problem<Probl
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
+    std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>> newNodes;
+    newNodes.push_back(this->amrNodes[0]);
+
     std::vector<CellFlags::Flags> flags = this->flagCells();
+
+    std::vector<GridBoundary> parents({ this->amrNodes[0][0].gridBoundary });
     for (unsigned level = 0; level < flags.size(); level++) {
         CellFlags::Flags& levelFlags = flags[level];
         std::vector<GridBoundary> minimalGrids =
             this->divideGrid(this->fullGrid(levelFlags), levelFlags);
         std::vector<GridBoundary> newGrids = this->mergeGrids(minimalGrids, levelFlags);
-        createGrids(newGrids, level + 1);
+        this->checkNesting(newGrids, parents);
+        std::vector<AMRNode<SolverType, ProblemType, Fields, padding>> levelNodes =
+            this->createGrids(newGrids, level + 1);
+        parents = newGrids;
     }
+
+    this->amrNodes.swap(newNodes);
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -127,12 +140,16 @@ Refinery<SolverType, ProblemType, Fields, padding>::fullGrid(const CellFlags::Fl
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::divideGrid(
     const GridBoundary& grid, const CellFlags::Flags& flags) const {
-    if (this->efficiency(grid, flags) < this->configuration.efficiencyThreshold) {
+    const double efficiency = this->efficiency(grid, flags);
+    if (efficiency == 0.0) {
+        return std::vector<GridBoundary>(0);
+    } else if (efficiency < this->configuration.efficiencyThreshold) {
         GridBoundary subGrid1;
         GridBoundary subGrid2;
         unsigned longest =
             std::max(grid[0].second - grid[0].first,
                      std::max(grid[1].second - grid[1].first, grid[2].second - grid[2].first));
+        // TODO: What of very small grids?
         if (grid[0].second - grid[0].first == longest) {
             subGrid1 = { std::make_pair(grid[0].first, grid[0].first + grid[0].second / 2), grid[1],
                          grid[2] };
@@ -161,7 +178,26 @@ std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::di
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::mergeGrids(
-    const std::vector<GridBoundary>& grids, const CellFlags::Flags& flags) const {}
+    const std::vector<GridBoundary>& grids, const CellFlags::Flags& flags) const {
+    std::vector<GridBoundary> mergedGrids;
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+double Refinery<SolverType, ProblemType, Fields, padding>::gridCost(const GridBoundary& grid,
+                                                                    const CellFlags::Flags& flags) {
+    constexpr double ratio = 0.05;
+    const double cost = 1.0 - this->efficiency(grid, flags);
+    const double sizeFactor = ratio * static_cast<double>((grid[0].second - grid[0].first) *
+                                                          (grid[1].second - grid[1].first) *
+                                                          (grid[2].second - grid[2].first));
+    return cost / sizeFactor;
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void Refinery<SolverType, ProblemType, Fields, padding>::checkNesting(
+    std::vector<GridBoundary>& grids, const std::vector<GridBoundary>& parentGrids) {
+    // TODO
+}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
@@ -199,9 +235,12 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(std::vector<Grid
         PaddedGrid<Fields, padding> newGrid(this->amrNodes[0][0].grid.defaultValue, dim[0], dim[1],
                                             dim[2], posLeft, posRight);
         this->initialiseGrid(newGrid, grid, level);
-        newGrids.push_back(AMRNode<SolverType, ProblemType, Fields, padding>(
-            newGrid, this->problem, this->configuration, timeDelta, timeCurrent));
+        AMRNode<SolverType, ProblemType, Fields, padding> newNode(
+            newGrid, this->problem, this->configuration, timeDelta, timeCurrent);
+        newGrids.push_back(newNode);
     }
+    // TODO: add parent/sibling information
+
     return newGrids;
 }
 
@@ -272,4 +311,5 @@ Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
     this->amrNodes.push_back(
         std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>(1, root));
     return this->amrNodes[0][0];
+    // TODO
 }
