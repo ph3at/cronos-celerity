@@ -23,13 +23,11 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>> amrNodes;
 
     std::vector<CellFlags::Flags> flagCells() const;
-    double efficiency(const GridBoundary& grid, const CellFlags::Flags& flags) const;
     GridBoundary fullGrid(const CellFlags::Flags& flags) const;
     std::vector<GridBoundary> divideGrid(const GridBoundary& grid,
                                          const CellFlags::Flags& flags) const;
     std::vector<GridBoundary> mergeGrids(const std::vector<GridBoundary>& grids,
                                          const CellFlags::Flags& flags) const;
-    double gridCost(const GridBoundary& grid, const CellFlags::Flags& flags);
     void checkNesting(std::vector<GridBoundary>& grids,
                       const std::vector<GridBoundary>& parentGrids);
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
@@ -86,9 +84,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
     return levelFlags;
 }
 
-template <class SolverType, class ProblemType, class Fields, unsigned padding>
-double Refinery<SolverType, ProblemType, Fields, padding>::efficiency(
-    const GridBoundary& grid, const CellFlags::Flags& flags) const {
+inline double gridEfficiency(const GridBoundary& grid, const CellFlags::Flags& flags) {
     unsigned flaggedCells = 0;
     for (unsigned x = std::max(grid[0].first, flags.first);
          x < std::min(grid[0].second, flags.first + static_cast<unsigned>(flags.second.size()));
@@ -140,7 +136,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::fullGrid(const CellFlags::Fl
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::divideGrid(
     const GridBoundary& grid, const CellFlags::Flags& flags) const {
-    const double efficiency = this->efficiency(grid, flags);
+    const double efficiency = gridEfficiency(grid, flags);
     if (efficiency == 0.0) {
         return std::vector<GridBoundary>(0);
     } else if (efficiency < this->configuration.efficiencyThreshold) {
@@ -176,21 +172,132 @@ std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::di
     }
 }
 
-template <class SolverType, class ProblemType, class Fields, unsigned padding>
-std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::mergeGrids(
-    const std::vector<GridBoundary>& grids, const CellFlags::Flags& flags) const {
-    std::vector<GridBoundary> mergedGrids;
+inline double gridCost(const GridBoundary& grid, const CellFlags::Flags& flags) {
+    const double x = static_cast<double>(grid[0].second - grid[0].first);
+    const double y = static_cast<double>(grid[1].second - grid[1].first);
+    const double z = static_cast<double>(grid[2].second - grid[2].first);
+    const double efficiency = gridEfficiency(grid, flags);
+    return (0.0 - efficiency) * (x * y * z + x * y + x * z + y * z + x + y + z);
+}
+
+inline std::optional<GridBoundary> overlappingArea(const GridBoundary& grid1,
+                                                   const GridBoundary& grid2) {
+    if (grid1[0].second + 1 >= grid2[0].first && grid1[0].first <= grid2[0].second + 1 &&
+        grid1[1].second + 1 >= grid2[1].first && grid1[1].first <= grid2[1].second + 1 &&
+        grid1[2].second + 1 >= grid2[2].first && grid1[2].first <= grid2[2].second + 1) {
+        unsigned xStart = std::max(grid1[0].first, grid2[0].first);
+        unsigned xEnd = std::min(grid1[0].second, grid2[0].second);
+        if (xStart > xEnd) {
+            std::swap(xStart, xEnd);
+        }
+        unsigned yStart = std::max(grid1[1].first, grid2[1].first);
+        unsigned yEnd = std::min(grid1[1].second, grid2[1].second);
+        if (yStart > yEnd) {
+            std::swap(yStart, yEnd);
+        }
+        unsigned zStart = std::max(grid1[2].first, grid2[2].first);
+        unsigned zEnd = std::min(grid1[2].second, grid2[2].second);
+        if (zStart > zEnd) {
+            std::swap(zStart, zEnd);
+        }
+        const GridBoundary overlapping = { std::make_pair(xStart, xEnd),
+                                           std::make_pair(yStart, yEnd),
+                                           std::make_pair(zStart, zEnd) };
+        return std::make_optional(overlapping);
+    } else {
+        return std::nullopt;
+    }
+}
+
+inline std::optional<GridBoundary> tryMerge(const GridBoundary& grid1, const GridBoundary& grid2,
+                                            const CellFlags::Flags& flags) {
+    const std::optional<GridBoundary> adjaecent = overlappingArea(grid1, grid2);
+    if (adjaecent.has_value()) {
+        const GridBoundary mergedGrid = {
+            std::make_pair(std::min(grid1[0].first, grid2[0].first),
+                           std::max(grid1[0].second, grid2[0].second)),
+            std::make_pair(std::min(grid1[1].first, grid2[1].first),
+                           std::max(grid1[1].second, grid2[1].second)),
+            std::make_pair(std::min(grid1[2].first, grid2[2].first),
+                           std::max(grid1[2].second, grid2[2].second))
+        };
+        if (gridCost(mergedGrid, flags) < gridCost(grid1, flags) + gridCost(grid2, flags)) {
+            return std::make_optional(mergedGrid);
+        }
+    }
+    return std::nullopt;
+}
+
+inline std::vector<GridBoundary> mergeGridsAux(const std::vector<GridBoundary>& gridsKnown,
+                                               const std::vector<GridBoundary>& gridsNew,
+                                               const CellFlags::Flags& flags) {
+    std::vector<bool> keepGrid(gridsNew.size(), true);
+    std::vector<GridBoundary> newGrids;
+    std::vector<GridBoundary> knownGrids;
+    for (const GridBoundary& grid1 : gridsKnown) {
+        bool keep = true;
+        for (unsigned grid2 = 0; grid2 < newGrids.size(); grid2++) {
+            if (keepGrid[grid2]) {
+                std::optional<GridBoundary> mergedGrid = tryMerge(grid1, newGrids[grid2], flags);
+                if (mergedGrid.has_value()) {
+                    keep = false;
+                    keepGrid[grid2] = false;
+                    newGrids.push_back(mergedGrid.value());
+                    break;
+                }
+            }
+        }
+        if (keep) {
+            knownGrids.push_back(grid1);
+        } else {
+            newGrids.push_back(grid1);
+        }
+    }
+    if (newGrids.size() == 0) {
+        knownGrids.insert(knownGrids.end(), gridsNew.begin(), gridsNew.end());
+        return knownGrids;
+    } else {
+        for (unsigned grid = 0; grid < newGrids.size(); grid++) {
+            if (keepGrid[grid]) {
+                knownGrids.push_back(gridsNew[grid]);
+            }
+        }
+        return mergeGridsAux(knownGrids, newGrids, flags);
+    }
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-double Refinery<SolverType, ProblemType, Fields, padding>::gridCost(const GridBoundary& grid,
-                                                                    const CellFlags::Flags& flags) {
-    constexpr double ratio = 0.05;
-    const double cost = 1.0 - this->efficiency(grid, flags);
-    const double sizeFactor = ratio * static_cast<double>((grid[0].second - grid[0].first) *
-                                                          (grid[1].second - grid[1].first) *
-                                                          (grid[2].second - grid[2].first));
-    return cost / sizeFactor;
+std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::mergeGrids(
+    const std::vector<GridBoundary>& grids, const CellFlags::Flags& flags) const {
+    std::vector<GridBoundary> newGrids;
+    std::vector<bool> keepGrid(grids.size(), true);
+    for (unsigned grid1 = 0; grid1 < grids.size() - 1; grid1++) {
+        if (keepGrid[grid1]) {
+            for (unsigned grid2 = grid1 + 1; grid2 < grids.size(); grid2++) {
+                if (keepGrid[grid2]) {
+                    std::optional<GridBoundary> mergedGrid =
+                        tryMerge(grids[grid1], grids[grid2], flags);
+                    if (mergedGrid.has_value()) {
+                        keepGrid[grid1] = false;
+                        keepGrid[grid2] = false;
+                        newGrids.push_back(mergedGrid.value());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if (newGrids.size() == 0) {
+        return grids;
+    } else {
+        std::vector<GridBoundary> knownGrids;
+        for (unsigned grid = 0; grid < grids.size(); grid++) {
+            if (keepGrid[grid]) {
+                knownGrids.push_back(grids[grid]);
+            }
+        }
+        return mergeGridsAux(knownGrids, newGrids, flags);
+    }
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
