@@ -33,7 +33,8 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     void checkNesting(std::vector<GridBoundary>& grids,
                       const std::vector<GridBoundary>& parentGrids);
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
-    createGrids(std::vector<GridBoundary>& grids, const unsigned level);
+    createGrids(std::vector<GridBoundary>& grids, const unsigned level,
+                std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents);
     void initialiseGrid(PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary,
                         const unsigned level);
 };
@@ -49,6 +50,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
     newNodes.push_back(this->amrNodes[0]);
 
     std::vector<CellFlags::Flags> flags = this->flagCells();
+    newNodes.reserve(flags.size() + 1);
 
     std::vector<GridBoundary> parents({ this->amrNodes[0][0].gridBoundary });
     for (unsigned level = flags.size() - 1; level >= 0; level--) {
@@ -58,7 +60,8 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
         std::vector<GridBoundary> newGrids = this->mergeGrids(minimalGrids, levelFlags);
         this->checkNesting(newGrids, parents);
         std::vector<AMRNode<SolverType, ProblemType, Fields, padding>> levelNodes =
-            this->createGrids(newGrids, flags.size() - level);
+            this->createGrids(newGrids, flags.size() - level, newNodes[flags.size() - level - 1]);
+        newNodes.push_back(levelNodes);
         parents.swap(newGrids);
     }
 
@@ -75,6 +78,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
         for (AMRNode<SolverType, ProblemType, Fields, padding> node : this->amrNodes[level]) {
             CellFlags::Flags nodeFlags = {}; // truncation error stuff
             CellFlags::addFlags(levelFlags[level], nodeFlags);
+            // TODO: Make sure new level is only added if needed.
         }
         if (level < maxLevel - 1) {
             CellFlags::Flags higherLevelFlags = CellFlags::translateFlags(
@@ -463,8 +467,9 @@ void Refinery<SolverType, ProblemType, Fields, padding>::checkNesting(
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
-Refinery<SolverType, ProblemType, Fields, padding>::createGrids(std::vector<GridBoundary>& grids,
-                                                                const unsigned level) {
+Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
+    std::vector<GridBoundary>& grids, const unsigned level,
+    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents) {
 
     AMRNode<SolverType, ProblemType, Fields, padding>& root = this->amrNodes[0][0];
 
