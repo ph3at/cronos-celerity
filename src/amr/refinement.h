@@ -51,15 +51,15 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
     std::vector<CellFlags::Flags> flags = this->flagCells();
 
     std::vector<GridBoundary> parents({ this->amrNodes[0][0].gridBoundary });
-    for (unsigned level = 0; level < flags.size(); level++) {
+    for (unsigned level = flags.size() - 1; level >= 0; level--) {
         CellFlags::Flags& levelFlags = flags[level];
         std::vector<GridBoundary> minimalGrids =
             this->divideGrid(this->fullGrid(levelFlags), levelFlags);
         std::vector<GridBoundary> newGrids = this->mergeGrids(minimalGrids, levelFlags);
         this->checkNesting(newGrids, parents);
         std::vector<AMRNode<SolverType, ProblemType, Fields, padding>> levelNodes =
-            this->createGrids(newGrids, level + 1);
-        parents = newGrids;
+            this->createGrids(newGrids, flags.size() - level);
+        parents.swap(newGrids);
     }
 
     this->amrNodes.swap(newNodes);
