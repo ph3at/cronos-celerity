@@ -53,7 +53,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
     newNodes.reserve(flags.size() + 1);
 
     std::vector<GridBoundary> parents({ this->amrNodes[0][0].gridBoundary });
-    for (unsigned level = flags.size() - 1; level >= 0; level--) {
+    for (int level = flags.size() - 1; level >= 0; level--) {
         CellFlags::Flags& levelFlags = flags[level];
         std::vector<GridBoundary> minimalGrids =
             this->divideGrid(this->fullGrid(levelFlags), levelFlags);
@@ -72,22 +72,35 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<CellFlags::Flags>
 Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
     const int maxLevel = static_cast<int>(this->amrNodes.size());
-    std::vector<CellFlags::Flags> levelFlags;
-    levelFlags.reserve(maxLevel);
+    std::vector<CellFlags::Flags> flags;
+    bool refine = false;
     for (int level = maxLevel - 1; level >= 0; level--) {
-        for (AMRNode<SolverType, ProblemType, Fields, padding> node : this->amrNodes[level]) {
-            CellFlags::Flags nodeFlags = {}; // truncation error stuff
-            CellFlags::addFlags(levelFlags[level], nodeFlags);
-            // TODO: Make sure new level is only added if needed.
+        bool first = true;
+        CellFlags::Flags levelFlags;
+        for (const AMRNode<SolverType, ProblemType, Fields, padding>& node :
+             this->amrNodes[level]) {
+            std::optional<CellFlags::Flags> nodeFlags = {}; // truncation error stuff
+            if (nodeFlags.has_value()) {
+                if (first) {
+                    refine = true;
+                    first = false;
+                    levelFlags.swap(nodeFlags.value());
+                } else {
+                    CellFlags::addFlags(levelFlags, nodeFlags.value());
+                }
+            }
         }
-        if (level < maxLevel - 1) {
-            CellFlags::Flags higherLevelFlags = CellFlags::translateFlags(
-                levelFlags[level + 1], this->configuration.refinementFactor);
-            CellFlags::addFlags(levelFlags[level], higherLevelFlags);
+        if (refine) {
+            if (level < maxLevel - 1) {
+                CellFlags::Flags higherLevelFlags =
+                    CellFlags::translateFlags(flags.back(), this->configuration.refinementFactor);
+                CellFlags::addFlags(levelFlags, higherLevelFlags);
+            }
+            CellFlags::addBuffer(levelFlags, this->configuration.bufferSize);
+            flags.push_back(levelFlags);
         }
-        CellFlags::addBuffer(levelFlags[level], this->configuration.bufferSize);
     }
-    return levelFlags;
+    return flags;
 }
 
 inline double gridEfficiency(const GridBoundary& grid, const CellFlags::Flags& flags) {
