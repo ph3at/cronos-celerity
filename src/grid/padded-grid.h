@@ -15,8 +15,10 @@ template <class T, unsigned padding> class PaddedGrid {
                const std::array<double, 3> posRight = { 1.0, 1.0, 1.0 },
                const std::array<BoundaryType, Faces::FaceMax> boundaryTypes = {
                    BoundaryType::EMPTY });
+    PaddedGrid(const PaddedGrid<T, padding>& blueprint);
 
     void clear();
+    PaddedGrid<T, padding> copy();
 
     T& operator()(const size_t x, const size_t y, const size_t z);
     T operator()(const size_t x, const size_t y, const size_t z) const;
@@ -68,6 +70,18 @@ PaddedGrid<T, padding>::PaddedGrid(const T defaultValue, const size_t xDim, cons
     this->data.reserve(size);
     for (size_t _ = 0; _ < size; _++) {
         this->data.push_back(T(defaultValue));
+    }
+}
+
+template <class T, unsigned padding>
+PaddedGrid<T, padding>::PaddedGrid(const PaddedGrid<T, padding>& blueprint)
+    : defaultValue(blueprint.defaultValue), posLeft(blueprint.posLeft),
+      posRight(blueprint.posRight), cellSize(blueprint.cellSize),
+      inverseCellSize(blueprint.inverseCellSize), boundaryTypes(blueprint.boundaryTypes),
+      xSize(blueprint.xSize), ySize(blueprint.ySize), zSize(blueprint.zSize) {
+    this->data.reserve(blueprint.data.size());
+    for (size_t i = 0; i < blueprint.data.size(); i++) {
+        this->data[i] = blueprint.data[i];
     }
 }
 
