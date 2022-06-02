@@ -6,6 +6,7 @@
 #include <limits>
 
 #include "amr-node.h"
+#include "error-estimation.h"
 #include "flags.h"
 
 typedef std::array<std::pair<unsigned, unsigned>, 3> GridBoundary;
@@ -64,7 +65,13 @@ Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
         CellFlags::Flags levelFlags;
         bool noFlags = true;
         for (AMRNode<SolverType, ProblemType, Fields, padding>& node : this->amrNodes[level]) {
-            std::optional<CellFlags::Flags> gridFlags = {};
+            std::optional<CellFlags::Flags> gridFlags =
+                ErrorEstimation::getFlags<ProblemType, Fields, padding>(
+                    node.grid,
+                    { node.gridBoundary[0].first, node.gridBoundary[1].first,
+                      node.gridBoundary[2].first },
+                    node.solver.timeDelta, this->configuration.truncationErrorTreshold,
+                    this->problem, this->amrNodes[0][0].grid.boundaryTypes);
             if (gridFlags.has_value()) {
                 if (noFlags) {
                     noFlags = false;
@@ -130,7 +137,13 @@ Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
         CellFlags::Flags levelFlags;
         for (const AMRNode<SolverType, ProblemType, Fields, padding>& node :
              this->amrNodes[level]) {
-            std::optional<CellFlags::Flags> nodeFlags = {}; // truncation error stuff
+            std::optional<CellFlags::Flags> nodeFlags =
+                ErrorEstimation::getFlags<ProblemType, Fields, padding>(
+                    node.grid,
+                    { node.gridBoundary[0].first, node.gridBoundary[1].first,
+                      node.gridBoundary[2].first },
+                    node.solver.timeDelta, this->configuration.truncationErrorTreshold,
+                    this->problem, this->amrNodes[0][0].grid.boundaryTypes);
             if (nodeFlags.has_value()) {
                 if (first) {
                     refine = true;
