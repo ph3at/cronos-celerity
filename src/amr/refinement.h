@@ -35,8 +35,10 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
     createGrids(std::vector<GridBoundary>& grids, const unsigned level,
                 std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents);
-    void initialiseGrid(PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary,
-                        const unsigned level);
+    void
+    initialiseGrid(PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary,
+                   const unsigned level,
+                   const std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents);
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -512,9 +514,10 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
         }
         PaddedGrid<Fields, padding> newGrid(this->amrNodes[0][0].grid.defaultValue, dim[0], dim[1],
                                             dim[2], posLeft, posRight);
-        this->initialiseGrid(newGrid, grid, level);
+        this->initialiseGrid(newGrid, grid, level, parents);
         AMRNode<SolverType, ProblemType, Fields, padding> newNode(
             newGrid, this->problem, this->configuration, timeDelta, timeCurrent);
+        newNode.gridBoundary = grid;
         newGrids.push_back(newNode);
     }
 
@@ -542,24 +545,28 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::initialiseGrid(
-    PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary, const unsigned level) {
+    PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary, const unsigned level,
+    const std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents) {
     // Could be optimised with smaller search space for siblings and parents
+    const double refinementFactor = static_cast<double>(this->configuration.refinementFactor);
     for (unsigned x = 0; x < grid.xDim(); x++) {
-        const unsigned xGlobal = x + gridBoundary[0].first;
+        const int xGlobal = x + gridBoundary[0].first - padding;
+        const double xGlobalUp = static_cast<double>(xGlobal) / refinementFactor;
         for (unsigned y = 0; y < grid.yDim(); y++) {
-            const unsigned yGlobal = y + gridBoundary[1].first;
+            const int yGlobal = y + gridBoundary[1].first - padding;
+            const double yGlobalUp = static_cast<double>(yGlobal) / refinementFactor;
             for (unsigned z = 0; z < grid.zDim(); z++) {
-                const unsigned zGlobal = z + gridBoundary[2].first;
+                const int zGlobal = z + gridBoundary[2].first - padding;
                 bool foundCell = false;
                 if (level < this->amrNodes.size()) {
                     for (AMRNode<SolverType, ProblemType, Fields, padding>& sibling :
                          this->amrNodes[level]) {
-                        if (xGlobal >= sibling.gridBoundary[0].first &&
-                            xGlobal < sibling.gridBoundary[0].second &&
-                            yGlobal >= sibling.gridBoundary[1].first &&
-                            yGlobal < sibling.gridBoundary[1].second &&
-                            zGlobal >= sibling.gridBoundary[2].first &&
-                            zGlobal < sibling.gridBoundary[2].second) {
+                        if (xGlobal >= static_cast<int>(sibling.gridBoundary[0].first) &&
+                            xGlobal < static_cast<int>(sibling.gridBoundary[0].second) &&
+                            yGlobal >= static_cast<int>(sibling.gridBoundary[1].first) &&
+                            yGlobal < static_cast<int>(sibling.gridBoundary[1].second) &&
+                            zGlobal >= static_cast<int>(sibling.gridBoundary[2].first) &&
+                            zGlobal < static_cast<int>(sibling.gridBoundary[2].second)) {
                             const unsigned xSibling = xGlobal - sibling.gridBoundary[0].first;
                             const unsigned ySibling = yGlobal - sibling.gridBoundary[1].first;
                             unsigned zSibling = zGlobal - sibling.gridBoundary[2].first;
@@ -574,22 +581,14 @@ void Refinery<SolverType, ProblemType, Fields, padding>::initialiseGrid(
                     }
                 }
                 if (!foundCell) {
-                    const unsigned xGlobalUp = xGlobal / this->configuration.refinementFactor;
-                    const unsigned yGlobalUp = yGlobal / this->configuration.refinementFactor;
-                    const unsigned zGlobalUp = zGlobal / this->configuration.refinementFactor;
-                    for (AMRNode<SolverType, ProblemType, Fields, padding>& parent :
-                         this->amrNodes[level - 1]) {
-                        if (xGlobalUp >= parent.gridBoundary[0].first &&
-                            xGlobalUp < parent.gridBoundary[0].second &&
-                            yGlobalUp >= parent.gridBoundary[1].first &&
-                            yGlobalUp < parent.gridBoundary[1].second &&
-                            zGlobalUp >= parent.gridBoundary[2].first &&
-                            zGlobalUp < parent.gridBoundary[2].second) {
-                            const unsigned xParent = xGlobal - parent.gridBoundary[0].first;
-                            const unsigned yParent = yGlobal - parent.gridBoundary[1].first;
-                            const unsigned zParent = zGlobal - parent.gridBoundary[2].first;
-                            // TODO: Interpolation
-                            grid(x, y, z) = parent.grid(xParent, yParent, zParent);
+                    const double zGlobalUp = static_cast<double>(zGlobal) / refinementFactor;
+                    for (const AMRNode<SolverType, ProblemType, Fields, padding>& parent :
+                         parents) {
+                        std::optional<Fields> fields =
+                            parent.valueAtUp(xGlobalUp, yGlobalUp, zGlobalUp);
+                        if (fields.has_value()) {
+                            grid(x, y, z) = fields.value();
+                            break;
                         }
                     }
                 }
