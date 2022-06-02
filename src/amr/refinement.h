@@ -199,26 +199,23 @@ inline double gridCost(const GridBoundary& grid, const CellFlags::Flags& flags) 
     return (0.0 - efficiency) * (x * y * z + x * y + x * z + y * z + x + y + z);
 }
 
+inline bool isOverlappingOrAdjaecent(const GridBoundary& grid1, const GridBoundary& grid2) {
+    return grid1[0].second + 1 >= grid2[0].first && grid1[0].first <= grid2[0].second + 1 &&
+           grid1[1].second + 1 >= grid2[1].first && grid1[1].first <= grid2[1].second + 1 &&
+           grid1[2].second + 1 >= grid2[2].first && grid1[2].first <= grid2[2].second + 1;
+}
+
 inline std::optional<GridBoundary> overlappingArea(const GridBoundary& grid1,
                                                    const GridBoundary& grid2) {
-    if (grid1[0].second + 1 >= grid2[0].first && grid1[0].first <= grid2[0].second + 1 &&
-        grid1[1].second + 1 >= grid2[1].first && grid1[1].first <= grid2[1].second + 1 &&
-        grid1[2].second + 1 >= grid2[2].first && grid1[2].first <= grid2[2].second + 1) {
+    if (grid1[0].second >= grid2[0].first && grid1[0].first <= grid2[0].second &&
+        grid1[1].second >= grid2[1].first && grid1[1].first <= grid2[1].second &&
+        grid1[2].second >= grid2[2].first && grid1[2].first <= grid2[2].second) {
         unsigned xStart = std::max(grid1[0].first, grid2[0].first);
         unsigned xEnd = std::min(grid1[0].second, grid2[0].second);
-        if (xStart > xEnd) {
-            std::swap(xStart, xEnd);
-        }
         unsigned yStart = std::max(grid1[1].first, grid2[1].first);
         unsigned yEnd = std::min(grid1[1].second, grid2[1].second);
-        if (yStart > yEnd) {
-            std::swap(yStart, yEnd);
-        }
         unsigned zStart = std::max(grid1[2].first, grid2[2].first);
         unsigned zEnd = std::min(grid1[2].second, grid2[2].second);
-        if (zStart > zEnd) {
-            std::swap(zStart, zEnd);
-        }
         const GridBoundary overlapping = { std::make_pair(xStart, xEnd),
                                            std::make_pair(yStart, yEnd),
                                            std::make_pair(zStart, zEnd) };
@@ -230,8 +227,7 @@ inline std::optional<GridBoundary> overlappingArea(const GridBoundary& grid1,
 
 inline std::optional<GridBoundary> tryMerge(const GridBoundary& grid1, const GridBoundary& grid2,
                                             const CellFlags::Flags& flags) {
-    const std::optional<GridBoundary> adjaecent = overlappingArea(grid1, grid2);
-    if (adjaecent.has_value()) {
+    if (isOverlappingOrAdjaecent(grid1, grid2)) {
         const GridBoundary mergedGrid = {
             std::make_pair(std::min(grid1[0].first, grid2[0].first),
                            std::max(grid1[0].second, grid2[0].second)),
