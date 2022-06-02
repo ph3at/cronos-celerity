@@ -16,6 +16,10 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     void integrate(const double untilTime);
     void step();
     std::optional<Fields> valueAt(const double xPos, const double yPos, const double zPos) const;
+    void removeChildren();
+    void addParent(AMRNode<SolverType, ProblemType, Fields, padding>* parent);
+    void addSibling(AMRNode<SolverType, ProblemType, Fields, padding>* sibling);
+    void addChild(AMRNode<SolverType, ProblemType, Fields, padding>* child);
 
     PaddedGrid<FieldStruct, GHOST_CELLS>& grid;
     std::array<std::pair<unsigned, unsigned>, 3> gridBoundary;
@@ -24,6 +28,7 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
 
   private:
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> parents;
+    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> siblings;
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> children;
 
     const AMRParameters& configuration;
@@ -131,4 +136,27 @@ Fields AMRNode<SolverType, ProblemType, Fields, padding>::interpolate(const doub
         fields[field] *= invSqrRefinementFactor;
     }
     return fields;
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::removeChildren() {
+    this->children.clear();
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::addParent(
+    AMRNode<SolverType, ProblemType, Fields, padding>* parent) {
+    this->parents.push_back(parent);
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::addSibling(
+    AMRNode<SolverType, ProblemType, Fields, padding>* sibling) {
+    this->siblings.push_back(sibling);
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::addChild(
+    AMRNode<SolverType, ProblemType, Fields, padding>* child) {
+    this->children.push_back(child);
 }

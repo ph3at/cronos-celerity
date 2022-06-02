@@ -47,7 +47,9 @@ Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const Problem<Probl
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
     std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>> newNodes;
-    newNodes.push_back(this->amrNodes[0]);
+    newNodes.push_back(std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>());
+    newNodes[0].swap(this->amrNodes[0]);
+    newNodes[0][0].removeChildren();
 
     std::vector<CellFlags::Flags> flags = this->flagCells();
     newNodes.reserve(flags.size() + 1);
@@ -315,7 +317,7 @@ std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::me
     }
 }
 
-GridBoundary translateUp(const GridBoundary& grid, const unsigned factor) {
+inline GridBoundary translateUp(const GridBoundary& grid, const unsigned factor) {
     return { std::make_pair(grid[0].first * factor, grid[0].second * factor + factor - 1),
              std::make_pair(grid[1].first * factor, grid[1].second * factor + factor - 1),
              std::make_pair(grid[2].first * factor, grid[2].second * factor + factor - 1) };
@@ -515,7 +517,25 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
             newGrid, this->problem, this->configuration, timeDelta, timeCurrent);
         newGrids.push_back(newNode);
     }
-    // TODO: add parent/sibling information
+
+    for (unsigned node1 = 0; node1 < newGrids.size(); node1++) {
+        AMRNode<SolverType, ProblemType, Fields, padding>& grid1 = newGrids[node1];
+        for (unsigned node2 = node1 + 1; node2 < newGrids.size(); node2++) {
+            AMRNode<SolverType, ProblemType, Fields, padding>& grid2 = newGrids[node1];
+            if (isOverlappingOrAdjaecent(grid1.gridBoundary, grid2.gridBoundary)) {
+                grid1.addSibling(&grid2);
+                grid2.addSibling(&grid1);
+            }
+        }
+        for (AMRNode<SolverType, ProblemType, Fields, padding>& parent : parents) {
+            if (isOverlappingOrAdjaecent(
+                    grid1.gridBoundary,
+                    translateUp(parent.gridBoundary, this->configuration.refinementFactor))) {
+                grid1.addParent(&parent);
+                parent.addChild(&grid1);
+            }
+        }
+    }
 
     return newGrids;
 }
