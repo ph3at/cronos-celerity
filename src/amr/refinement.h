@@ -34,7 +34,8 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
                        const std::vector<GridBoundary::Boundary>& parentGrids);
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
     createGrids(std::vector<GridBoundary::Boundary>& grids, const unsigned level,
-                std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents);
+                std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents,
+                const AMRNode<SolverType, ProblemType, Fields, padding>& root);
     void
     initialiseGrid(PaddedGrid<Fields, padding>& grid, const GridBoundary::Boundary& gridBoundary,
                    const unsigned level,
@@ -70,7 +71,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
                     { node.gridBoundary[0].first, node.gridBoundary[1].first,
                       node.gridBoundary[2].first },
                     node.solver.timeDelta, this->configuration.truncationErrorTreshold,
-                    this->problem, this->amrNodes[0][0].grid.boundaryTypes);
+                    this->problem, root.grid.boundaryTypes);
             if (gridFlags.has_value()) {
                 if (noFlags) {
                     noFlags = false;
@@ -90,7 +91,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
                 this->mergeGrids(minimalGrids, levelFlags);
             this->ensureNesting(newGrids, parents);
             std::vector<AMRNode<SolverType, ProblemType, Fields, padding>> levelNodes =
-                this->createGrids(newGrids, level + 1, this->amrNodes[level]);
+                this->createGrids(newGrids, level + 1, this->amrNodes[level], this->amrNodes[0][0]);
             this->amrNodes.push_back(levelNodes);
             parents.swap(newGrids);
             level++;
@@ -110,7 +111,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
     std::vector<CellFlags::Flags> flags = this->flagCells();
     newNodes.reserve(flags.size() + 1);
 
-    std::vector<GridBoundary::Boundary> parents({ this->amrNodes[0][0].gridBoundary });
+    std::vector<GridBoundary::Boundary> parents({ newNodes[0][0].gridBoundary });
     for (int level = flags.size() - 1; level >= 0; level--) {
         CellFlags::Flags& levelFlags = flags[level];
         std::vector<GridBoundary::Boundary> minimalGrids =
@@ -118,7 +119,8 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
         std::vector<GridBoundary::Boundary> newGrids = this->mergeGrids(minimalGrids, levelFlags);
         this->ensureNesting(newGrids, parents);
         std::vector<AMRNode<SolverType, ProblemType, Fields, padding>> levelNodes =
-            this->createGrids(newGrids, flags.size() - level, newNodes[flags.size() - level - 1]);
+            this->createGrids(newGrids, flags.size() - level, newNodes[flags.size() - level - 1],
+                              newNodes[0][0]);
         newNodes.push_back(levelNodes);
         parents.swap(newGrids);
     }
@@ -401,9 +403,8 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
 Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
     std::vector<GridBoundary::Boundary>& grids, const unsigned level,
-    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents) {
-
-    AMRNode<SolverType, ProblemType, Fields, padding>& root = this->amrNodes[0][0];
+    std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents,
+    const AMRNode<SolverType, ProblemType, Fields, padding>& root) {
 
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>> newGrids;
     newGrids.reserve(grids.size());
@@ -432,8 +433,8 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
             }
             dim[dir] = grid[dir].second - grid[dir].first;
         }
-        PaddedGrid<Fields, padding> newGrid(this->amrNodes[0][0].grid.defaultValue, dim[0], dim[1],
-                                            dim[2], posLeft, posRight);
+        PaddedGrid<Fields, padding> newGrid(root.grid.defaultValue, dim[0], dim[1], dim[2], posLeft,
+                                            posRight);
         this->initialiseGrid(newGrid, grid, level, parents);
         AMRNode<SolverType, ProblemType, Fields, padding> newNode(
             nodeId, newGrid, this->problem, this->configuration, timeDelta, timeCurrent);
