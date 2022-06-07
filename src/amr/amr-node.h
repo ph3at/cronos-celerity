@@ -12,8 +12,9 @@
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding> class AMRNode {
   public:
-    AMRNode(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
-            const AMRParameters& configuration, const double timeDelta, const double timeCurrent);
+    AMRNode(const unsigned id, PaddedGrid<Fields, padding>& grid,
+            const Problem<ProblemType>& problem, const AMRParameters& configuration,
+            const double timeDelta, const double timeCurrent);
 
     void setValue(const unsigned xGlobal, const unsigned yGlobal, const unsigned zGlobal,
                   const Fields& fields);
@@ -27,16 +28,17 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     void addSibling(AMRNode<SolverType, ProblemType, Fields, padding>* sibling);
     void addChild(AMRNode<SolverType, ProblemType, Fields, padding>* child);
 
+    const unsigned id;
     PaddedGrid<FieldStruct, GHOST_CELLS>& grid;
     GridBoundary::Boundary gridBoundary;
 
     Solver<SolverType, Fields, ProblemType, padding> solver;
 
-  private:
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> parents;
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> siblings;
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> children;
 
+  private:
     const AMRParameters& configuration;
 
     Fields interpolateDown(const unsigned xLocal, const unsigned yLocal,
@@ -45,12 +47,10 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(PaddedGrid<Fields, padding>& grid,
-                                                           const Problem<ProblemType>& problem,
-                                                           const AMRParameters& configuration,
-                                                           const double timeDelta,
-                                                           const double timeCurrent)
-    : grid(grid), solver(SolverType(grid, problem)), configuration(configuration) {
+AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(
+    const unsigned id, PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
+    const AMRParameters& configuration, const double timeDelta, const double timeCurrent)
+    : id(id), grid(grid), solver(SolverType(grid, problem)), configuration(configuration) {
     this->solver.timeDelta = timeDelta;
     this->solver.timeCurrent = timeCurrent;
     this->solver.timeStep = 0;

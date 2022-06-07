@@ -50,7 +50,7 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>>&
 Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
     PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem) {
-    AMRNode<SolverType, ProblemType, Fields, padding> root(grid, problem, this->configuration,
+    AMRNode<SolverType, ProblemType, Fields, padding> root(0, grid, problem, this->configuration,
                                                            problem.timeDelta, problem.timeStart);
     root.gridBoundary = { std::make_pair(0, grid.xEnd() - padding - 1),
                           std::make_pair(0, grid.yEnd() - padding - 1),
@@ -414,6 +414,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
                                              root.grid.cellSize[2] * factor };
     const double timeDelta = root.solver.timeDelta * factor;
     const double timeCurrent = root.solver.timeCurrent;
+    unsigned nodeId = 0;
     for (GridBoundary::Boundary grid : grids) {
         std::array<double, 3> dim;
         std::array<double, 3> posLeft;
@@ -435,9 +436,10 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
                                             dim[2], posLeft, posRight);
         this->initialiseGrid(newGrid, grid, level, parents);
         AMRNode<SolverType, ProblemType, Fields, padding> newNode(
-            newGrid, this->problem, this->configuration, timeDelta, timeCurrent);
+            nodeId, newGrid, this->problem, this->configuration, timeDelta, timeCurrent);
         newNode.gridBoundary = grid;
         newGrids.push_back(newNode);
+        nodeId++;
     }
 
     for (unsigned node1 = 0; node1 < newGrids.size(); node1++) {
