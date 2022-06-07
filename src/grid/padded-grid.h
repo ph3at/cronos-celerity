@@ -81,7 +81,7 @@ PaddedGrid<T, padding>::PaddedGrid(const PaddedGrid<T, padding>& blueprint)
       xSize(blueprint.xSize), ySize(blueprint.ySize), zSize(blueprint.zSize) {
     this->data.reserve(blueprint.data.size());
     for (size_t i = 0; i < blueprint.data.size(); i++) {
-        this->data[i] = blueprint.data[i];
+        this->data.push_back(blueprint.data[i]);
     }
 }
 

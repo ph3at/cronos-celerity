@@ -18,9 +18,9 @@ getFlags(PaddedGrid<Fields, padding>& grid, const std::array<unsigned, 3> gridOf
 template <class Fields, unsigned padding>
 inline Fields interpolate(const PaddedGrid<Fields, padding>& other, unsigned x, unsigned y,
                           unsigned z) {
-    const unsigned xBase = 2 * x - padding;
-    const unsigned yBase = 2 * y - padding;
-    const unsigned zBase = 2 * z - padding;
+    const unsigned xBase = 2 * x;
+    const unsigned yBase = 2 * y;
+    const unsigned zBase = 2 * z;
     Fields fields = { 0.0 };
     for (unsigned field = 0; field < fields.size(); field++) {
         fields[field] += other(xBase, yBase, zBase)[field];
@@ -36,21 +36,32 @@ inline Fields interpolate(const PaddedGrid<Fields, padding>& other, unsigned x, 
     return fields;
 }
 
-template <class ProblemType, class Fields, unsigned padding>
+template <class Fields, unsigned padding>
 PaddedGrid<Fields, padding>
-createUpper(const PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
+createUpper(const PaddedGrid<Fields, padding>& grid,
             const std::array<BoundaryType, Faces::FaceMax> boundaryTypes) {
     PaddedGrid<Fields, padding> upper(
         grid.defaultValue, (grid.xEnd() - grid.xStart()) / 2, (grid.yEnd() - grid.yStart()) / 2,
         (grid.zEnd() - grid.zStart()) / 2, grid.posLeft, grid.posRight, boundaryTypes);
-    for (unsigned x = grid.xStart(); x < grid.xEnd(); x++) {
-        for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
-            for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
-                upper(x, y, z) = interpolate(grid, x, y, z);
+    for (unsigned x = 1; x + 1 < upper.xDim(); x++) {
+        for (unsigned y = 1; y + 1 < upper.yDim(); y++) {
+            for (unsigned z = 1; z + 1 < upper.zDim(); z++) {
+                upper(x, y, z) = interpolate(grid, x - 1, y - 1, z - 1);
             }
+            upper(x, y, 0) = upper(x, y, 1);
+            upper(x, y, upper.zDim() - 1) = upper(x, y, upper.zDim() - 2);
+        }
+        for (unsigned z = 0; z < upper.zDim(); z++) {
+            upper(x, 0, z) = upper(x, 1, z);
+            upper(x, upper.yDim() - 1, z) = upper(x, upper.yDim() - 2, z);
         }
     }
-    Boundary::applyAll(upper, problem);
+    for (unsigned y = 1; y + 1 < upper.yDim(); y++) {
+        for (unsigned z = 1; z + 1 < upper.zDim(); z++) {
+            upper(0, y, z) = upper(1, y, z);
+            upper(upper.xDim() - 1, y, z) = upper(upper.xDim() - 2, y, z);
+        }
+    }
     return upper;
 }
 
@@ -87,7 +98,7 @@ ErrorEstimation::getFlags(PaddedGrid<Fields, padding>& grid,
                           const double errorThreshold, const Problem<ProblemType>& problem,
                           const std::array<BoundaryType, Faces::FaceMax>& boundaryTypes) {
     PaddedGrid<Fields, padding> baseGrid(grid);
-    PaddedGrid<Fields, padding> upperGrid = createUpper(baseGrid, problem, boundaryTypes);
+    PaddedGrid<Fields, padding> upperGrid = createUpper(baseGrid, boundaryTypes);
     RungeKuttaSolver<ProblemType, Fields, padding> solver1(baseGrid, problem, 1);
     solver1.timeDelta = timeDelta;
     solver1.singleStep();
