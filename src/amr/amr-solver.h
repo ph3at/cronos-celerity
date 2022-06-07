@@ -52,14 +52,14 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::synchronise(const unsi
                 if (overlappingArea.has_value()) { // Should always be the case but you never know
                     GridBoundary::Boundary& overlap = overlappingArea.value();
                     for (unsigned x = overlap[0].first; x <= overlap[0].second; x++) {
-                        const unsigned x1 = x - node1.gridBoundary[0].first;
-                        const unsigned x2 = x - node2->gridBoundary[0].first;
+                        const unsigned x1 = padding + x - node1.gridBoundary[0].first;
+                        const unsigned x2 = padding + x - node2->gridBoundary[0].first;
                         for (unsigned y = overlap[1].first; y <= overlap[1].second; y++) {
-                            const unsigned y1 = y - node1.gridBoundary[1].first;
-                            const unsigned y2 = y - node2->gridBoundary[1].first;
+                            const unsigned y1 = padding + y - node1.gridBoundary[1].first;
+                            const unsigned y2 = padding + y - node2->gridBoundary[1].first;
                             for (unsigned z = overlap[2].first; z <= overlap[2].second; z++) {
-                                const unsigned z1 = z - node1.gridBoundary[2].first;
-                                const unsigned z2 = z - node2->gridBoundary[2].first;
+                                const unsigned z1 = padding + z - node1.gridBoundary[2].first;
+                                const unsigned z2 = padding + z - node2->gridBoundary[2].first;
                                 for (unsigned field = 0; field < Fields().size(); field++) {
                                     node1.grid(x1, y1, z1)[field] =
                                         0.5 * node1.grid(x1, y1, z1)[field] +
@@ -89,11 +89,16 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::levelStep(const unsign
                 node.solver.step();
             }
             this->levelStep(level + 1);
+            this->synchronise(level);
+            if (step + 1 < this->configuration.refinementFactor) {
+                for (AMRNode<SolverType, ProblemType, Fields, padding>& node : this->nodes[level]) {
+                    node.updateBoundarySiblings();
+                }
+            }
         }
-        this->synchronise(level);
-        // get boundaries
         for (AMRNode<SolverType, ProblemType, Fields, padding>& node : this->nodes[level]) {
             node.injectParents();
+            node.updateBoundary();
         }
     }
 }

@@ -19,6 +19,8 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     void setValue(const unsigned xGlobal, const unsigned yGlobal, const unsigned zGlobal,
                   const Fields& fields);
     void injectParents();
+    void updateBoundary();
+    void updateBoundarySiblings();
     Fields valueAtDown(const unsigned xGlobal, const unsigned yGlobal,
                        const unsigned zGlobal) const;
     std::optional<Fields> valueAtUp(const double xGlobal, const double yGlobal,
@@ -44,6 +46,13 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     Fields interpolateDown(const unsigned xLocal, const unsigned yLocal,
                            const unsigned zLocal) const;
     Fields interpolateUp(const double xLocal, const double yLocal, const double zLocal) const;
+
+    void boundaryXLow(const bool includeParents);
+    void boundaryXHigh(const bool includeParents);
+    void boundaryYLow(const bool includeParents);
+    void boundaryYHigh(const bool includeParents);
+    void boundaryZLow(const bool includeParents);
+    void boundaryZHigh(const bool includeParents);
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -87,13 +96,36 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::injectParents() {
     }
 }
 
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::updateBoundary() {
+    const bool includeParents = true;
+    this->boundaryXLow(includeParents);
+    this->boundaryXHigh(includeParents);
+    this->boundaryYLow(includeParents);
+    this->boundaryYHigh(includeParents);
+    this->boundaryZLow(includeParents);
+    this->boundaryZHigh(includeParents);
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::updateBoundarySiblings() {
+    const bool includeParents = false;
+    this->boundaryXLow(includeParents);
+    this->boundaryXHigh(includeParents);
+    this->boundaryYLow(includeParents);
+    this->boundaryYHigh(includeParents);
+    this->boundaryZLow(includeParents);
+    this->boundaryZHigh(includeParents);
+}
+
 /* Careful, this function does not check whether the requested indices are valid. */
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 Fields AMRNode<SolverType, ProblemType, Fields, padding>::valueAtDown(
     const unsigned xGlobal, const unsigned yGlobal, const unsigned zGlobal) const {
-    return this->interpolateDown(xGlobal * this->configuration.refinementFactor,
-                                 yGlobal * this->configuration.refinementFactor,
-                                 zGlobal * this->configuration.refinementFactor);
+    return this->interpolateDown(
+        padding + xGlobal * this->configuration.refinementFactor - this->gridBoundary[0].first,
+        padding + yGlobal * this->configuration.refinementFactor - this->gridBoundary[1].first,
+        padding + zGlobal * this->configuration.refinementFactor - this->gridBoundary[2].first);
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -200,4 +232,382 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRNode<SolverType, ProblemType, Fields, padding>::addChild(
     AMRNode<SolverType, ProblemType, Fields, padding>* child) {
     this->children.push_back(child);
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryXLow(const bool includeParents) {
+    for (int x = static_cast<int>(this->gridBoundary[0].first) - padding;
+         x < static_cast<int>(this->gridBoundary[0].first); x++) {
+        const unsigned xLocal = static_cast<unsigned>(x + padding) - this->gridBoundary[0].first;
+        for (int y = static_cast<int>(this->gridBoundary[1].first) - padding;
+             y <= static_cast<int>(this->gridBoundary[1].second + padding); y++) {
+            const unsigned yLocal =
+                static_cast<unsigned>(y + padding) - this->gridBoundary[1].first;
+            for (int z = static_cast<int>(this->gridBoundary[2].first) - padding;
+                 z <= static_cast<int>(this->gridBoundary[2].second + padding); z++) {
+                unsigned zLocal = static_cast<unsigned>(z + padding) - this->gridBoundary[2].first;
+                bool found = false;
+                for (AMRNode<SolverType, ProblemType, Fields, padding>* sibling : this->siblings) {
+                    if (x >= static_cast<int>(sibling->gridBoundary[0].first) &&
+                        x <= static_cast<int>(sibling->gridBoundary[0].second) &&
+                        y >= static_cast<int>(sibling->gridBoundary[1].first) &&
+                        y <= static_cast<int>(sibling->gridBoundary[1].second) &&
+                        z >= static_cast<int>(sibling->gridBoundary[2].first) &&
+                        z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                        const unsigned xSibling =
+                            static_cast<unsigned>(x + padding) - sibling->gridBoundary[0].first;
+                        const unsigned ySibling =
+                            static_cast<unsigned>(y + padding) - sibling->gridBoundary[1].first;
+                        unsigned zSibling =
+                            static_cast<unsigned>(z + padding) - sibling->gridBoundary[2].first;
+                        while (z <= static_cast<int>(this->gridBoundary[2].second + padding) &&
+                               z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                            this->grid(xLocal, yLocal, zLocal) =
+                                sibling->grid(xSibling, ySibling, zSibling);
+                            z++;
+                            zLocal++;
+                            zSibling++;
+                        }
+                        z--;
+                        zLocal--;
+                        found = true;
+                        break;
+                    }
+                }
+                if (includeParents && !found) {
+                    for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
+                         this->parents) {
+                        const double xGlobal =
+                            static_cast<double>(x) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double yGlobal =
+                            static_cast<double>(y) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double zGlobal =
+                            static_cast<double>(z) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
+                        if (fields.has_value()) {
+                            this->grid(xLocal, yLocal, zLocal) = fields.value();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryXHigh(const bool includeParents) {
+    for (int x = static_cast<int>(this->gridBoundary[0].second) + 1;
+         x <= static_cast<int>(this->gridBoundary[0].second + padding); x++) {
+        const unsigned xLocal = static_cast<unsigned>(x + padding) - this->gridBoundary[0].first;
+        for (int y = static_cast<int>(this->gridBoundary[1].first) - padding;
+             y <= static_cast<int>(this->gridBoundary[1].second + padding); y++) {
+            const unsigned yLocal =
+                static_cast<unsigned>(y + padding) - this->gridBoundary[1].first;
+            for (int z = static_cast<int>(this->gridBoundary[2].first) - padding;
+                 z <= static_cast<int>(this->gridBoundary[2].second + padding); z++) {
+                unsigned zLocal = static_cast<unsigned>(z + padding) - this->gridBoundary[2].first;
+                bool found = false;
+                for (AMRNode<SolverType, ProblemType, Fields, padding>* sibling : this->siblings) {
+                    if (x >= static_cast<int>(sibling->gridBoundary[0].first) &&
+                        x <= static_cast<int>(sibling->gridBoundary[0].second) &&
+                        y >= static_cast<int>(sibling->gridBoundary[1].first) &&
+                        y <= static_cast<int>(sibling->gridBoundary[1].second) &&
+                        z >= static_cast<int>(sibling->gridBoundary[2].first) &&
+                        z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                        const unsigned xSibling =
+                            static_cast<unsigned>(x + padding) - sibling->gridBoundary[0].first;
+                        const unsigned ySibling =
+                            static_cast<unsigned>(y + padding) - sibling->gridBoundary[1].first;
+                        unsigned zSibling =
+                            static_cast<unsigned>(z + padding) - sibling->gridBoundary[2].first;
+                        while (z <= static_cast<int>(this->gridBoundary[2].second + padding) &&
+                               z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                            this->grid(xLocal, yLocal, zLocal) =
+                                sibling->grid(xSibling, ySibling, zSibling);
+                            z++;
+                            zLocal++;
+                            zSibling++;
+                        }
+                        z--;
+                        zLocal--;
+                        found = true;
+                        break;
+                    }
+                }
+                if (includeParents && !found) {
+                    for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
+                         this->parents) {
+                        const double xGlobal =
+                            static_cast<double>(x) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double yGlobal =
+                            static_cast<double>(y) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double zGlobal =
+                            static_cast<double>(z) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
+                        if (fields.has_value()) {
+                            this->grid(xLocal, yLocal, zLocal) = fields.value();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryYLow(const bool includeParents) {
+    for (int y = static_cast<int>(this->gridBoundary[1].first) - padding;
+         y < static_cast<int>(this->gridBoundary[1].first); y++) {
+        const unsigned yLocal = static_cast<unsigned>(y + padding) - this->gridBoundary[1].first;
+        for (int x = static_cast<int>(this->gridBoundary[0].first);
+             x <= static_cast<int>(this->gridBoundary[0].second); x++) {
+            const unsigned xLocal =
+                static_cast<unsigned>(x + padding) - this->gridBoundary[0].first;
+            for (int z = static_cast<int>(this->gridBoundary[2].first) - padding;
+                 z <= static_cast<int>(this->gridBoundary[2].second + padding); z++) {
+                unsigned zLocal = static_cast<unsigned>(z + padding) - this->gridBoundary[2].first;
+                bool found = false;
+                for (AMRNode<SolverType, ProblemType, Fields, padding>* sibling : this->siblings) {
+                    if (x >= static_cast<int>(sibling->gridBoundary[0].first) &&
+                        x <= static_cast<int>(sibling->gridBoundary[0].second) &&
+                        y >= static_cast<int>(sibling->gridBoundary[1].first) &&
+                        y <= static_cast<int>(sibling->gridBoundary[1].second) &&
+                        z >= static_cast<int>(sibling->gridBoundary[2].first) &&
+                        z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                        const unsigned xSibling =
+                            static_cast<unsigned>(x + padding) - sibling->gridBoundary[0].first;
+                        const unsigned ySibling =
+                            static_cast<unsigned>(y + padding) - sibling->gridBoundary[1].first;
+                        unsigned zSibling =
+                            static_cast<unsigned>(z + padding) - sibling->gridBoundary[2].first;
+                        while (z <= static_cast<int>(this->gridBoundary[2].second + padding) &&
+                               z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                            this->grid(xLocal, yLocal, zLocal) =
+                                sibling->grid(xSibling, ySibling, zSibling);
+                            z++;
+                            zLocal++;
+                            zSibling++;
+                        }
+                        z--;
+                        zLocal--;
+                        found = true;
+                        break;
+                    }
+                }
+                if (includeParents && !found) {
+                    for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
+                         this->parents) {
+                        const double xGlobal =
+                            static_cast<double>(x) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double yGlobal =
+                            static_cast<double>(y) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double zGlobal =
+                            static_cast<double>(z) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
+                        if (fields.has_value()) {
+                            this->grid(xLocal, yLocal, zLocal) = fields.value();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryYHigh(const bool includeParents) {
+    for (int y = static_cast<int>(this->gridBoundary[1].second) + 1;
+         y <= static_cast<int>(this->gridBoundary[1].second + padding); y++) {
+        const unsigned yLocal = static_cast<unsigned>(y + padding) - this->gridBoundary[1].first;
+        for (int x = static_cast<int>(this->gridBoundary[0].first);
+             x <= static_cast<int>(this->gridBoundary[0].second); x++) {
+            const unsigned xLocal =
+                static_cast<unsigned>(x + padding) - this->gridBoundary[0].first;
+            for (int z = static_cast<int>(this->gridBoundary[2].first) - padding;
+                 z <= static_cast<int>(this->gridBoundary[2].second + padding); z++) {
+                unsigned zLocal = static_cast<unsigned>(z + padding) - this->gridBoundary[2].first;
+                bool found = false;
+                for (AMRNode<SolverType, ProblemType, Fields, padding>* sibling : this->siblings) {
+                    if (x >= static_cast<int>(sibling->gridBoundary[0].first) &&
+                        x <= static_cast<int>(sibling->gridBoundary[0].second) &&
+                        y >= static_cast<int>(sibling->gridBoundary[1].first) &&
+                        y <= static_cast<int>(sibling->gridBoundary[1].second) &&
+                        z >= static_cast<int>(sibling->gridBoundary[2].first) &&
+                        z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                        const unsigned xSibling =
+                            static_cast<unsigned>(x + padding) - sibling->gridBoundary[0].first;
+                        const unsigned ySibling =
+                            static_cast<unsigned>(y + padding) - sibling->gridBoundary[1].first;
+                        unsigned zSibling =
+                            static_cast<unsigned>(z + padding) - sibling->gridBoundary[2].first;
+                        while (z <= static_cast<int>(this->gridBoundary[2].second + padding) &&
+                               z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                            this->grid(xLocal, yLocal, zLocal) =
+                                sibling->grid(xSibling, ySibling, zSibling);
+                            z++;
+                            zLocal++;
+                            zSibling++;
+                        }
+                        z--;
+                        zLocal--;
+                        found = true;
+                        break;
+                    }
+                }
+                if (includeParents && !found) {
+                    for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
+                         this->parents) {
+                        const double xGlobal =
+                            static_cast<double>(x) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double yGlobal =
+                            static_cast<double>(y) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double zGlobal =
+                            static_cast<double>(z) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
+                        if (fields.has_value()) {
+                            this->grid(xLocal, yLocal, zLocal) = fields.value();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryZLow(const bool includeParents) {
+    for (int z = static_cast<int>(this->gridBoundary[2].first) - padding;
+         z < static_cast<int>(this->gridBoundary[2].first); z++) {
+        const unsigned zLocal = static_cast<unsigned>(z + padding) - this->gridBoundary[2].first;
+        for (int x = static_cast<int>(this->gridBoundary[0].first);
+             x <= static_cast<int>(this->gridBoundary[0].second); x++) {
+            const unsigned xLocal =
+                static_cast<unsigned>(x + padding) - this->gridBoundary[0].first;
+            for (int y = static_cast<int>(this->gridBoundary[1].first);
+                 y <= static_cast<int>(this->gridBoundary[1].second); y++) {
+                unsigned yLocal = static_cast<unsigned>(y + padding) - this->gridBoundary[1].first;
+                bool found = false;
+                for (AMRNode<SolverType, ProblemType, Fields, padding>* sibling : this->siblings) {
+                    if (x >= static_cast<int>(sibling->gridBoundary[0].first) &&
+                        x <= static_cast<int>(sibling->gridBoundary[0].second) &&
+                        y >= static_cast<int>(sibling->gridBoundary[1].first) &&
+                        y <= static_cast<int>(sibling->gridBoundary[1].second) &&
+                        z >= static_cast<int>(sibling->gridBoundary[2].first) &&
+                        z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                        const unsigned xSibling =
+                            static_cast<unsigned>(x + padding) - sibling->gridBoundary[0].first;
+                        unsigned ySibling =
+                            static_cast<unsigned>(y + padding) - sibling->gridBoundary[1].first;
+                        const unsigned zSibling =
+                            static_cast<unsigned>(z + padding) - sibling->gridBoundary[2].first;
+                        while (y <= static_cast<int>(this->gridBoundary[1].second) &&
+                               y <= static_cast<int>(sibling->gridBoundary[1].second)) {
+                            this->grid(xLocal, yLocal, zLocal) =
+                                sibling->grid(xSibling, ySibling, zSibling);
+                            y++;
+                            yLocal++;
+                            ySibling++;
+                        }
+                        y--;
+                        yLocal--;
+                        found = true;
+                        break;
+                    }
+                }
+                if (includeParents && !found) {
+                    for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
+                         this->parents) {
+                        const double xGlobal =
+                            static_cast<double>(x) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double yGlobal =
+                            static_cast<double>(y) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double zGlobal =
+                            static_cast<double>(z) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
+                        if (fields.has_value()) {
+                            this->grid(xLocal, yLocal, zLocal) = fields.value();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryZHigh(const bool includeParents) {
+    for (int z = static_cast<int>(this->gridBoundary[2].second) + 1;
+         z <= static_cast<int>(this->gridBoundary[2].second + padding); z++) {
+        const unsigned zLocal = static_cast<unsigned>(z + padding) - this->gridBoundary[2].first;
+        for (int x = static_cast<int>(this->gridBoundary[0].first);
+             x <= static_cast<int>(this->gridBoundary[0].second); x++) {
+            const unsigned xLocal =
+                static_cast<unsigned>(x + padding) - this->gridBoundary[0].first;
+            for (int y = static_cast<int>(this->gridBoundary[1].first);
+                 y <= static_cast<int>(this->gridBoundary[1].second); y++) {
+                unsigned yLocal = static_cast<unsigned>(y + padding) - this->gridBoundary[1].first;
+                bool found = false;
+                for (AMRNode<SolverType, ProblemType, Fields, padding>* sibling : this->siblings) {
+                    if (x >= static_cast<int>(sibling->gridBoundary[0].first) &&
+                        x <= static_cast<int>(sibling->gridBoundary[0].second) &&
+                        y >= static_cast<int>(sibling->gridBoundary[1].first) &&
+                        y <= static_cast<int>(sibling->gridBoundary[1].second) &&
+                        z >= static_cast<int>(sibling->gridBoundary[2].first) &&
+                        z <= static_cast<int>(sibling->gridBoundary[2].second)) {
+                        const unsigned xSibling =
+                            static_cast<unsigned>(x + padding) - sibling->gridBoundary[0].first;
+                        unsigned ySibling =
+                            static_cast<unsigned>(y + padding) - sibling->gridBoundary[1].first;
+                        const unsigned zSibling =
+                            static_cast<unsigned>(z + padding) - sibling->gridBoundary[2].first;
+                        while (y <= static_cast<int>(this->gridBoundary[1].second) &&
+                               y <= static_cast<int>(sibling->gridBoundary[1].second)) {
+                            this->grid(xLocal, yLocal, zLocal) =
+                                sibling->grid(xSibling, ySibling, zSibling);
+                            y++;
+                            yLocal++;
+                            ySibling++;
+                        }
+                        y--;
+                        yLocal--;
+                        found = true;
+                        break;
+                    }
+                }
+                if (includeParents && !found) {
+                    for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
+                         this->parents) {
+                        const double xGlobal =
+                            static_cast<double>(x) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double yGlobal =
+                            static_cast<double>(y) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        const double zGlobal =
+                            static_cast<double>(z) /
+                            static_cast<double>(this->configuration.refinementFactor);
+                        std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
+                        if (fields.has_value()) {
+                            this->grid(xLocal, yLocal, zLocal) = fields.value();
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
