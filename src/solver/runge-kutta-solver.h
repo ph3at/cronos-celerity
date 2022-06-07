@@ -23,7 +23,7 @@ class RungeKuttaSolver
                      const unsigned rungeKuttaSteps = 2);
 
     void singleStep();
-    void adjust();
+    void adjustConfig();
     void init(){};
 
   private:
@@ -200,7 +200,7 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::advanceTime(const unsigned 
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSolver<ProblemType, Fields, padding>::adjust() {
+void RungeKuttaSolver<ProblemType, Fields, padding>::adjustConfig() {
     this->timeDelta = this->problem.cflThreshold / this->cfl;
 }
 

@@ -12,6 +12,7 @@ template <class Specific, class Fields, class ProblemType, unsigned ghostCells> 
     void solve(const double untilTime);
     void step();
     void initialise();
+    void adjust();
     bool isFinished() const;
     void report() const;
 
@@ -55,7 +56,7 @@ template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
 void Solver<Specific, Fields, ProblemType, ghostCells>::doSolve() {
     while (!static_cast<Specific*>(this)->isFinished()) {
         static_cast<Specific*>(this)->singleStep();
-        static_cast<Specific*>(this)->adjust();
+        this->adjust();
         this->timeStep++;
     }
 }
@@ -70,6 +71,11 @@ void Solver<Specific, Fields, ProblemType, ghostCells>::initialise() {
     this->problem.initialiseGrid(this->grid);
     Boundary::applyAll(this->grid, this->problem);
     static_cast<Specific*>(this)->init();
+}
+
+template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
+void Solver<Specific, Fields, ProblemType, ghostCells>::adjust() {
+    static_cast<Specific*>(this)->adjustConfig();
 }
 
 template <class Specific, class ProblemType, class Fields, unsigned padding>

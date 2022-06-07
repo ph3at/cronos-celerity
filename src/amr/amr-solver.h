@@ -15,7 +15,7 @@ class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, paddi
 
     void initialise() {}
     void singleStep();
-    void adjust();
+    void adjustConfig();
 
   private:
     const AMRParameters& configuration;
@@ -24,6 +24,8 @@ class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, paddi
 
     void levelStep(const unsigned level);
     void synchronise(const unsigned level);
+    double minTimeDelta(const unsigned level);
+    void updateTimeDelta(const double timeDelta, const unsigned level);
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -104,7 +106,38 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::levelStep(const unsign
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-void AMRSolver<SolverType, ProblemType, Fields, padding>::adjust() {
-    // Adjust time
-    this->refinery.refine();
+double AMRSolver<SolverType, ProblemType, Fields, padding>::minTimeDelta(const unsigned level) {
+    if (level < this->nodes.size()) {
+        double minTimeDelta = this->minTimeDelta(level + 1) /
+                              static_cast<double>(this->configuration.refinementFactor);
+        for (AMRNode<SolverType, ProblemType, Fields, padding>& node : this->nodes[level]) {
+            node.solver.adjust();
+            minTimeDelta = std::min(minTimeDelta, node.solver.timeDelta);
+        }
+        return minTimeDelta;
+    } else {
+        return 0.0;
+    }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRSolver<SolverType, ProblemType, Fields, padding>::updateTimeDelta(const double timeDelta,
+                                                                          const unsigned level) {
+    if (level < this->nodes.size()) {
+        for (AMRNode<SolverType, ProblemType, Fields, padding>& node : this->nodes[level]) {
+            node.solver.timeDelta = timeDelta;
+        }
+        updateTimeDelta(timeDelta / static_cast<double>(this->configuration.refinementFactor),
+                        level + 1);
+    }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRSolver<SolverType, ProblemType, Fields, padding>::adjustConfig() {
+    const double minTimeDelta = this->minTimeDelta(0);
+    const double newTimeDelta = std::min(this->timeEnd - this->timeCurrent, minTimeDelta);
+    this->updateTimeDelta(newTimeDelta, 0);
+    if (this->timeStep % this->configuration.refinementInterval == 0) {
+        this->refinery.refine();
+    }
 }
