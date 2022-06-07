@@ -55,7 +55,7 @@ void Solver<Specific, Fields, ProblemType, ghostCells>::solve(const double until
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
 void Solver<Specific, Fields, ProblemType, ghostCells>::doSolve() {
     while (!static_cast<Specific*>(this)->isFinished()) {
-        static_cast<Specific*>(this)->singleStep();
+        this->step();
         this->adjust();
         this->timeStep++;
     }
@@ -64,6 +64,7 @@ void Solver<Specific, Fields, ProblemType, ghostCells>::doSolve() {
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
 void Solver<Specific, Fields, ProblemType, ghostCells>::step() {
     static_cast<Specific*>(this)->singleStep();
+    this->timeCurrent += this->timeDelta;
 }
 
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells>

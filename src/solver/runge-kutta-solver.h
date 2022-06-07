@@ -40,7 +40,6 @@ class RungeKuttaSolver
     void updateCFL(std::pair<double, double> characVelocities, const unsigned direction);
     void finaliseSubstep(const unsigned substep);
     void integrateTime(const unsigned substep);
-    void advanceTime(const unsigned substep);
     void checkErrors();
 };
 
@@ -60,7 +59,6 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::singleStep() {
         this->prepareSubstep();
         this->computeSubstep();
         this->finaliseSubstep(substep);
-        this->advanceTime(substep);
     }
 }
 
@@ -189,13 +187,6 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::integrateTime(const unsigne
                 }
             }
         }
-    }
-}
-
-template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSolver<ProblemType, Fields, padding>::advanceTime(const unsigned substep) {
-    if (substep == 0) {
-        this->timeCurrent += this->timeDelta;
     }
 }
 
