@@ -8,16 +8,18 @@
 #include "../data-types/phys-fields.h"
 #include "../solver/base-solver.h"
 #include "amr-parameters.h"
+#include "grid-boundary.h"
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding> class AMRNode {
   public:
     AMRNode(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
             const AMRParameters& configuration, const double timeDelta, const double timeCurrent);
 
-    void integrate(const double untilTime);
-    void step();
-    std::optional<Fields> valueAtDown(const double xPos, const double yPos,
-                                      const double zPos) const;
+    void setValue(const unsigned xGlobal, const unsigned yGlobal, const unsigned zGlobal,
+                  const Fields& fields);
+    void injectParents();
+    Fields valueAtDown(const unsigned xGlobal, const unsigned yGlobal,
+                       const unsigned zGlobal) const;
     std::optional<Fields> valueAtUp(const double xGlobal, const double yGlobal,
                                     const double zGlobal) const;
     void removeChildren();
@@ -26,7 +28,7 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     void addChild(AMRNode<SolverType, ProblemType, Fields, padding>* child);
 
     PaddedGrid<FieldStruct, GHOST_CELLS>& grid;
-    std::array<std::pair<unsigned, unsigned>, 3> gridBoundary;
+    GridBoundary::Boundary gridBoundary;
 
     Solver<SolverType, Fields, ProblemType, padding> solver;
 
@@ -37,8 +39,8 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
 
     const AMRParameters& configuration;
 
-    void inject();
-    Fields interpolateDown(const double xPos, const double yPos, const double zPos) const;
+    Fields interpolateDown(const unsigned xLocal, const unsigned yLocal,
+                           const unsigned zLocal) const;
     Fields interpolateUp(const double xLocal, const double yLocal, const double zLocal) const;
 };
 
@@ -55,42 +57,29 @@ AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(PaddedGrid<Fields, pa
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-void AMRNode<SolverType, ProblemType, Fields, padding>::integrate(const double untilTime) {
-    this->solver.timeEnd = untilTime;
-    while (!this->solver.isFinished()) {
-        this->step();
-    }
+void AMRNode<SolverType, ProblemType, Fields, padding>::setValue(const unsigned xGlobal,
+                                                                 const unsigned yGlobal,
+                                                                 const unsigned zGlobal,
+                                                                 const Fields& fields) {
+    const unsigned x = padding + xGlobal - this->gridBoundary[0].first;
+    const unsigned y = padding + yGlobal - this->gridBoundary[1].first;
+    const unsigned z = padding + zGlobal - this->gridBoundary[2].first;
+    this->grid(x, y, z) = fields;
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-void AMRNode<SolverType, ProblemType, Fields, padding>::step() {
-    for (AMRNode<SolverType, ProblemType, Fields, padding>* childGrid : this->children) {
-        childGrid->integrate(this->solver.timeCurrent + this->solver.timeDelta);
-    }
-    this->solver.step();
-    this->inject();
-}
-
-template <class SolverType, class ProblemType, class Fields, unsigned padding>
-void AMRNode<SolverType, ProblemType, Fields, padding>::inject() {
-    double xPos = this->grid.posLeft[Direction::DirX];
-    double yPos = this->grid.posLeft[Direction::DirX];
-    double zPos = this->grid.posLeft[Direction::DirX];
-    for (unsigned x = this->grid.xStart(); x < this->grid.xEnd();
-         x++, xPos += this->grid.cellSize[Direction::DirX]) {
-        for (unsigned y = this->grid.yStart(); y < this->grid.yEnd();
-             y++, yPos += this->grid.cellSize[Direction::DirY]) {
-            for (unsigned z = this->grid.zStart(); z < this->grid.zEnd();
-                 z++, zPos += this->grid.cellSize[Direction::DirZ]) {
-                // Could/Should be optimised to try last child with value first.
-                // Potentially switch to child calling parent
-                for (AMRNode<SolverType, ProblemType, Fields, padding>* child : this->children) {
-                    const std::optional<Fields> childValues = child->valueAtDown(xPos, yPos, zPos);
-                    if (childValues.has_value()) {
-                        for (unsigned field = 0; field < Fields().size(); field++) {
-                            this->grid(x, y, z)[field] = childValues.value()[field];
-                        }
-                        break;
+void AMRNode<SolverType, ProblemType, Fields, padding>::injectParents() {
+    GridBoundary::Boundary translated =
+        GridBoundary::translateDown(this->gridBoundary, this->configuration.refinementFactor);
+    for (AMRNode<SolverType, ProblemType, Fields, padding>* parent : this->parents) {
+        std::optional<GridBoundary::Boundary> overlappingArea =
+            GridBoundary::overlappingArea(translated, parent->gridBoundary);
+        if (overlappingArea.has_value()) {
+            GridBoundary::Boundary& overlap = overlappingArea.value();
+            for (unsigned x = overlap[0].first; x <= overlap[0].second; x++) {
+                for (unsigned y = overlap[1].first; y <= overlap[1].second; y++) {
+                    for (unsigned z = overlap[2].first; z <= overlap[2].second; z++) {
+                        parent->setValue(x, y, z, this->valueAtDown(x, y, z));
                     }
                 }
             }
@@ -98,47 +87,42 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::inject() {
     }
 }
 
+/* Careful, this function does not check whether the requested indices are valid. */
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-std::optional<Fields>
-AMRNode<SolverType, ProblemType, Fields, padding>::valueAtDown(const double xPos, const double yPos,
-                                                               const double zPos) const {
-    if (xPos < this->grid.posLeft[Direction::DirX] || xPos > this->grid.posRight[Direction::DirX] ||
-        yPos < this->grid.posLeft[Direction::DirY] || yPos > this->grid.posRight[Direction::DirY] ||
-        zPos < this->grid.posLeft[Direction::DirZ] || zPos > this->grid.posRight[Direction::DirZ]) {
-        return std::nullopt;
-    } else {
-        return std::make_optional(this->interpolateDown(xPos, yPos, zPos));
-    }
+Fields AMRNode<SolverType, ProblemType, Fields, padding>::valueAtDown(
+    const unsigned xGlobal, const unsigned yGlobal, const unsigned zGlobal) const {
+    return this->interpolateDown(xGlobal * this->configuration.refinementFactor,
+                                 yGlobal * this->configuration.refinementFactor,
+                                 zGlobal * this->configuration.refinementFactor);
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-Fields AMRNode<SolverType, ProblemType, Fields, padding>::interpolateDown(const double xPos,
-                                                                          const double yPos,
-                                                                          const double zPos) const {
-    const unsigned xStart = static_cast<unsigned>((xPos - this->grid.posLeft[Direction::DirX]) *
-                                                  grid.inverseCellSize[Direction::DirX]) +
-                            padding;
-    const unsigned yStart = static_cast<unsigned>((yPos - this->grid.posLeft[Direction::DirY]) *
-                                                  grid.inverseCellSize[Direction::DirY]) +
-                            padding;
-    const unsigned zStart = static_cast<unsigned>((zPos - this->grid.posLeft[Direction::DirZ]) *
-                                                  grid.inverseCellSize[Direction::DirZ]) +
-                            padding;
+Fields AMRNode<SolverType, ProblemType, Fields, padding>::interpolateDown(
+    const unsigned xLocal, const unsigned yLocal, const unsigned zLocal) const {
+    const unsigned xStart = std::max(xLocal, this->gridBoundary[0].first);
+    const unsigned xEnd =
+        std::min(xLocal + this->configuration.refinementFactor, this->gridBoundary[0].second + 1);
+    const unsigned yStart = std::max(yLocal, this->gridBoundary[1].first);
+    const unsigned yEnd =
+        std::min(yLocal + this->configuration.refinementFactor, this->gridBoundary[1].second + 1);
+    const unsigned zStart = std::max(zLocal, this->gridBoundary[2].first);
+    const unsigned zEnd =
+        std::min(zLocal + this->configuration.refinementFactor, this->gridBoundary[2].second + 1);
     Fields fields = { 0.0 };
-    for (unsigned x = xStart; x < xStart + this->configuration.refinementFactor; x++) {
-        for (unsigned y = yStart; y < yStart + this->configuration.refinementFactor; y++) {
-            for (unsigned z = zStart; z < zStart + this->configuration.refinementFactor; z++) {
+    for (unsigned x = xStart; x < xEnd; x++) {
+        for (unsigned y = yStart; y < yEnd; y++) {
+            for (unsigned z = zStart; z < zEnd; z++) {
                 for (unsigned field = 0; field < fields.size(); field++) {
                     fields[field] += this->grid(x, y, z)[field];
                 }
             }
         }
     }
-    const double invSqrRefinementFactor =
-        1.0 / (static_cast<double>(this->configuration.refinementFactor) *
-               static_cast<double>(this->configuration.refinementFactor));
+    const double normalisationFactor =
+        1.0 / (static_cast<double>(xEnd - xStart) * static_cast<double>(yEnd - yStart) *
+               static_cast<double>(zEnd - zStart));
     for (unsigned field = 0; field < fields.size(); field++) {
-        fields[field] *= invSqrRefinementFactor;
+        fields[field] *= normalisationFactor;
     }
     return fields;
 }

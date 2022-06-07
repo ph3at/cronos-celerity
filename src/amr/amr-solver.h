@@ -19,7 +19,9 @@ class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, paddi
   private:
     const AMRParameters& configuration;
     Refinery<SolverType, ProblemType, Fields, padding> refinery;
-    AMRNode<SolverType, ProblemType, Fields, padding>& root;
+    std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>>& nodes;
+
+    void levelStep(const unsigned level);
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -30,11 +32,33 @@ AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(PaddedGrid<Fields
           grid, problem),
       configuration(configuration),
       refinery(Refinery<SolverType, ProblemType, Fields, padding>(problem, configuration)),
-      root(this->refinery.initialRefine(grid, problem)) {}
+      nodes(this->refinery.initialRefine(grid, problem)) {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::singleStep() {
-    this->root.step();
+    this->levelStep(0);
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRSolver<SolverType, ProblemType, Fields, padding>::levelStep(const unsigned level) {
+    if (level == 0) {
+        for (AMRNode<SolverType, ProblemType, Fields, padding> root : this->nodes[level]) {
+            root.solver.step();
+        }
+        this->levelStep(level + 1);
+        // synchronise
+    } else if (level < this->nodes.size()) {
+        for (unsigned step = 0; step < this->configuration.refinementFactor; step++) {
+            for (AMRNode<SolverType, ProblemType, Fields, padding> node : this->nodes[level]) {
+                node.solver.step();
+            }
+            this->levelStep(level + 1);
+        }
+        // get boundaries/synchronise
+        for (AMRNode<SolverType, ProblemType, Fields, padding> node : this->nodes[level]) {
+            node.injectParents();
+        }
+    }
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>

@@ -8,15 +8,14 @@
 #include "amr-node.h"
 #include "error-estimation.h"
 #include "flags.h"
-
-typedef std::array<std::pair<unsigned, unsigned>, 3> GridBoundary;
+#include "grid-boundary.h"
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding> class Refinery {
   public:
     Refinery(const Problem<ProblemType>& problem, const AMRParameters& configuration);
 
     void refine();
-    AMRNode<SolverType, ProblemType, Fields, padding>&
+    std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>>&
     initialRefine(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem);
 
   private:
@@ -26,18 +25,18 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>> amrNodes;
 
     std::vector<CellFlags::Flags> flagCells() const;
-    GridBoundary fullGrid(const CellFlags::Flags& flags) const;
-    std::vector<GridBoundary> divideGrid(const GridBoundary& grid,
-                                         const CellFlags::Flags& flags) const;
-    std::vector<GridBoundary> mergeGrids(const std::vector<GridBoundary>& grids,
-                                         const CellFlags::Flags& flags) const;
-    void ensureNesting(std::vector<GridBoundary>& grids,
-                       const std::vector<GridBoundary>& parentGrids);
+    GridBoundary::Boundary fullGrid(const CellFlags::Flags& flags) const;
+    std::vector<GridBoundary::Boundary> divideGrid(const GridBoundary::Boundary& grid,
+                                                   const CellFlags::Flags& flags) const;
+    std::vector<GridBoundary::Boundary> mergeGrids(const std::vector<GridBoundary::Boundary>& grids,
+                                                   const CellFlags::Flags& flags) const;
+    void ensureNesting(std::vector<GridBoundary::Boundary>& grids,
+                       const std::vector<GridBoundary::Boundary>& parentGrids);
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
-    createGrids(std::vector<GridBoundary>& grids, const unsigned level,
+    createGrids(std::vector<GridBoundary::Boundary>& grids, const unsigned level,
                 std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents);
     void
-    initialiseGrid(PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary,
+    initialiseGrid(PaddedGrid<Fields, padding>& grid, const GridBoundary::Boundary& gridBoundary,
                    const unsigned level,
                    const std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents);
 };
@@ -48,7 +47,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const Problem<Probl
     : problem(problem), configuration(configuration) {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-AMRNode<SolverType, ProblemType, Fields, padding>&
+std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>>&
 Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
     PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem) {
     AMRNode<SolverType, ProblemType, Fields, padding> root(grid, problem, this->configuration,
@@ -60,7 +59,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
         std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>(1, root));
 
     unsigned level = 0;
-    std::vector<GridBoundary> parents(1, root.gridBoundary);
+    std::vector<GridBoundary::Boundary> parents(1, root.gridBoundary);
     while (true) {
         CellFlags::Flags levelFlags;
         bool noFlags = true;
@@ -85,9 +84,10 @@ Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
             break;
         } else {
             CellFlags::addBuffer(levelFlags, this->configuration.bufferSize);
-            std::vector<GridBoundary> minimalGrids =
+            std::vector<GridBoundary::Boundary> minimalGrids =
                 this->divideGrid(this->fullGrid(levelFlags), levelFlags);
-            std::vector<GridBoundary> newGrids = this->mergeGrids(minimalGrids, levelFlags);
+            std::vector<GridBoundary::Boundary> newGrids =
+                this->mergeGrids(minimalGrids, levelFlags);
             this->ensureNesting(newGrids, parents);
             std::vector<AMRNode<SolverType, ProblemType, Fields, padding>> levelNodes =
                 this->createGrids(newGrids, level + 1, this->amrNodes[level]);
@@ -97,7 +97,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
         }
     }
 
-    return this->amrNodes[0][0];
+    return this->amrNodes;
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -110,12 +110,12 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
     std::vector<CellFlags::Flags> flags = this->flagCells();
     newNodes.reserve(flags.size() + 1);
 
-    std::vector<GridBoundary> parents({ this->amrNodes[0][0].gridBoundary });
+    std::vector<GridBoundary::Boundary> parents({ this->amrNodes[0][0].gridBoundary });
     for (int level = flags.size() - 1; level >= 0; level--) {
         CellFlags::Flags& levelFlags = flags[level];
-        std::vector<GridBoundary> minimalGrids =
+        std::vector<GridBoundary::Boundary> minimalGrids =
             this->divideGrid(this->fullGrid(levelFlags), levelFlags);
-        std::vector<GridBoundary> newGrids = this->mergeGrids(minimalGrids, levelFlags);
+        std::vector<GridBoundary::Boundary> newGrids = this->mergeGrids(minimalGrids, levelFlags);
         this->ensureNesting(newGrids, parents);
         std::vector<AMRNode<SolverType, ProblemType, Fields, padding>> levelNodes =
             this->createGrids(newGrids, flags.size() - level, newNodes[flags.size() - level - 1]);
@@ -167,7 +167,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
     return flags;
 }
 
-inline double gridEfficiency(const GridBoundary& grid, const CellFlags::Flags& flags) {
+inline double gridEfficiency(const GridBoundary::Boundary& grid, const CellFlags::Flags& flags) {
     unsigned flaggedCells = 0;
     for (unsigned x = std::max(grid[0].first, flags.first);
          x < std::min(grid[0].second, flags.first + static_cast<unsigned>(flags.second.size()));
@@ -193,7 +193,7 @@ inline double gridEfficiency(const GridBoundary& grid, const CellFlags::Flags& f
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-GridBoundary
+GridBoundary::Boundary
 Refinery<SolverType, ProblemType, Fields, padding>::fullGrid(const CellFlags::Flags& flags) const {
     const unsigned xStart = flags.first;
     const unsigned xEnd = xStart + flags.second.size();
@@ -217,14 +217,14 @@ Refinery<SolverType, ProblemType, Fields, padding>::fullGrid(const CellFlags::Fl
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::divideGrid(
-    const GridBoundary& grid, const CellFlags::Flags& flags) const {
+std::vector<GridBoundary::Boundary> Refinery<SolverType, ProblemType, Fields, padding>::divideGrid(
+    const GridBoundary::Boundary& grid, const CellFlags::Flags& flags) const {
     const double efficiency = gridEfficiency(grid, flags);
     if (efficiency == 0.0) {
-        return std::vector<GridBoundary>(0);
+        return std::vector<GridBoundary::Boundary>(0);
     } else if (efficiency < this->configuration.efficiencyThreshold) {
-        GridBoundary subGrid1;
-        GridBoundary subGrid2;
+        GridBoundary::Boundary subGrid1;
+        GridBoundary::Boundary subGrid2;
         unsigned longest =
             std::max(grid[0].second - grid[0].first,
                      std::max(grid[1].second - grid[1].first, grid[2].second - grid[2].first));
@@ -246,16 +246,16 @@ std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::di
             subGrid2 = { grid[0], grid[1],
                          std::make_pair(grid[2].first + grid[2].second / 2 + 1, grid[2].second) };
         }
-        std::vector<GridBoundary> grids1 = this->divideGrid(subGrid1, flags);
-        std::vector<GridBoundary> grids2 = this->divideGrid(subGrid2, flags);
+        std::vector<GridBoundary::Boundary> grids1 = this->divideGrid(subGrid1, flags);
+        std::vector<GridBoundary::Boundary> grids2 = this->divideGrid(subGrid2, flags);
         grids1.insert(grids1.end(), grids2.begin(), grids2.end());
         return grids1;
     } else {
-        return std::vector<GridBoundary>({ grid });
+        return std::vector<GridBoundary::Boundary>({ grid });
     }
 }
 
-inline double gridCost(const GridBoundary& grid, const CellFlags::Flags& flags) {
+inline double gridCost(const GridBoundary::Boundary& grid, const CellFlags::Flags& flags) {
     const double x = static_cast<double>(grid[0].second - grid[0].first);
     const double y = static_cast<double>(grid[1].second - grid[1].first);
     const double z = static_cast<double>(grid[2].second - grid[2].first);
@@ -263,36 +263,11 @@ inline double gridCost(const GridBoundary& grid, const CellFlags::Flags& flags) 
     return (0.0 - efficiency) * (x * y * z + x * y + x * z + y * z + x + y + z);
 }
 
-inline bool isOverlappingOrAdjaecent(const GridBoundary& grid1, const GridBoundary& grid2) {
-    return grid1[0].second + 1 >= grid2[0].first && grid1[0].first <= grid2[0].second + 1 &&
-           grid1[1].second + 1 >= grid2[1].first && grid1[1].first <= grid2[1].second + 1 &&
-           grid1[2].second + 1 >= grid2[2].first && grid1[2].first <= grid2[2].second + 1;
-}
-
-inline std::optional<GridBoundary> overlappingArea(const GridBoundary& grid1,
-                                                   const GridBoundary& grid2) {
-    if (grid1[0].second >= grid2[0].first && grid1[0].first <= grid2[0].second &&
-        grid1[1].second >= grid2[1].first && grid1[1].first <= grid2[1].second &&
-        grid1[2].second >= grid2[2].first && grid1[2].first <= grid2[2].second) {
-        unsigned xStart = std::max(grid1[0].first, grid2[0].first);
-        unsigned xEnd = std::min(grid1[0].second, grid2[0].second);
-        unsigned yStart = std::max(grid1[1].first, grid2[1].first);
-        unsigned yEnd = std::min(grid1[1].second, grid2[1].second);
-        unsigned zStart = std::max(grid1[2].first, grid2[2].first);
-        unsigned zEnd = std::min(grid1[2].second, grid2[2].second);
-        const GridBoundary overlapping = { std::make_pair(xStart, xEnd),
-                                           std::make_pair(yStart, yEnd),
-                                           std::make_pair(zStart, zEnd) };
-        return std::make_optional(overlapping);
-    } else {
-        return std::nullopt;
-    }
-}
-
-inline std::optional<GridBoundary> tryMerge(const GridBoundary& grid1, const GridBoundary& grid2,
-                                            const CellFlags::Flags& flags) {
-    if (isOverlappingOrAdjaecent(grid1, grid2)) {
-        const GridBoundary mergedGrid = {
+inline std::optional<GridBoundary::Boundary> tryMerge(const GridBoundary::Boundary& grid1,
+                                                      const GridBoundary::Boundary& grid2,
+                                                      const CellFlags::Flags& flags) {
+    if (GridBoundary::isOverlappingOrAdjaecent(grid1, grid2)) {
+        const GridBoundary::Boundary mergedGrid = {
             std::make_pair(std::min(grid1[0].first, grid2[0].first),
                            std::max(grid1[0].second, grid2[0].second)),
             std::make_pair(std::min(grid1[1].first, grid2[1].first),
@@ -307,17 +282,18 @@ inline std::optional<GridBoundary> tryMerge(const GridBoundary& grid1, const Gri
     return std::nullopt;
 }
 
-inline std::vector<GridBoundary> mergeGridsAux(const std::vector<GridBoundary>& gridsKnown,
-                                               const std::vector<GridBoundary>& gridsNew,
-                                               const CellFlags::Flags& flags) {
+inline std::vector<GridBoundary::Boundary>
+mergeGridsAux(const std::vector<GridBoundary::Boundary>& gridsKnown,
+              const std::vector<GridBoundary::Boundary>& gridsNew, const CellFlags::Flags& flags) {
     std::vector<bool> keepGrid(gridsNew.size(), true);
-    std::vector<GridBoundary> newGrids;
-    std::vector<GridBoundary> knownGrids;
-    for (const GridBoundary& grid1 : gridsKnown) {
+    std::vector<GridBoundary::Boundary> newGrids;
+    std::vector<GridBoundary::Boundary> knownGrids;
+    for (const GridBoundary::Boundary& grid1 : gridsKnown) {
         bool keep = true;
         for (unsigned grid2 = 0; grid2 < newGrids.size(); grid2++) {
             if (keepGrid[grid2]) {
-                std::optional<GridBoundary> mergedGrid = tryMerge(grid1, newGrids[grid2], flags);
+                std::optional<GridBoundary::Boundary> mergedGrid =
+                    tryMerge(grid1, newGrids[grid2], flags);
                 if (mergedGrid.has_value()) {
                     keep = false;
                     keepGrid[grid2] = false;
@@ -346,15 +322,15 @@ inline std::vector<GridBoundary> mergeGridsAux(const std::vector<GridBoundary>& 
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::mergeGrids(
-    const std::vector<GridBoundary>& grids, const CellFlags::Flags& flags) const {
-    std::vector<GridBoundary> newGrids;
+std::vector<GridBoundary::Boundary> Refinery<SolverType, ProblemType, Fields, padding>::mergeGrids(
+    const std::vector<GridBoundary::Boundary>& grids, const CellFlags::Flags& flags) const {
+    std::vector<GridBoundary::Boundary> newGrids;
     std::vector<bool> keepGrid(grids.size(), true);
     for (unsigned grid1 = 0; grid1 < grids.size() - 1; grid1++) {
         if (keepGrid[grid1]) {
             for (unsigned grid2 = grid1 + 1; grid2 < grids.size(); grid2++) {
                 if (keepGrid[grid2]) {
-                    std::optional<GridBoundary> mergedGrid =
+                    std::optional<GridBoundary::Boundary> mergedGrid =
                         tryMerge(grids[grid1], grids[grid2], flags);
                     if (mergedGrid.has_value()) {
                         keepGrid[grid1] = false;
@@ -369,7 +345,7 @@ std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::me
     if (newGrids.size() == 0) {
         return grids;
     } else {
-        std::vector<GridBoundary> knownGrids;
+        std::vector<GridBoundary::Boundary> knownGrids;
         for (unsigned grid = 0; grid < grids.size(); grid++) {
             if (keepGrid[grid]) {
                 knownGrids.push_back(grids[grid]);
@@ -379,148 +355,30 @@ std::vector<GridBoundary> Refinery<SolverType, ProblemType, Fields, padding>::me
     }
 }
 
-inline GridBoundary translateUp(const GridBoundary& grid, const unsigned factor) {
-    return { std::make_pair(grid[0].first * factor, grid[0].second * factor + factor - 1),
-             std::make_pair(grid[1].first * factor, grid[1].second * factor + factor - 1),
-             std::make_pair(grid[2].first * factor, grid[2].second * factor + factor - 1) };
-}
-
-inline std::vector<GridBoundary> subtract(const GridBoundary& grid,
-                                          const GridBoundary& subtractor) {
-    if (grid[0].first > subtractor[0].second || grid[0].second < subtractor[0].first ||
-        grid[1].first > subtractor[1].second || grid[1].second < subtractor[1].first ||
-        grid[2].first > subtractor[2].second || grid[2].second < subtractor[2].first) {
-        return std::vector<GridBoundary>(1, grid);
-    }
-    GridBoundary remaining = grid;
-    std::vector<GridBoundary> result;
-    if (remaining[0].first < subtractor[0].first) {
-        result.push_back({ std::make_pair(remaining[0].first, subtractor[0].first - 1),
-                           remaining[1], remaining[2] });
-        remaining[0].first = subtractor[0].first;
-    }
-    if (remaining[0].second > subtractor[0].second) {
-        result.push_back({ std::make_pair(subtractor[0].second + 1, remaining[0].second),
-                           remaining[1], remaining[2] });
-        remaining[0].second = subtractor[0].second;
-    }
-    if (remaining[1].first < subtractor[1].first) {
-        result.push_back({ remaining[0],
-                           std::make_pair(remaining[1].first, subtractor[1].first - 1),
-                           remaining[2] });
-        remaining[1].first = subtractor[1].first;
-    }
-    if (remaining[1].second > subtractor[1].second) {
-        result.push_back({ remaining[0],
-                           std::make_pair(subtractor[1].second + 1, remaining[1].second),
-                           remaining[2] });
-        remaining[1].second = subtractor[1].second;
-    }
-    if (remaining[2].first < subtractor[2].first) {
-        result.push_back({ remaining[0], remaining[1],
-                           std::make_pair(remaining[2].first, subtractor[2].first - 1) });
-        remaining[2].first = subtractor[2].first;
-    }
-    if (remaining[2].second > subtractor[2].second) {
-        result.push_back({ remaining[0], remaining[1],
-                           std::make_pair(subtractor[2].second + 1, remaining[2].second) });
-        remaining[2].second = subtractor[1].second;
-    }
-    return result;
-}
-
-inline void strictMerge(std::vector<GridBoundary>& grids) {
-    std::vector<bool> keepGrid(grids.size(), true);
-    std::vector<GridBoundary> newGrids;
-    for (unsigned grid1 = 0; grid1 + 1 < grids.size(); grid1++) {
-        if (keepGrid[grid1]) {
-            const GridBoundary& g1 = grids[grid1];
-            for (unsigned grid2 = grid1 + 1; grid2 < grids.size(); grid2++) {
-                if (keepGrid[grid2]) {
-                    const GridBoundary& g2 = grids[grid2];
-                    if (std::max(g1[0].first, g2[0].first) ==
-                            std::min(g1[0].second, g2[0].second) + 1 &&
-                        g1[1].first == g2[1].first && g1[1].second == g2[1].second &&
-                        g1[2].first == g2[2].first && g1[2].second == g2[2].second) {
-                        keepGrid[grid1] = false;
-                        keepGrid[grid2] = false;
-                        newGrids.push_back({ std::make_pair(std::min(g1[0].first, g2[0].first),
-                                                            std::max(g2[0].second, g2[0].second)),
-                                             g1[1], g1[2] });
-                    } else if (std::max(g1[1].first, g2[1].first) ==
-                                   std::min(g1[1].second, g2[1].second) + 1 &&
-                               g1[0].first == g2[0].first && g1[0].second == g2[0].second &&
-                               g1[2].first == g2[2].first && g1[2].second == g2[2].second) {
-                        keepGrid[grid1] = false;
-                        keepGrid[grid2] = false;
-                        newGrids.push_back({ g1[0],
-                                             std::make_pair(std::min(g1[1].first, g2[1].first),
-                                                            std::max(g2[1].second, g2[1].second)),
-                                             g1[2] });
-                    } else if (std::max(g1[2].first, g2[2].first) ==
-                                   std::min(g1[2].second, g2[2].second) + 1 &&
-                               g1[0].first == g2[0].first && g1[0].second == g2[0].second &&
-                               g1[1].first == g2[1].first && g1[1].second == g2[1].second) {
-                        keepGrid[grid1] = false;
-                        keepGrid[grid2] = false;
-                        newGrids.push_back({
-                            g1[0],
-                            g1[1],
-                            std::make_pair(std::min(g1[2].first, g2[2].first),
-                                           std::max(g2[2].second, g2[2].second)),
-                        });
-                    }
-                }
-            }
-        }
-    }
-    if (newGrids.size() > 0) {
-        for (unsigned grid = 0; grid < grids.size(); grid++) {
-            if (keepGrid[grid]) {
-                newGrids.push_back(grids[grid]);
-            }
-        }
-        strictMerge(newGrids);
-        grids.swap(newGrids);
-    }
-}
-
-inline std::vector<GridBoundary> remainingGrids(const GridBoundary& grid,
-                                                const std::vector<GridBoundary>& removed) {
-    std::vector<GridBoundary> remaining;
-    remaining.push_back(grid);
-    for (const GridBoundary& remove : removed) {
-        std::vector<GridBoundary> stillRemaining;
-        for (const GridBoundary& left : remaining) {
-            std::vector<GridBoundary> keep = subtract(left, remove);
-            stillRemaining.insert(stillRemaining.end(), keep.begin(), keep.end());
-        }
-        remaining.swap(stillRemaining);
-    }
-    strictMerge(remaining);
-    return remaining;
-}
-
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::ensureNesting(
-    std::vector<GridBoundary>& grids, const std::vector<GridBoundary>& parentGrids) {
-    std::vector<GridBoundary> translatedParents;
+    std::vector<GridBoundary::Boundary>& grids,
+    const std::vector<GridBoundary::Boundary>& parentGrids) {
+    std::vector<GridBoundary::Boundary> translatedParents;
     translatedParents.reserve(parentGrids.size());
-    std::transform(parentGrids.begin(), parentGrids.end(), std::back_inserter(translatedParents),
-                   [factor = this->configuration.refinementFactor](const GridBoundary& parent) {
-                       return translateUp(parent, factor);
-                   });
-    std::vector<GridBoundary> newGrids;
-    for (GridBoundary& grid : grids) {
-        std::vector<GridBoundary> notCovered;
+    std::transform(
+        parentGrids.begin(), parentGrids.end(), std::back_inserter(translatedParents),
+        [factor = this->configuration.refinementFactor](const GridBoundary::Boundary& parent) {
+            return GridBoundary::translateUp(parent, factor);
+        });
+    std::vector<GridBoundary::Boundary> newGrids;
+    for (GridBoundary::Boundary& grid : grids) {
+        std::vector<GridBoundary::Boundary> notCovered;
         notCovered.push_back(grid);
-        for (const GridBoundary& parent : translatedParents) {
-            std::optional<GridBoundary> overlapping = overlappingArea(grid, parent);
+        for (const GridBoundary::Boundary& parent : translatedParents) {
+            std::optional<GridBoundary::Boundary> overlapping =
+                GridBoundary::overlappingArea(grid, parent);
             if (overlapping.has_value()) {
-                GridBoundary overlap = overlapping.value();
-                std::vector<GridBoundary> newParts;
-                for (GridBoundary& part : notCovered) {
-                    std::vector<GridBoundary> leftOver = subtract(part, overlap);
+                GridBoundary::Boundary overlap = overlapping.value();
+                std::vector<GridBoundary::Boundary> newParts;
+                for (GridBoundary::Boundary& part : notCovered) {
+                    std::vector<GridBoundary::Boundary> leftOver =
+                        GridBoundary::subtract(part, overlap);
                     newParts.insert(newParts.end(), leftOver.begin(), leftOver.end());
                 }
                 notCovered.swap(newParts);
@@ -530,7 +388,8 @@ void Refinery<SolverType, ProblemType, Fields, padding>::ensureNesting(
             }
         }
         if (notCovered.size() > 0) {
-            std::vector<GridBoundary> remaining = remainingGrids(grid, notCovered);
+            std::vector<GridBoundary::Boundary> remaining =
+                GridBoundary::remainingGrids(grid, notCovered);
             grid = remaining[0];
             newGrids.insert(newGrids.end(), remaining.begin() + 1, remaining.end());
         }
@@ -541,7 +400,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::ensureNesting(
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>
 Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
-    std::vector<GridBoundary>& grids, const unsigned level,
+    std::vector<GridBoundary::Boundary>& grids, const unsigned level,
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents) {
 
     AMRNode<SolverType, ProblemType, Fields, padding>& root = this->amrNodes[0][0];
@@ -555,7 +414,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
                                              root.grid.cellSize[2] * factor };
     const double timeDelta = root.solver.timeDelta * factor;
     const double timeCurrent = root.solver.timeCurrent;
-    for (GridBoundary grid : grids) {
+    for (GridBoundary::Boundary grid : grids) {
         std::array<double, 3> dim;
         std::array<double, 3> posLeft;
         std::array<double, 3> posRight;
@@ -585,15 +444,16 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
         AMRNode<SolverType, ProblemType, Fields, padding>& grid1 = newGrids[node1];
         for (unsigned node2 = node1 + 1; node2 < newGrids.size(); node2++) {
             AMRNode<SolverType, ProblemType, Fields, padding>& grid2 = newGrids[node1];
-            if (isOverlappingOrAdjaecent(grid1.gridBoundary, grid2.gridBoundary)) {
+            if (GridBoundary::isOverlappingOrAdjaecent(grid1.gridBoundary, grid2.gridBoundary)) {
                 grid1.addSibling(&grid2);
                 grid2.addSibling(&grid1);
             }
         }
         for (AMRNode<SolverType, ProblemType, Fields, padding>& parent : parents) {
-            if (isOverlappingOrAdjaecent(
+            if (GridBoundary::isOverlappingOrAdjaecent(
                     grid1.gridBoundary,
-                    translateUp(parent.gridBoundary, this->configuration.refinementFactor))) {
+                    GridBoundary::translateUp(parent.gridBoundary,
+                                              this->configuration.refinementFactor))) {
                 grid1.addParent(&parent);
                 parent.addChild(&grid1);
             }
@@ -605,7 +465,8 @@ Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void Refinery<SolverType, ProblemType, Fields, padding>::initialiseGrid(
-    PaddedGrid<Fields, padding>& grid, const GridBoundary& gridBoundary, const unsigned level,
+    PaddedGrid<Fields, padding>& grid, const GridBoundary::Boundary& gridBoundary,
+    const unsigned level,
     const std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& parents) {
     // Could be optimised with smaller search space for siblings and parents
     const double refinementFactor = static_cast<double>(this->configuration.refinementFactor);
