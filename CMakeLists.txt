@@ -6,9 +6,14 @@ project( cronos-amr )
 ####################
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 set( CMAKE_CPP_COMPILER clang )
-add_compile_options( -Wall -Wextra -Wpedantic -O2 -march=native )
+add_compile_options( -Wall -Wextra -Wpedantic -march=native )
 set( CMAKE_CXX_STANDARD 20 )
 set( CMAKE_CXX_STANDARD_REQUIRED ON )
+IF(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options( -O0 -pg )
+ELSE()
+    add_compile_options( -03 )
+ENDIF()
 
 ##########
 # OpenMP #
