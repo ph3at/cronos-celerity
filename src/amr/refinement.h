@@ -14,9 +14,10 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
   public:
     Refinery(const Problem<ProblemType>& problem, const AMRParameters& configuration);
 
+    std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>>& getNodes();
+
     void refine();
-    std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>>&
-    initialRefine(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem);
+    void initialRefine(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem);
 
   private:
     const Problem<ProblemType>& problem;
@@ -49,8 +50,14 @@ Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const Problem<Probl
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>>&
-Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
+Refinery<SolverType, ProblemType, Fields, padding>::getNodes() {
+    return this->amrNodes;
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
     PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem) {
+    this->amrNodes.clear();
     AMRNode<SolverType, ProblemType, Fields, padding> root(0, grid, problem, this->configuration,
                                                            problem.timeDelta, problem.timeStart);
     root.gridBoundary = { std::make_pair(0, grid.xEnd() - padding - 1),
@@ -97,8 +104,6 @@ Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
             level++;
         }
     }
-
-    return this->amrNodes;
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>

@@ -6,6 +6,8 @@
 #include "../configuration/problem.h"
 #include "../grid/padded-grid.h"
 
+/* Specifics must implement "init()" for initialising themselves, "singleStep()" which computes one
+ * full time step and "adjustConfig()", which adjusts the state of the solver between time steps. */
 template <class Specific, class Fields, class ProblemType, unsigned ghostCells> class Solver {
   public:
     void solve();

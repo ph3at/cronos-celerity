@@ -13,7 +13,7 @@ class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, paddi
     AMRSolver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
               const AMRParameters& configuration);
 
-    void initialise() {}
+    void init();
     void singleStep();
     void adjustConfig();
 
@@ -36,7 +36,12 @@ AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(PaddedGrid<Fields
           grid, problem),
       configuration(configuration),
       refinery(Refinery<SolverType, ProblemType, Fields, padding>(problem, configuration)),
-      nodes(this->refinery.initialRefine(grid, problem)) {}
+      nodes(refinery.getNodes()) {}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRSolver<SolverType, ProblemType, Fields, padding>::init() {
+    this->refinery.initialRefine(this->grid, this->problem);
+}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::singleStep() {
