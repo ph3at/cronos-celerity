@@ -34,7 +34,7 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     PaddedGrid<FieldStruct, GHOST_CELLS>& grid;
     GridBoundary::Boundary gridBoundary;
 
-    Solver<SolverType, Fields, ProblemType, padding> solver;
+    SolverType solver;
 
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> parents;
     std::vector<AMRNode<SolverType, ProblemType, Fields, padding>*> siblings;
