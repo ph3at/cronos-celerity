@@ -37,6 +37,7 @@ template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
 Solver<Specific, Fields, ProblemType, ghostCells>::Solver(PaddedGrid<Fields, ghostCells>& grid,
                                                           const Problem<ProblemType>& problem)
     : grid(grid), problem(problem) {
+    this->timeEnd = problem.timeEnd;
     this->timeDelta = problem.timeDelta;
     this->timeCurrent = problem.timeStart;
     this->timeStep = 0;

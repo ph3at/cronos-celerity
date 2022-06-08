@@ -55,6 +55,7 @@ RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::singleStep() {
+    this->cfl = 0.0;
     for (unsigned substep = 0; substep < this->rungeKuttaSteps; substep++) {
         this->prepareSubstep();
         this->computeSubstep();
@@ -193,6 +194,7 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::integrateTime(const unsigne
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::adjustConfig() {
     this->timeDelta = this->problem.cflThreshold / this->cfl;
+    this->timeDelta = std::min(this->timeDelta, this->timeEnd - this->timeCurrent);
 }
 
 template <class ProblemType, class Fields, unsigned padding>

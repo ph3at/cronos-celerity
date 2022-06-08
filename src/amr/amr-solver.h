@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits>
+
 #include "../solver/base-solver.h"
 #include "amr-node.h"
 #include "amr-parameters.h"
@@ -121,7 +123,7 @@ double AMRSolver<SolverType, ProblemType, Fields, padding>::minTimeDelta(const u
         }
         return minTimeDelta;
     } else {
-        return 0.0;
+        return std::numeric_limits<double>::max();
     }
 }
 
@@ -141,6 +143,7 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::adjustConfig() {
     const double minTimeDelta = this->minTimeDelta(0);
     const double newTimeDelta = std::min(this->timeEnd - this->timeCurrent, minTimeDelta);
+    this->timeDelta = newTimeDelta;
     this->updateTimeDelta(newTimeDelta, 0);
     if (this->timeStep + 1 % this->configuration.refinementInterval == 0) {
         this->refinery.refine();
