@@ -110,10 +110,12 @@ ErrorEstimation::getFlags(PaddedGrid<Fields, padding>& grid,
     CellFlags::FlagsX flagsX;
     unsigned firstX = 0;
     bool foundError = false;
+    unsigned emptyYs = 0;
     for (unsigned x = upperGrid.xStart(); x < upperGrid.xEnd(); x++) {
         CellFlags::FlagsY flagsY;
         unsigned firstY = 0;
         bool foundY = false;
+        unsigned emptyZs = 0;
         for (unsigned y = upperGrid.yStart(); y < upperGrid.yEnd(); y++) {
             CellFlags::FlagsZ flagsZ;
             unsigned start = 0;
@@ -139,15 +141,32 @@ ErrorEstimation::getFlags(PaddedGrid<Fields, padding>& grid,
                 }
             }
             if (streak) {
-                flagsZ.push_back(std::make_pair(2 * start - padding + gridOffset[2],
-                                                2 * (grid.zEnd() - 1) - padding + gridOffset[2]));
+                flagsZ.push_back(
+                    std::make_pair(2 * start - padding + gridOffset[2],
+                                   2 * (upperGrid.zEnd() - 1) - padding + gridOffset[2]));
             }
             if (foundY) {
-                flagsY.push_back(flagsZ);
+                if (flagsZ.size() > 0) {
+                    for (unsigned z = 0; z < emptyZs; z++) {
+                        flagsY.push_back(CellFlags::FlagsZ({}));
+                    }
+                    emptyZs = 0;
+                    flagsY.push_back(flagsZ);
+                } else {
+                    emptyZs++;
+                }
             }
         }
         if (foundError) {
-            flagsX.push_back(std::make_pair(firstY, flagsY));
+            if (foundY) {
+                for (unsigned y = 0; y < emptyYs; y++) {
+                    flagsX.push_back(std::make_pair(0, CellFlags::FlagsY({})));
+                }
+                emptyYs = 0;
+                flagsX.push_back(std::make_pair(firstY, flagsY));
+            } else {
+                emptyYs++;
+            }
         }
     }
     if (foundError) {

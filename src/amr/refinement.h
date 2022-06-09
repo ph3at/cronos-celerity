@@ -232,26 +232,25 @@ std::vector<GridBoundary::Boundary> Refinery<SolverType, ProblemType, Fields, pa
     } else if (efficiency < this->configuration.efficiencyThreshold) {
         GridBoundary::Boundary subGrid1;
         GridBoundary::Boundary subGrid2;
-        unsigned longest =
-            std::max(grid[0].second - grid[0].first,
-                     std::max(grid[1].second - grid[1].first, grid[2].second - grid[2].first));
         // TODO: What of very small grids?
-        if (grid[0].second - grid[0].first == longest) {
-            subGrid1 = { std::make_pair(grid[0].first, grid[0].first + grid[0].second / 2), grid[1],
-                         grid[2] };
-            subGrid2 = { std::make_pair(grid[0].first + grid[0].second / 2 + 1, grid[0].second),
+        if (grid[0].second - grid[0].first > grid[1].second - grid[1].first &&
+            grid[0].second - grid[0].first > grid[2].second - grid[2].first) {
+            subGrid1 = { std::make_pair(grid[0].first, (grid[0].first + grid[0].second) / 2),
                          grid[1], grid[2] };
-        } else if (grid[1].second - grid[1].first == longest) {
-            subGrid1 = { grid[0], std::make_pair(grid[1].first, grid[1].first + grid[1].second / 2),
+            subGrid2 = { std::make_pair((grid[0].first + grid[0].second) / 2 + 1, grid[0].second),
+                         grid[1], grid[2] };
+        } else if (grid[1].second - grid[1].first > grid[2].second - grid[2].first) {
+            subGrid1 = { grid[0],
+                         std::make_pair(grid[1].first, (grid[1].first + grid[1].second) / 2),
                          grid[2] };
             subGrid2 = { grid[0],
-                         std::make_pair(grid[1].first + grid[1].second / 2 + 1, grid[1].second),
+                         std::make_pair((grid[1].first + grid[1].second) / 2 + 1, grid[1].second),
                          grid[2] };
         } else {
             subGrid1 = { grid[0], grid[1],
-                         std::make_pair(grid[2].first, grid[2].first + grid[2].second / 2) };
+                         std::make_pair(grid[2].first, (grid[2].first + grid[2].second) / 2) };
             subGrid2 = { grid[0], grid[1],
-                         std::make_pair(grid[2].first + grid[2].second / 2 + 1, grid[2].second) };
+                         std::make_pair((grid[2].first + grid[2].second) / 2 + 1, grid[2].second) };
         }
         std::vector<GridBoundary::Boundary> grids1 = this->divideGrid(subGrid1, flags);
         std::vector<GridBoundary::Boundary> grids2 = this->divideGrid(subGrid2, flags);
