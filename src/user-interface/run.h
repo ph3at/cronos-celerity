@@ -16,7 +16,7 @@ template <class ProblemType> void runAMR() {
                                       .refinementInterval = 5,
                                       .bufferSize = 4,
                                       .efficiencyThreshold = 0.6,
-                                      .truncationErrorTreshold = 1e-12 };
+                                      .truncationErrorTreshold = 1e-4 };
     AMRSolver<RungeKuttaSolver<ProblemType, FieldStruct, GHOST_CELLS>, ShockTube, FieldStruct,
               GHOST_CELLS>
         solver(problem.first, problem.second, amrConfig);
