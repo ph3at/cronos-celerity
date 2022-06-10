@@ -8,7 +8,7 @@
 
 /* Specifics must implement "init()" for initialising themselves, "singleStep()" which computes one
  * full time step and "adjustConfig()", which adjusts the state of the solver between time steps. */
-template <class Specific, class Fields, class ProblemType, unsigned ghostCells> class Solver {
+template <class Specific, class Fields, class ProblemType, unsigned padding> class Solver {
   public:
     void solve();
     void solve(const double untilTime);
@@ -24,18 +24,18 @@ template <class Specific, class Fields, class ProblemType, unsigned ghostCells> 
     double timeEnd;
 
   protected:
-    Solver(PaddedGrid<Fields, ghostCells>& grid, const Problem<ProblemType>& problem);
+    Solver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem);
 
-    PaddedGrid<Fields, ghostCells>& grid;
-    const Problem<ProblemType>& problem;
+    PaddedGrid<Fields, padding>& grid;
+    const Problem<ProblemType, Fields, padding>& problem;
 
   private:
     void doSolve();
 };
 
-template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
-Solver<Specific, Fields, ProblemType, ghostCells>::Solver(PaddedGrid<Fields, ghostCells>& grid,
-                                                          const Problem<ProblemType>& problem)
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+Solver<Specific, Fields, ProblemType, padding>::Solver(
+    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem)
     : grid(grid), problem(problem) {
     this->timeEnd = problem.timeEnd;
     this->timeDelta = problem.timeDelta;
@@ -43,20 +43,20 @@ Solver<Specific, Fields, ProblemType, ghostCells>::Solver(PaddedGrid<Fields, gho
     this->timeStep = 0;
 }
 
-template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
-void Solver<Specific, Fields, ProblemType, ghostCells>::solve() {
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+void Solver<Specific, Fields, ProblemType, padding>::solve() {
     this->timeEnd = this->problem.timeEnd;
     this->doSolve();
 }
 
-template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
-void Solver<Specific, Fields, ProblemType, ghostCells>::solve(const double untilTime) {
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+void Solver<Specific, Fields, ProblemType, padding>::solve(const double untilTime) {
     this->timeEnd = untilTime;
     this->doSolve();
 }
 
-template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
-void Solver<Specific, Fields, ProblemType, ghostCells>::doSolve() {
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+void Solver<Specific, Fields, ProblemType, padding>::doSolve() {
     while (!static_cast<Specific*>(this)->isFinished()) {
         this->step();
         this->adjust();
@@ -64,21 +64,21 @@ void Solver<Specific, Fields, ProblemType, ghostCells>::doSolve() {
     }
 }
 
-template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
-void Solver<Specific, Fields, ProblemType, ghostCells>::step() {
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+void Solver<Specific, Fields, ProblemType, padding>::step() {
     static_cast<Specific*>(this)->singleStep();
     this->timeCurrent += this->timeDelta;
 }
 
-template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
-void Solver<Specific, Fields, ProblemType, ghostCells>::initialise() {
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+void Solver<Specific, Fields, ProblemType, padding>::initialise() {
     this->problem.initialiseGrid(this->grid);
     Boundary::applyAll(this->grid, this->problem);
     static_cast<Specific*>(this)->init();
 }
 
-template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
-void Solver<Specific, Fields, ProblemType, ghostCells>::adjust() {
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+void Solver<Specific, Fields, ProblemType, padding>::adjust() {
     static_cast<Specific*>(this)->adjustConfig();
 }
 
@@ -87,8 +87,8 @@ bool Solver<Specific, ProblemType, Fields, padding>::isFinished() const {
     return this->timeCurrent >= this->timeEnd;
 }
 
-template <class Specific, class Fields, class ProblemType, unsigned ghostCells>
-void Solver<Specific, Fields, ProblemType, ghostCells>::report() const {
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+void Solver<Specific, Fields, ProblemType, padding>::report() const {
     std::cout << "Stopped at time " << this->timeCurrent << ", after " << this->timeStep
               << " steps." << std::endl;
 }

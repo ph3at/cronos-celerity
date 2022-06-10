@@ -12,7 +12,8 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding>
 class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields,
                                 ProblemType, padding> {
   public:
-    AMRSolver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
+    AMRSolver(PaddedGrid<Fields, padding>& grid,
+              const Problem<ProblemType, Fields, padding>& problem,
               const AMRParameters& configuration);
 
     void init();
@@ -31,9 +32,9 @@ class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, paddi
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(PaddedGrid<Fields, padding>& grid,
-                                                               const Problem<ProblemType>& problem,
-                                                               const AMRParameters& configuration)
+AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(
+    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem,
+    const AMRParameters& configuration)
     : Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields, ProblemType, padding>(
           grid, problem),
       configuration(configuration),

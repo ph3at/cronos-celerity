@@ -10,8 +10,9 @@
 namespace ErrorEstimation {
 template <class ProblemType, class Fields, unsigned padding>
 std::optional<CellFlags::Flags>
-getFlags(PaddedGrid<Fields, padding>& grid, const std::array<unsigned, 3> gridOffset,
-         const unsigned timeDelta, const double errorThreshold, const Problem<ProblemType>& problem,
+getFlags(const PaddedGrid<Fields, padding>& grid, const std::array<unsigned, 3> gridOffset,
+         const unsigned timeDelta, const double errorThreshold,
+         const Problem<ProblemType, Fields, padding>& problem,
          const std::array<BoundaryType, Faces::FaceMax>& boundaryTypes);
 };
 
@@ -93,9 +94,10 @@ inline bool checkThreshold(const PaddedGrid<Fields, padding>& upper,
 
 template <class ProblemType, class Fields, unsigned padding>
 std::optional<CellFlags::Flags>
-ErrorEstimation::getFlags(PaddedGrid<Fields, padding>& grid,
+ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
                           const std::array<unsigned, 3> gridOffset, const unsigned timeDelta,
-                          const double errorThreshold, const Problem<ProblemType>& problem,
+                          const double errorThreshold,
+                          const Problem<ProblemType, Fields, padding>& problem,
                           const std::array<BoundaryType, Faces::FaceMax>& boundaryTypes) {
     PaddedGrid<Fields, padding> baseGrid(grid);
     PaddedGrid<Fields, padding> upperGrid = createUpper(baseGrid, boundaryTypes);

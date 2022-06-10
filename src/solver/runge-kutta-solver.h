@@ -19,7 +19,8 @@ template <class ProblemType, class Fields, unsigned padding>
 class RungeKuttaSolver
     : public Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding> {
   public:
-    RungeKuttaSolver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
+    RungeKuttaSolver(PaddedGrid<Fields, padding>& grid,
+                     const Problem<ProblemType, Fields, padding>& problem,
                      const unsigned rungeKuttaSteps = 2);
 
     void singleStep();
@@ -45,7 +46,7 @@ class RungeKuttaSolver
 
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(
-    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
+    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem,
     const unsigned rungeKuttaSteps)
     : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(grid,
                                                                                            problem),

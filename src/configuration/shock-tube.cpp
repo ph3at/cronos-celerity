@@ -6,7 +6,8 @@ ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double
                      const double densityRightInit, const double velocityLeftInit,
                      const double velocityRightInit, const double pressureLeftInit,
                      const double pressureRightInit)
-    : Problem<ShockTube>(cflThreshold, thermal, timeDelta, timeStart, timeEnd, gamma),
+    : Problem<ShockTube, FieldStruct, GHOST_CELLS>(cflThreshold, thermal, timeDelta, timeStart,
+                                                   timeEnd, gamma),
       shockDir(shockDir), shockPos(shockPos), densityLeftInit(densityLeftInit),
       densityRightInit(densityRightInit),
       velocityXLeftInit(shockDir == Direction::DirX ? velocityLeftInit : 0.0),
@@ -105,14 +106,14 @@ constexpr double TIME_START = 0.0;
 constexpr double TIME_END = 0.0005;
 constexpr double GAMMA = 1.4;
 constexpr std::size_t NUMBER_CELLS_X = 20;
-constexpr double X_START = 0.45;
-constexpr double X_END = 0.55;
+constexpr double X_START = 0.49;
+constexpr double X_END = 0.51;
 constexpr std::size_t NUMBER_CELLS_Y = 5;
-constexpr double Y_START = 0.45;
-constexpr double Y_END = 0.55;
+constexpr double Y_START = 0.49;
+constexpr double Y_END = 0.51;
 constexpr std::size_t NUMBER_CELLS_Z = 5;
-constexpr double Z_START = 0.45;
-constexpr double Z_END = 0.55;
+constexpr double Z_START = 0.49;
+constexpr double Z_END = 0.51;
 constexpr Direction SHOCK_DIR = Direction::DirX;
 constexpr double SHOCK_POS = 0.5;
 constexpr double DENSITY_LEFT_INIT = 1.0;

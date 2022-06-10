@@ -12,9 +12,15 @@
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding> class AMRNode {
   public:
-    AMRNode(const unsigned id, PaddedGrid<Fields, padding>& grid,
-            const Problem<ProblemType>& problem, const AMRParameters& configuration,
-            const double timeDelta, const double timeCurrent);
+    AMRNode(const unsigned id, const PaddedGrid<Fields, padding>& grid,
+            const GridBoundary::Boundary gridBoundary,
+            const Problem<ProblemType, Fields, padding>& problem,
+            const AMRParameters& configuration, const double timeDelta, const double timeCurrent);
+    AMRNode(const unsigned id, const Fields defaultValue, const std::array<unsigned, 3> dim,
+            const std::array<double, 3> posLeft, const std::array<double, 3> posRight,
+            const GridBoundary::Boundary gridBoundary,
+            const Problem<ProblemType, Fields, padding>& problem,
+            const AMRParameters& configuration, const double timeDelta, const double timeCurrent);
 
     void setValue(const unsigned xGlobal, const unsigned yGlobal, const unsigned zGlobal,
                   const Fields& fields);
@@ -31,7 +37,7 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     void addChild(AMRNode<SolverType, ProblemType, Fields, padding>* child);
 
     const unsigned id;
-    PaddedGrid<FieldStruct, GHOST_CELLS>& grid;
+    PaddedGrid<FieldStruct, GHOST_CELLS> grid;
     GridBoundary::Boundary gridBoundary;
 
     SolverType solver;
@@ -57,9 +63,25 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(
-    const unsigned id, PaddedGrid<Fields, padding>& grid, const Problem<ProblemType>& problem,
+    const unsigned id, const PaddedGrid<Fields, padding>& grid,
+    const GridBoundary::Boundary gridBoundary, const Problem<ProblemType, Fields, padding>& problem,
     const AMRParameters& configuration, const double timeDelta, const double timeCurrent)
-    : id(id), grid(grid), solver(SolverType(grid, problem)), configuration(configuration) {
+    : id(id), grid(grid), gridBoundary(gridBoundary), solver(SolverType(this->grid, problem)),
+      configuration(configuration) {
+    this->solver.timeDelta = timeDelta;
+    this->solver.timeCurrent = timeCurrent;
+    this->solver.timeStep = 0;
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(
+    const unsigned id, const Fields defaultValue, const std::array<unsigned, 3> dim,
+    const std::array<double, 3> posLeft, const std::array<double, 3> posRight,
+    const GridBoundary::Boundary gridBoundary, const Problem<ProblemType, Fields, padding>& problem,
+    const AMRParameters& configuration, const double timeDelta, const double timeCurrent)
+    : id(id), grid(defaultValue, dim[0], dim[1], dim[2], posLeft, posRight),
+      gridBoundary(gridBoundary), solver(SolverType(this->grid, problem)),
+      configuration(configuration) {
     this->solver.timeDelta = timeDelta;
     this->solver.timeCurrent = timeCurrent;
     this->solver.timeStep = 0;
