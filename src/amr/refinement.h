@@ -124,6 +124,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
     const bool initialiseFromProblem = false;
     std::vector<GridBoundary::Boundary> parents({ root.gridBoundary });
     for (int level = flags.size() - 1; level >= 0; level--) {
+        std::cout << "Rerefining level " << flags.size() - 1 - level << ":" << std::endl;
         CellFlags::Flags& levelFlags = flags[level];
         std::vector<GridBoundary::Boundary> minimalGrids =
             this->divideGrid(this->fullGrid(levelFlags), levelFlags);
@@ -336,7 +337,7 @@ std::vector<GridBoundary::Boundary> Refinery<SolverType, ProblemType, Fields, pa
     const std::vector<GridBoundary::Boundary>& grids, const CellFlags::Flags& flags) const {
     std::vector<GridBoundary::Boundary> newGrids;
     std::vector<bool> keepGrid(grids.size(), true);
-    for (unsigned grid1 = 0; grid1 < grids.size() - 1; grid1++) {
+    for (unsigned grid1 = 0; grid1 + 1 < grids.size(); grid1++) {
         if (keepGrid[grid1]) {
             for (unsigned grid2 = grid1 + 1; grid2 < grids.size(); grid2++) {
                 if (keepGrid[grid2]) {
