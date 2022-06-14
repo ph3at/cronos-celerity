@@ -150,18 +150,20 @@ Fields AMRNode<SolverType, ProblemType, Fields, padding>::valueAtDown(
         padding + zGlobal * this->configuration.refinementFactor - this->gridBoundary[2].first);
 }
 
+/* Right now, for every cell in the lower grid is entirely filled out in the upper grid. If that
+ * changes, one should use ints instead. */
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 Fields AMRNode<SolverType, ProblemType, Fields, padding>::interpolateDown(
     const unsigned xLocal, const unsigned yLocal, const unsigned zLocal) const {
-    const unsigned xStart = std::max(xLocal, this->gridBoundary[0].first);
-    const unsigned xEnd =
-        std::min(xLocal + this->configuration.refinementFactor, this->gridBoundary[0].second + 1);
-    const unsigned yStart = std::max(yLocal, this->gridBoundary[1].first);
-    const unsigned yEnd =
-        std::min(yLocal + this->configuration.refinementFactor, this->gridBoundary[1].second + 1);
-    const unsigned zStart = std::max(zLocal, this->gridBoundary[2].first);
-    const unsigned zEnd =
-        std::min(zLocal + this->configuration.refinementFactor, this->gridBoundary[2].second + 1);
+    const unsigned xStart = std::max(xLocal, static_cast<unsigned>(this->grid.xStart()));
+    const unsigned xEnd = std::min(xLocal + this->configuration.refinementFactor,
+                                   static_cast<unsigned>(this->grid.xEnd()));
+    const unsigned yStart = std::max(yLocal, static_cast<unsigned>(this->grid.yStart()));
+    const unsigned yEnd = std::min(yLocal + this->configuration.refinementFactor,
+                                   static_cast<unsigned>(this->grid.yEnd()));
+    const unsigned zStart = std::max(zLocal, static_cast<unsigned>(this->grid.zStart()));
+    const unsigned zEnd = std::min(zLocal + this->configuration.refinementFactor,
+                                   static_cast<unsigned>(this->grid.zEnd()));
     Fields fields = { 0.0 };
     for (unsigned x = xStart; x < xEnd; x++) {
         for (unsigned y = yStart; y < yEnd; y++) {
