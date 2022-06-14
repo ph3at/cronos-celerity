@@ -299,20 +299,21 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryXLow(const bool 
                     }
                 }
                 if (includeParents && !found) {
+                    const double xGlobal =
+                        static_cast<double>(x) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double yGlobal =
+                        static_cast<double>(y) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double zGlobal =
+                        static_cast<double>(z) /
+                        static_cast<double>(this->configuration.refinementFactor);
                     for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
                          this->parents) {
-                        const double xGlobal =
-                            static_cast<double>(x) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double yGlobal =
-                            static_cast<double>(y) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double zGlobal =
-                            static_cast<double>(z) /
-                            static_cast<double>(this->configuration.refinementFactor);
                         std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
                         if (fields.has_value()) {
                             this->grid(xLocal, yLocal, zLocal) = fields.value();
+                            break;
                         }
                     }
                 }
@@ -362,20 +363,21 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryXHigh(const bool
                     }
                 }
                 if (includeParents && !found) {
+                    const double xGlobal =
+                        static_cast<double>(x) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double yGlobal =
+                        static_cast<double>(y) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double zGlobal =
+                        static_cast<double>(z) /
+                        static_cast<double>(this->configuration.refinementFactor);
                     for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
                          this->parents) {
-                        const double xGlobal =
-                            static_cast<double>(x) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double yGlobal =
-                            static_cast<double>(y) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double zGlobal =
-                            static_cast<double>(z) /
-                            static_cast<double>(this->configuration.refinementFactor);
                         std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
                         if (fields.has_value()) {
                             this->grid(xLocal, yLocal, zLocal) = fields.value();
+                            break;
                         }
                     }
                 }
@@ -425,20 +427,21 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryYLow(const bool 
                     }
                 }
                 if (includeParents && !found) {
+                    const double xGlobal =
+                        static_cast<double>(x) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double yGlobal =
+                        static_cast<double>(y) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double zGlobal =
+                        static_cast<double>(z) /
+                        static_cast<double>(this->configuration.refinementFactor);
                     for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
                          this->parents) {
-                        const double xGlobal =
-                            static_cast<double>(x) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double yGlobal =
-                            static_cast<double>(y) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double zGlobal =
-                            static_cast<double>(z) /
-                            static_cast<double>(this->configuration.refinementFactor);
                         std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
                         if (fields.has_value()) {
                             this->grid(xLocal, yLocal, zLocal) = fields.value();
+                            break;
                         }
                     }
                 }
@@ -488,20 +491,21 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryYHigh(const bool
                     }
                 }
                 if (includeParents && !found) {
+                    const double xGlobal =
+                        static_cast<double>(x) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double yGlobal =
+                        static_cast<double>(y) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double zGlobal =
+                        static_cast<double>(z) /
+                        static_cast<double>(this->configuration.refinementFactor);
                     for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
                          this->parents) {
-                        const double xGlobal =
-                            static_cast<double>(x) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double yGlobal =
-                            static_cast<double>(y) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double zGlobal =
-                            static_cast<double>(z) /
-                            static_cast<double>(this->configuration.refinementFactor);
                         std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
                         if (fields.has_value()) {
                             this->grid(xLocal, yLocal, zLocal) = fields.value();
+                            break;
                         }
                     }
                 }
@@ -551,20 +555,21 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryZLow(const bool 
                     }
                 }
                 if (includeParents && !found) {
+                    const double xGlobal =
+                        static_cast<double>(x) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double yGlobal =
+                        static_cast<double>(y) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double zGlobal =
+                        static_cast<double>(z) /
+                        static_cast<double>(this->configuration.refinementFactor);
                     for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
                          this->parents) {
-                        const double xGlobal =
-                            static_cast<double>(x) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double yGlobal =
-                            static_cast<double>(y) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double zGlobal =
-                            static_cast<double>(z) /
-                            static_cast<double>(this->configuration.refinementFactor);
                         std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
                         if (fields.has_value()) {
                             this->grid(xLocal, yLocal, zLocal) = fields.value();
+                            break;
                         }
                     }
                 }
@@ -614,20 +619,21 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::boundaryZHigh(const bool
                     }
                 }
                 if (includeParents && !found) {
+                    const double xGlobal =
+                        static_cast<double>(x) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double yGlobal =
+                        static_cast<double>(y) /
+                        static_cast<double>(this->configuration.refinementFactor);
+                    const double zGlobal =
+                        static_cast<double>(z) /
+                        static_cast<double>(this->configuration.refinementFactor);
                     for (AMRNode<SolverType, ProblemType, Fields, padding>* parent :
                          this->parents) {
-                        const double xGlobal =
-                            static_cast<double>(x) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double yGlobal =
-                            static_cast<double>(y) /
-                            static_cast<double>(this->configuration.refinementFactor);
-                        const double zGlobal =
-                            static_cast<double>(z) /
-                            static_cast<double>(this->configuration.refinementFactor);
                         std::optional<Fields> fields = parent->valueAtUp(xGlobal, yGlobal, zGlobal);
                         if (fields.has_value()) {
                             this->grid(xLocal, yLocal, zLocal) = fields.value();
+                            break;
                         }
                     }
                 }
