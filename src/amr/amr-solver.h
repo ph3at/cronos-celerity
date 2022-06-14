@@ -146,7 +146,7 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::adjustConfig() {
     const double newTimeDelta = std::min(this->timeEnd - this->timeCurrent, minTimeDelta);
     this->timeDelta = newTimeDelta;
     this->updateTimeDelta(newTimeDelta, 0);
-    if (this->timeStep + 1 % this->configuration.refinementInterval == 0) {
+    if ((this->timeStep + 1) % this->configuration.refinementInterval == 0) {
         this->refinery.refine();
     }
 }
