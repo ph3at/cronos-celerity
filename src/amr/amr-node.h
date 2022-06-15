@@ -186,9 +186,12 @@ Fields AMRNode<SolverType, ProblemType, Fields, padding>::interpolateDown(
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::optional<Fields> AMRNode<SolverType, ProblemType, Fields, padding>::valueAtUp(
     const double xGlobal, const double yGlobal, const double zGlobal) const {
-    const double xLocal = xGlobal - static_cast<double>(this->gridBoundary[0].first - padding);
-    const double yLocal = yGlobal - static_cast<double>(this->gridBoundary[1].first - padding);
-    const double zLocal = zGlobal - static_cast<double>(this->gridBoundary[2].first - padding);
+    const double xLocal =
+        xGlobal - static_cast<double>(this->gridBoundary[0].first) + static_cast<double>(padding);
+    const double yLocal =
+        yGlobal - static_cast<double>(this->gridBoundary[1].first) + static_cast<double>(padding);
+    const double zLocal =
+        zGlobal - static_cast<double>(this->gridBoundary[2].first) + static_cast<double>(padding);
     if (xLocal < 0.0 || xLocal >= static_cast<double>(this->grid.xDim()) || yLocal < 0.0 ||
         yLocal >= static_cast<double>(this->grid.yDim()) || zLocal < 0.0 ||
         zLocal >= static_cast<double>(this->grid.zDim())) {
