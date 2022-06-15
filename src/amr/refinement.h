@@ -123,15 +123,15 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
 
     const bool initialiseFromProblem = false;
     std::vector<GridBoundary::Boundary> parents({ root.gridBoundary });
-    for (int level = flags.size() - 1; level >= 0; level--) {
-        std::cout << "Rerefining level " << flags.size() - 1 - level << ":" << std::endl;
-        CellFlags::Flags& levelFlags = flags[level];
+    for (unsigned level = 0; level < flags.size(); level++) {
+        std::cout << "Refining level " << level << ":" << std::endl;
+        CellFlags::Flags& levelFlags = flags[flags.size() - 1 - level];
         std::vector<GridBoundary::Boundary> minimalGrids =
             this->divideGrid(this->fullGrid(levelFlags), levelFlags);
         std::vector<GridBoundary::Boundary> newGrids = this->mergeGrids(minimalGrids, levelFlags);
         this->ensureNesting(newGrids, parents);
         std::vector<GridBoundary::Boundary> finalNewGrids = this->translateGrids(newGrids);
-        this->createGrids(finalNewGrids, flags.size() - level, initialiseFromProblem);
+        this->createGrids(finalNewGrids, level + 1, initialiseFromProblem);
         parents.swap(finalNewGrids);
     }
 
@@ -440,7 +440,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
     const double timeDelta = root.solver.timeDelta * factor;
     const double timeCurrent = root.solver.timeCurrent;
     unsigned nodeId = 0;
-    std::cout << "Level: " << level << std::endl;
+    std::cout << "New grids for level " << level << ":" << std::endl;
     for (const GridBoundary::Boundary& grid : grids) {
         std::cout << "([" << grid[0].first << "," << grid[0].second << "],[" << grid[1].first << ","
                   << grid[1].second << "],[" << grid[2].first << "," << grid[2].second << "])"
@@ -451,7 +451,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
         for (unsigned dir = 0; dir < 3; dir++) {
             posLeft[dir] = static_cast<double>(grid[dir].first) * cellSize[dir];
             posRight[dir] = static_cast<double>(grid[dir].second) * cellSize[dir];
-            dim[dir] = grid[dir].second - grid[dir].first;
+            dim[dir] = grid[dir].second - grid[dir].first + 1;
         }
         newGrids.emplace_back(nodeId, root.grid.defaultValue, dim, posLeft, posRight, grid,
                               this->problem, this->configuration, timeDelta, timeCurrent);
