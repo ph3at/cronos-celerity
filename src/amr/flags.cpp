@@ -4,20 +4,20 @@
 
 namespace CellFlags {
 void addFlags(Flags& knownFlags, const Flags& newFlags) {
-    const int knownXStart = knownFlags.first;
-    const int newXStart = newFlags.first;
-    const int knownXSize = knownFlags.second.size();
-    const int newXSize = newFlags.second.size();
+    const int knownXStart = static_cast<int>(knownFlags.first);
+    const int newXStart = static_cast<int>(newFlags.first);
+    const int knownXSize = static_cast<int>(knownFlags.second.size());
+    const int newXSize = static_cast<int>(newFlags.second.size());
     const int knownXOffset = std::max(0, newXStart - knownXStart);
     const int newXOffset = std::max(0, knownXStart - newXStart);
     const int xUntil = std::min(knownXSize - knownXOffset, newXSize - newXOffset);
     for (int x = 0; x < xUntil; x++) {
         std::pair<unsigned, FlagsY>& knownFlagsX = knownFlags.second[x + knownXOffset];
         const std::pair<unsigned, FlagsY>& newFlagsX = newFlags.second[x + newXOffset];
-        const int knownYStart = knownFlagsX.first;
-        const int newYStart = newFlagsX.first;
-        const int knownYSize = knownFlagsX.second.size();
-        const int newYSize = newFlagsX.second.size();
+        const int knownYStart = static_cast<int>(knownFlagsX.first);
+        const int newYStart = static_cast<int>(newFlagsX.first);
+        const int knownYSize = static_cast<int>(knownFlagsX.second.size());
+        const int newYSize = static_cast<int>(newFlagsX.second.size());
         const int knownYOffset = std::max(0, newYStart - knownYStart);
         const int newYOffset = std::max(0, knownYStart - newYStart);
         const int yUntil = std::min(knownYSize - knownYOffset, newYSize - newYOffset);
@@ -33,10 +33,10 @@ void addFlags(Flags& knownFlags, const Flags& newFlags) {
                 unsigned left = std::min(knownPairs[0].first, newPairs[0].first);
                 unsigned right = left;
                 while (true) {
-                    if (knownZ < knownZEnd && right >= knownPairs[knownZ].first - 1) {
+                    if (knownZ < knownZEnd && right + 1 >= knownPairs[knownZ].first) {
                         right = std::max(right, knownPairs[knownZ].second);
                         knownZ++;
-                    } else if (newZ < newZEnd && right >= newPairs[newZ].first - 1) {
+                    } else if (newZ < newZEnd && right + 1 >= newPairs[newZ].first) {
                         right = std::max(right, newPairs[newZ].second);
                         newZ++;
                     } else {
