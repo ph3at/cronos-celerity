@@ -167,65 +167,73 @@ Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
             }
         }
         if (refine) {
-            if (level < maxLevel - 1) {
+            if (flags.size() > 0) {
                 CellFlags::Flags higherLevelFlags =
                     CellFlags::translateFlags(flags.back(), this->configuration.refinementFactor);
                 CellFlags::addFlags(levelFlags, higherLevelFlags);
             }
             CellFlags::addBuffer(levelFlags, this->configuration.bufferSize);
-            flags.push_back(levelFlags);
+            flags.push_back(std::make_pair(levelFlags.first, CellFlags::FlagsX({})));
+            flags.back().second.swap(levelFlags.second);
         }
     }
     return flags;
 }
 
 inline double gridEfficiency(const GridBoundary::Boundary& grid, const CellFlags::Flags& flags) {
-    unsigned flaggedCells = 0;
+    int flaggedCells = 0;
     for (unsigned x = std::max(grid[0].first, flags.first);
-         x < std::min(grid[0].second, flags.first + static_cast<unsigned>(flags.second.size()));
+         x < std::min(grid[0].second + 1, flags.first + static_cast<unsigned>(flags.second.size()));
          x++) {
         const unsigned xx = x - flags.first;
         const std::pair<unsigned, CellFlags::FlagsY>& flagsY = flags.second[xx];
         for (unsigned y = std::max(grid[1].first, flagsY.first);
-             y <
-             std::min(grid[1].second, flagsY.first + static_cast<unsigned>(flagsY.second.size()));
+             y < std::min(grid[1].second + 1,
+                          flagsY.first + static_cast<unsigned>(flagsY.second.size()));
              y++) {
             const unsigned yy = y - flagsY.first;
             for (std::pair<unsigned, unsigned> pair : flagsY.second[yy]) {
-                const int left = std::max(pair.first, grid[3].first);
-                const int right = std::min(pair.second + 1, grid[2].second);
-                flaggedCells += std::max(0, right - left);
+                const int left = static_cast<int>(std::max(pair.first, grid[2].first));
+                const int right = static_cast<int>(std::min(pair.second, grid[2].second));
+                flaggedCells += std::max(0, right - left + 1);
             }
         }
     }
-    const double gridSize =
-        static_cast<double>((grid[0].second - grid[0].first) * (grid[1].second - grid[1].first) *
-                            (grid[2].second - grid[2].first));
+    const double gridSize = static_cast<double>((grid[0].second - grid[0].first + 1) *
+                                                (grid[1].second - grid[1].first + 1) *
+                                                (grid[2].second - grid[2].first + 1));
     return static_cast<double>(flaggedCells) / gridSize;
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 GridBoundary::Boundary
 Refinery<SolverType, ProblemType, Fields, padding>::fullGrid(const CellFlags::Flags& flags) const {
-    const unsigned xStart = flags.first;
-    const unsigned xEnd = xStart + flags.second.size();
-    unsigned yStart = std::numeric_limits<unsigned>::max();
-    unsigned yEnd = 0;
-    unsigned zStart = std::numeric_limits<unsigned>::max();
-    unsigned zEnd = 0;
-    for (std::pair<unsigned, CellFlags::FlagsY> flagsY : flags.second) {
-        yStart = std::min(yStart, flagsY.first);
-        yEnd = std::max(yEnd, flagsY.first + static_cast<unsigned>(flagsY.second.size()));
-        for (CellFlags::FlagsZ flagsZ : flagsY.second) {
-            const size_t nPairs = flagsZ.size();
-            if (nPairs > 0) {
-                zStart = std::min(zStart, flagsZ[0].first);
-                zEnd = std::max(zEnd, flagsZ[nPairs - 1].second);
+    if (flags.second.size() == 0) {
+        return { std::make_pair(0, 0), std::make_pair(0, 0), std::make_pair(0, 0) };
+    } else {
+        const unsigned xStart = flags.first;
+        const unsigned xEnd = xStart + flags.second.size() - 1;
+        unsigned yStart = std::numeric_limits<unsigned>::max();
+        unsigned yEnd = 0;
+        unsigned zStart = std::numeric_limits<unsigned>::max();
+        unsigned zEnd = 0;
+        for (std::pair<unsigned, CellFlags::FlagsY> flagsY : flags.second) {
+            yStart = std::min(yStart, flagsY.first);
+            const unsigned localYEnd = static_cast<unsigned>(std::max(
+                0,
+                static_cast<int>(flagsY.first + static_cast<unsigned>(flagsY.second.size())) - 1));
+            yEnd = std::max(yEnd, localYEnd);
+            for (CellFlags::FlagsZ flagsZ : flagsY.second) {
+                const size_t nPairs = flagsZ.size();
+                if (nPairs > 0) {
+                    zStart = std::min(zStart, flagsZ[0].first);
+                    zEnd = std::max(zEnd, flagsZ[nPairs - 1].second);
+                }
             }
         }
+        return { std::make_pair(xStart, xEnd), std::make_pair(yStart, yEnd),
+                 std::make_pair(zStart, zEnd) };
     }
-    return { std::make_pair(xStart, xEnd), std::make_pair(yStart, yEnd),
-             std::make_pair(zStart, zEnd) };
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -433,7 +441,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
     const double timeCurrent = root.solver.timeCurrent;
     unsigned nodeId = 0;
     std::cout << "Level: " << level << std::endl;
-    for (GridBoundary::Boundary grid : grids) {
+    for (const GridBoundary::Boundary& grid : grids) {
         std::cout << "([" << grid[0].first << "," << grid[0].second << "],[" << grid[1].first << ","
                   << grid[1].second << "],[" << grid[2].first << "," << grid[2].second << "])"
                   << std::endl;
@@ -485,31 +493,34 @@ void Refinery<SolverType, ProblemType, Fields, padding>::initialiseGrid(const un
     const GridBoundary::Boundary& gridBoundary = this->amrNodes[level][nodeId].gridBoundary;
     const double refinementFactor = static_cast<double>(this->configuration.refinementFactor);
     for (unsigned x = 0; x < grid.xDim(); x++) {
-        const int xGlobal = x + gridBoundary[0].first - padding;
+        const int xGlobal = static_cast<int>(x + gridBoundary[0].first) - padding;
         const double xGlobalUp = static_cast<double>(xGlobal) / refinementFactor;
         for (unsigned y = 0; y < grid.yDim(); y++) {
-            const int yGlobal = y + gridBoundary[1].first - padding;
+            const int yGlobal = static_cast<int>(y + gridBoundary[1].first) - padding;
             const double yGlobalUp = static_cast<double>(yGlobal) / refinementFactor;
             for (unsigned z = 0; z < grid.zDim(); z++) {
-                const int zGlobal = z + gridBoundary[2].first - padding;
+                const int zGlobal = static_cast<int>(z + gridBoundary[2].first) - padding;
                 bool foundCell = false;
                 if (level < this->oldNodes.size()) {
                     for (AMRNode<SolverType, ProblemType, Fields, padding>& sibling :
                          this->oldNodes[level]) {
                         if (xGlobal >= static_cast<int>(sibling.gridBoundary[0].first) &&
-                            xGlobal < static_cast<int>(sibling.gridBoundary[0].second) &&
+                            xGlobal <= static_cast<int>(sibling.gridBoundary[0].second) &&
                             yGlobal >= static_cast<int>(sibling.gridBoundary[1].first) &&
-                            yGlobal < static_cast<int>(sibling.gridBoundary[1].second) &&
+                            yGlobal <= static_cast<int>(sibling.gridBoundary[1].second) &&
                             zGlobal >= static_cast<int>(sibling.gridBoundary[2].first) &&
-                            zGlobal < static_cast<int>(sibling.gridBoundary[2].second)) {
-                            const unsigned xSibling = xGlobal - sibling.gridBoundary[0].first;
-                            const unsigned ySibling = yGlobal - sibling.gridBoundary[1].first;
-                            unsigned zSibling = zGlobal - sibling.gridBoundary[2].first;
+                            zGlobal <= static_cast<int>(sibling.gridBoundary[2].second)) {
+                            const unsigned xSibling =
+                                xGlobal - sibling.gridBoundary[0].first + padding;
+                            const unsigned ySibling =
+                                yGlobal - sibling.gridBoundary[1].first + padding;
+                            unsigned zSibling = zGlobal - sibling.gridBoundary[2].first + padding;
                             while (z < grid.zDim() && zSibling < sibling.grid.zDim()) {
                                 grid(x, y, z) = sibling.grid(xSibling, ySibling, zSibling);
                                 z++;
                                 zSibling++;
                             }
+                            z--;
                             foundCell = true;
                             break;
                         }
