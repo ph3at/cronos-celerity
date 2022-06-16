@@ -26,6 +26,7 @@ class RungeKuttaSolver
     void singleStep();
     void adjustConfig();
     void init(){};
+    void finaliseResult(){};
 
   private:
     SimpleGrid<Changes<Fields>> changeBuffer;

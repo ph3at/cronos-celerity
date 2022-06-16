@@ -491,13 +491,14 @@ void Refinery<SolverType, ProblemType, Fields, padding>::initialiseGrid(const un
     // Could be optimised with smaller search space for siblings and parents
     PaddedGrid<Fields, padding>& grid = this->amrNodes[level][nodeId].grid;
     const GridBoundary::Boundary& gridBoundary = this->amrNodes[level][nodeId].gridBoundary;
-    const double refinementFactor = static_cast<double>(this->configuration.refinementFactor);
+    const double invRefinementFactor =
+        1.0 / static_cast<double>(this->configuration.refinementFactor);
     for (unsigned x = 0; x < grid.xDim(); x++) {
         const int xGlobal = static_cast<int>(x + gridBoundary[0].first) - padding;
-        const double xGlobalUp = static_cast<double>(xGlobal) / refinementFactor;
+        const double xGlobalUp = (static_cast<double>(xGlobal) + 0.5) / invRefinementFactor;
         for (unsigned y = 0; y < grid.yDim(); y++) {
             const int yGlobal = static_cast<int>(y + gridBoundary[1].first) - padding;
-            const double yGlobalUp = static_cast<double>(yGlobal) / refinementFactor;
+            const double yGlobalUp = (static_cast<double>(yGlobal) + 0.5) / invRefinementFactor;
             for (unsigned z = 0; z < grid.zDim(); z++) {
                 const int zGlobal = static_cast<int>(z + gridBoundary[2].first) - padding;
                 bool foundCell = false;
@@ -527,7 +528,8 @@ void Refinery<SolverType, ProblemType, Fields, padding>::initialiseGrid(const un
                     }
                 }
                 if (!foundCell) {
-                    const double zGlobalUp = static_cast<double>(zGlobal) / refinementFactor;
+                    const double zGlobalUp =
+                        (static_cast<double>(zGlobal) + 0.5) / invRefinementFactor;
                     for (const AMRNode<SolverType, ProblemType, Fields, padding>& parent :
                          this->amrNodes[level - 1]) {
                         std::optional<Fields> fields =

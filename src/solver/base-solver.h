@@ -7,7 +7,8 @@
 #include "../grid/padded-grid.h"
 
 /* Specifics must implement "init()" for initialising themselves, "singleStep()" which computes one
- * full time step and "adjustConfig()", which adjusts the state of the solver between time steps. */
+ * full time step, "adjustConfig()", which adjusts the state of the solver between time steps, and
+ * "finaliseResult()", which does post-processing. */
 template <class Specific, class Fields, class ProblemType, unsigned padding> class Solver {
   public:
     void solve();
@@ -17,6 +18,7 @@ template <class Specific, class Fields, class ProblemType, unsigned padding> cla
     void adjust();
     bool isFinished() const;
     void report() const;
+    void finalise();
 
     double timeDelta;
     double timeCurrent;
@@ -66,6 +68,7 @@ void Solver<Specific, Fields, ProblemType, padding>::doSolve() {
         this->adjust();
         this->timeStep++;
     }
+    this->finalise();
 }
 
 template <class Specific, class Fields, class ProblemType, unsigned padding>
@@ -100,4 +103,9 @@ template <class Specific, class Fields, class ProblemType, unsigned padding>
 void Solver<Specific, Fields, ProblemType, padding>::report() const {
     std::cout << "Stopped at time " << this->timeCurrent << ", after " << this->timeStep
               << " steps." << std::endl;
+}
+
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+void Solver<Specific, Fields, ProblemType, padding>::finalise() {
+    static_cast<Specific*>(this)->finaliseResult();
 }

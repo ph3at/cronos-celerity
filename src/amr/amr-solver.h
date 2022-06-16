@@ -19,6 +19,7 @@ class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, paddi
     void init();
     void singleStep();
     void adjustConfig();
+    void finaliseResult();
 
   private:
     const AMRParameters& configuration;
@@ -29,6 +30,7 @@ class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, paddi
     void synchronise(const unsigned level);
     double minTimeDelta(const unsigned level);
     void updateTimeDelta(const double timeDelta, const unsigned level);
+    void extractGrid();
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -149,4 +151,63 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::adjustConfig() {
     if ((this->timeStep + 1) % this->configuration.refinementInterval == 0) {
         this->refinery.refine();
     }
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRSolver<SolverType, ProblemType, Fields, padding>::finaliseResult() {
+    for (std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>& level : this->nodes) {
+        for (AMRNode<SolverType, ProblemType, Fields, padding>& node : level) {
+            node.solver.finalise();
+        }
+    }
+    this->extractGrid();
+}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+void AMRSolver<SolverType, ProblemType, Fields, padding>::extractGrid() {
+    const size_t sizeFactor = this->nodes.size() * this->configuration.refinementFactor;
+    const size_t xSize = (this->grid.xEnd() - this->grid.xStart()) * sizeFactor;
+    const size_t ySize = (this->grid.yEnd() - this->grid.yStart()) * sizeFactor;
+    const size_t zSize = (this->grid.zEnd() - this->grid.zStart()) * sizeFactor;
+
+    PaddedGrid<Fields, padding> result(this->grid.defaultValue, xSize, ySize, zSize,
+                                       this->grid.posLeft, this->grid.posRight,
+                                       this->grid.boundaryTypes);
+    const double invRefinementFactor =
+        1.0 / static_cast<double>(this->configuration.refinementFactor);
+    for (unsigned xGlobal = 0, x = result.xStart(); xGlobal < xSize; xGlobal++, x++) {
+        for (unsigned yGlobal = 0, y = result.yStart(); yGlobal < ySize; yGlobal++, y++) {
+            for (unsigned zGlobal = 0, z = result.zStart(); zGlobal < zSize; zGlobal++, z++) {
+                bool foundCell = false;
+                for (AMRNode<SolverType, ProblemType, Fields, padding>& node : this->nodes.back()) {
+                    if (node.isInBounds(xGlobal, yGlobal, zGlobal)) {
+                        result(x, y, z) = node.valueAt(xGlobal, yGlobal, zGlobal);
+                        foundCell = true;
+                        break;
+                    }
+                }
+                if (!foundCell) {
+                    double xLevel = static_cast<double>(xGlobal) + 0.5;
+                    double yLevel = static_cast<double>(yGlobal) + 0.5;
+                    double zLevel = static_cast<double>(zGlobal) + 0.5;
+                    for (int level = static_cast<int>(this->nodes.size()) - 2;
+                         !foundCell && level >= 0; level--) {
+                        xLevel *= invRefinementFactor;
+                        yLevel *= invRefinementFactor;
+                        zLevel *= invRefinementFactor;
+                        for (AMRNode<SolverType, ProblemType, Fields, padding>& node :
+                             this->nodes[level]) {
+                            std::optional<Fields> fields = node.valueAtUp(xLevel, yLevel, zLevel);
+                            if (fields.has_value()) {
+                                result(x, y, z) = fields.value();
+                                foundCell = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    this->grid.swap(result);
 }

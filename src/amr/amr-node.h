@@ -27,6 +27,8 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
     void injectParents();
     void updateBoundary();
     void updateBoundarySiblings();
+    bool isInBounds(const unsigned xGlobal, const unsigned yGlobal, const unsigned zGlobal) const;
+    Fields& valueAt(const unsigned xGlobal, const unsigned yGlobal, const unsigned zGlobal);
     Fields valueAtDown(const unsigned xGlobal, const unsigned yGlobal,
                        const unsigned zGlobal) const;
     std::optional<Fields> valueAtUp(const double xGlobal, const double yGlobal,
@@ -140,6 +142,26 @@ void AMRNode<SolverType, ProblemType, Fields, padding>::updateBoundarySiblings()
     this->boundaryZHigh(includeParents);
 }
 
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+bool AMRNode<SolverType, ProblemType, Fields, padding>::isInBounds(const unsigned xGlobal,
+                                                                   const unsigned yGlobal,
+                                                                   const unsigned zGlobal) const {
+    return xGlobal >= this->gridBoundary[0].first && xGlobal <= this->gridBoundary[0].second &&
+           yGlobal >= this->gridBoundary[1].first && yGlobal <= this->gridBoundary[1].second &&
+           zGlobal >= this->gridBoundary[2].first && zGlobal <= this->gridBoundary[2].second;
+}
+
+/* Careful, this function does not check whether the requested indices are valid. */
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
+Fields& AMRNode<SolverType, ProblemType, Fields, padding>::valueAt(const unsigned xGlobal,
+                                                                   const unsigned yGlobal,
+                                                                   const unsigned zGlobal) {
+    const unsigned x = xGlobal + this->grid.xStart() - this->gridBoundary[0].first;
+    const unsigned y = yGlobal + this->grid.yStart() - this->gridBoundary[1].first;
+    const unsigned z = zGlobal + this->grid.zStart() - this->gridBoundary[2].first;
+    return this->grid(x, y, z);
+}
+
 /* Careful, this function does not check whether the requested indices are valid. */
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 Fields AMRNode<SolverType, ProblemType, Fields, padding>::valueAtDown(
@@ -197,7 +219,7 @@ std::optional<Fields> AMRNode<SolverType, ProblemType, Fields, padding>::valueAt
         zLocal >= static_cast<double>(this->grid.zDim())) {
         return std::nullopt;
     } else {
-        const double shift = 1.0 / static_cast<double>(this->configuration.refinementFactor);
+        constexpr double shift = 0.5;
         return std::make_optional(this->interpolateUp(
             std::min(static_cast<double>(this->grid.xDim() - 1), std::max(0.0, xLocal - shift)),
             std::min(static_cast<double>(this->grid.yDim() - 1), std::max(0.0, yLocal - shift)),
@@ -210,15 +232,15 @@ Fields AMRNode<SolverType, ProblemType, Fields, padding>::interpolateUp(const do
                                                                         const double yLocal,
                                                                         const double zLocal) const {
     const double xLowD = std::floor(xLocal);
-    const double xWeight = xLocal - xLowD;
+    const double xWeight = 1.0 - (xLocal - xLowD);
     const unsigned xLow = static_cast<unsigned>(xLowD);
     const unsigned xHigh = static_cast<unsigned>(std::ceil(xLocal));
     const double yLowD = std::floor(yLocal);
-    const double yWeight = yLocal - yLowD;
+    const double yWeight = 1.0 - (yLocal - yLowD);
     const unsigned yLow = static_cast<unsigned>(yLowD);
     const unsigned yHigh = static_cast<unsigned>(std::ceil(yLocal));
     const double zLowD = std::floor(zLocal);
-    const double zWeight = zLocal - zLowD;
+    const double zWeight = 1.0 - (zLocal - zLowD);
     const unsigned zLow = static_cast<unsigned>(zLowD);
     const unsigned zHigh = static_cast<unsigned>(std::ceil(zLocal));
     Fields fields = { 0.0 };

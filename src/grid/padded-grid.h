@@ -18,7 +18,7 @@ template <class T, unsigned padding> class PaddedGrid {
     PaddedGrid(const PaddedGrid<T, padding>& blueprint);
 
     void clear();
-    PaddedGrid<T, padding> copy();
+    void swap(PaddedGrid<T, padding>& other);
 
     T& operator()(const size_t x, const size_t y, const size_t z);
     T operator()(const size_t x, const size_t y, const size_t z) const;
@@ -33,12 +33,12 @@ template <class T, unsigned padding> class PaddedGrid {
     size_t yEnd() const { return this->ySize - padding; }
     size_t zEnd() const { return this->zSize - padding; }
 
-    const T defaultValue;
-    const std::array<double, 3> posLeft;
-    const std::array<double, 3> posRight;
-    const std::array<double, Direction::DirMax> cellSize;
-    const std::array<double, Direction::DirMax> inverseCellSize;
-    const std::array<BoundaryType, Faces::FaceMax> boundaryTypes;
+    T defaultValue;
+    std::array<double, 3> posLeft;
+    std::array<double, 3> posRight;
+    std::array<double, Direction::DirMax> cellSize;
+    std::array<double, Direction::DirMax> inverseCellSize;
+    std::array<BoundaryType, Faces::FaceMax> boundaryTypes;
 
   private:
     PaddedGrid();
@@ -94,6 +94,20 @@ template <class T, unsigned padding> void PaddedGrid<T, padding>::clear() {
             }
         }
     }
+}
+
+template <class T, unsigned padding>
+void PaddedGrid<T, padding>::swap(PaddedGrid<T, padding>& other) {
+    this->data.swap(other.data);
+    std::swap(this->xSize, other.xSize);
+    std::swap(this->ySize, other.ySize);
+    std::swap(this->zSize, other.zSize);
+    this->defaultValue.swap(other.defaultValue);
+    this->posLeft.swap(other.posLeft);
+    this->posRight.swap(other.posRight);
+    this->cellSize.swap(other.cellSize);
+    this->inverseCellSize.swap(other.inverseCellSize);
+    this->boundaryTypes.swap(other.boundaryTypes);
 }
 
 template <class T, unsigned padding>
