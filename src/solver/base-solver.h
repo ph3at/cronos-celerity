@@ -23,8 +23,11 @@ template <class Specific, class Fields, class ProblemType, unsigned padding> cla
     unsigned timeStep;
     double timeEnd;
 
+    const bool doOutput;
+
   protected:
-    Solver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem);
+    Solver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem,
+           const bool doOutput = false);
 
     PaddedGrid<Fields, padding>& grid;
     const Problem<ProblemType, Fields, padding>& problem;
@@ -35,8 +38,9 @@ template <class Specific, class Fields, class ProblemType, unsigned padding> cla
 
 template <class Specific, class Fields, class ProblemType, unsigned padding>
 Solver<Specific, Fields, ProblemType, padding>::Solver(
-    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem)
-    : grid(grid), problem(problem) {
+    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem,
+    const bool doOutput)
+    : doOutput(doOutput), grid(grid), problem(problem) {
     this->timeEnd = problem.timeEnd;
     this->timeDelta = problem.timeDelta;
     this->timeCurrent = problem.timeStart;
@@ -66,6 +70,11 @@ void Solver<Specific, Fields, ProblemType, padding>::doSolve() {
 
 template <class Specific, class Fields, class ProblemType, unsigned padding>
 void Solver<Specific, Fields, ProblemType, padding>::step() {
+    if (doOutput) {
+        std::cout << "--- Starting time step " << this->timeStep + 1 << " at time "
+                  << this->timeCurrent << " with time delta " << this->timeDelta << " ---"
+                  << std::endl;
+    }
     static_cast<Specific*>(this)->singleStep();
     this->timeCurrent += this->timeDelta;
 }

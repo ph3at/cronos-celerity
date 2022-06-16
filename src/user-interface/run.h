@@ -12,14 +12,15 @@ template <class ProblemType> void runAMR() {
     std::pair<PaddedGrid<FieldStruct, GHOST_CELLS>, ProblemType> problem =
         ShockTube::initialiseTestProblem();
 
-    const AMRParameters amrConfig = { .refinementFactor = 5,
-                                      .refinementInterval = 5,
+    const bool doOutput = true;
+    const AMRParameters amrConfig = { .refinementFactor = 4,
+                                      .refinementInterval = 4,
                                       .bufferSize = 4,
                                       .efficiencyThreshold = 0.6,
                                       .truncationErrorTreshold = 1e-4 };
     AMRSolver<RungeKuttaSolver<ProblemType, FieldStruct, GHOST_CELLS>, ShockTube, FieldStruct,
               GHOST_CELLS>
-        solver(problem.first, problem.second, amrConfig);
+        solver(problem.first, problem.second, amrConfig, doOutput);
     solver.initialise();
     std::cout << "----------------- Solving Grid -----------------" << std::endl << std::endl;
 
@@ -32,8 +33,9 @@ template <class ProblemType> void runRK() {
         ShockTube::initialiseTestProblem();
 
     const unsigned rungeKuttaSteps = 2;
+    const bool doOutput = true;
     RungeKuttaSolver<ProblemType, FieldStruct, GHOST_CELLS> solver(problem.first, problem.second,
-                                                                   rungeKuttaSteps);
+                                                                   rungeKuttaSteps, doOutput);
     solver.initialise();
     std::cout << "----------------- Solving Grid -----------------" << std::endl << std::endl;
 
