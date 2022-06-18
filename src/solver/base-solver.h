@@ -25,6 +25,7 @@ template <class Specific, class Fields, class ProblemType, unsigned padding> cla
     unsigned timeStep;
     double timeEnd;
 
+    bool preciseEnd = true;
     const bool doOutput;
 
   protected:

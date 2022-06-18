@@ -196,7 +196,9 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::integrateTime(const unsigne
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::adjustConfig() {
     this->timeDelta = this->problem.cflThreshold / this->cfl;
-    this->timeDelta = std::min(this->timeDelta, this->timeEnd - this->timeCurrent);
+    if (this->preciseEnd) {
+        this->timeDelta = std::min(this->timeDelta, this->timeEnd - this->timeCurrent);
+    }
 }
 
 template <class ProblemType, class Fields, unsigned padding>

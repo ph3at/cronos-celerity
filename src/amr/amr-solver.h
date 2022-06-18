@@ -144,10 +144,12 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::updateTimeDelta(const 
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::adjustConfig() {
-    const double minTimeDelta = this->minTimeDelta(0);
-    const double newTimeDelta = std::min(this->timeEnd - this->timeCurrent, minTimeDelta);
-    this->timeDelta = newTimeDelta;
-    this->updateTimeDelta(newTimeDelta, 0);
+    double minTimeDelta = this->minTimeDelta(0);
+    if (this->preciseEnd) {
+        minTimeDelta = std::min(this->timeEnd - this->timeCurrent, minTimeDelta);
+    }
+    this->timeDelta = minTimeDelta;
+    this->updateTimeDelta(minTimeDelta, 0);
     if ((this->timeStep + 1) % this->configuration.refinementInterval == 0 && !this->isFinished()) {
         this->refinery.refine();
     }
@@ -165,7 +167,7 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::finaliseResult() {
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::extractGrid() {
-    const size_t sizeFactor = this->nodes.size() * this->configuration.refinementFactor;
+    const size_t sizeFactor = pow(this->configuration.refinementFactor, this->nodes.size() - 1);
     const size_t xSize = (this->grid.xEnd() - this->grid.xStart()) * sizeFactor;
     const size_t ySize = (this->grid.yEnd() - this->grid.yStart()) * sizeFactor;
     const size_t zSize = (this->grid.zEnd() - this->grid.zStart()) * sizeFactor;

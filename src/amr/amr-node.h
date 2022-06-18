@@ -73,6 +73,7 @@ AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(
     this->solver.timeDelta = timeDelta;
     this->solver.timeCurrent = timeCurrent;
     this->solver.timeStep = 0;
+    this->solver.preciseEnd = false;
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -87,6 +88,7 @@ AMRNode<SolverType, ProblemType, Fields, padding>::AMRNode(
     this->solver.timeDelta = timeDelta;
     this->solver.timeCurrent = timeCurrent;
     this->solver.timeStep = 0;
+    this->solver.preciseEnd = false;
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
