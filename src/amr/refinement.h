@@ -449,8 +449,10 @@ void Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
         std::array<double, 3> posLeft;
         std::array<double, 3> posRight;
         for (unsigned dir = 0; dir < 3; dir++) {
-            posLeft[dir] = static_cast<double>(grid[dir].first) * cellSize[dir];
-            posRight[dir] = static_cast<double>(grid[dir].second) * cellSize[dir];
+            posLeft[dir] =
+                root.grid.posLeft[dir] + static_cast<double>(grid[dir].first) * cellSize[dir];
+            posRight[dir] =
+                root.grid.posLeft[dir] + static_cast<double>(grid[dir].second + 1) * cellSize[dir];
             dim[dir] = grid[dir].second - grid[dir].first + 1;
         }
         newGrids.emplace_back(nodeId, root.grid.defaultValue, dim, posLeft, posRight, grid,
