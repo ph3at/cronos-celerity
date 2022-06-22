@@ -30,7 +30,5 @@ class ShockTube : public Problem<ShockTube, FieldStruct, GHOST_CELLS> {
     double velocityYLeftInit, velocityYRightInit;
     double velocityZLeftInit, velocityZRightInit;
     double pressureLeftInit, pressureRightInit;
-
-    static ShockTube initialiseTestProblem();
 };
 

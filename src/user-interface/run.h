@@ -10,7 +10,8 @@
 
 template <class ProblemType>
 void runAMR(const ProblemType& problem, const AMRParameters& amrConfig) {
-    std::cout << "----------------- Solving Grid using Adaptive Mesh Refinement -----------------"
+    std::cout << std::endl
+              << "----------------- Solving Grid using Adaptive Mesh Refinement -----------------"
               << std::endl
               << std::endl;
 
@@ -26,7 +27,8 @@ void runAMR(const ProblemType& problem, const AMRParameters& amrConfig) {
 }
 
 template <class ProblemType> void runRKS(const ProblemType& problem) {
-    std::cout << "----------------- Solving Grid using Runge-Kutta-Solver -----------------"
+    std::cout << std::endl
+              << "----------------- Solving Grid using Runge-Kutta-Solver -----------------"
               << std::endl
               << std::endl;
 
