@@ -1,12 +1,14 @@
 #pragma once
 
 #include <array>
+#include <toml++/toml.h>
 
 #include "../boundary/boundary-types.h"
 #include "../data-types/direction.h"
 #include "../data-types/faces.h"
 #include "../data-types/phys-fields.h"
 #include "../grid/padded-grid.h"
+#include "../user-interface/value-parser.h"
 #include "constants.h"
 
 template <class Specific, class Fields, unsigned padding> class Problem {
@@ -18,6 +20,7 @@ template <class Specific, class Fields, unsigned padding> class Problem {
             const std::array<std::size_t, Direction::DirMax> numberCells,
             const std::array<BoundaryType, Faces::FaceMax> boundaryTypes);
     Problem(const Problem<Specific, Fields, padding>& blueprint);
+    Problem(const toml::table& config);
 
     double cflThreshold;
     bool thermal;
@@ -69,6 +72,51 @@ Problem<Specific, Fields, padding>::Problem(const Problem<Specific, Fields, padd
       posRight(blueprint.posRight), numberCells(blueprint.numberCells),
       cellSize(blueprint.cellSize), inverseCellSize(blueprint.inverseCellSize),
       boundaryTypes(blueprint.boundaryTypes) {}
+
+template <class Specific, class Fields, unsigned padding>
+Problem<Specific, Fields, padding>::Problem(const toml::table& config) {
+    std::cout << std::endl << "General problem parameters:" << std::endl;
+    const toml::node_view<const toml::node>& general = config["general"];
+    this->cflThreshold = parseValue<double>(general, "cfl_threshold", 0.4);
+    this->thermal = parseValue<bool>(general, "thermal", true);
+    this->timeDelta = parseValue<double>(general, "time_delta", 2e-6);
+    this->timeStart = parseValue<double>(general, "time_start", 0.0);
+    this->timeEnd = parseValue<double>(general, "time_end", 5e-4);
+    this->preciseEnd = parseValue<bool>(general, "precise_end", true);
+    this->gamma = parseValue<double>(general, "gamma", 1.4);
+
+    std::cout << std::endl << "Grid domain:" << std::endl;
+    const toml::node_view<const toml::node>& grid = config["grid"];
+    this->posLeft[Direction::DirX] = parseValue<double>(grid, "x_start", 0.45);
+    this->posRight[Direction::DirX] = parseValue<double>(grid, "x_end", 0.55);
+    this->numberCells[Direction::DirX] = parseValue<std::size_t>(grid, "number_cells_x", 20);
+    this->posLeft[Direction::DirY] = parseValue<double>(grid, "y_start", 0.45);
+    this->posRight[Direction::DirY] = parseValue<double>(grid, "y_end", 0.55);
+    this->numberCells[Direction::DirY] = parseValue<std::size_t>(grid, "number_cells_y", 5);
+    this->posLeft[Direction::DirZ] = parseValue<double>(grid, "z_start", 0.45);
+    this->posRight[Direction::DirZ] = parseValue<double>(grid, "z_end", 0.55);
+    this->numberCells[Direction::DirZ] = parseValue<std::size_t>(grid, "number_cells_z", 5);
+    for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
+        this->cellSize[dir] = (this->posRight[dir] - this->posLeft[dir]) /
+                              static_cast<double>(this->numberCells[dir]);
+        this->inverseCellSize[dir] = 1.0 / this->cellSize[dir];
+    }
+
+    std::cout << std::endl << "Boundary types:" << std::endl;
+    const toml::node_view<const toml::node>& boundary = config["boundary"];
+    this->boundaryTypes[Faces::FaceWest] =
+        parseValue<BoundaryType>(boundary, "west", BoundaryType::EMPTY);
+    this->boundaryTypes[Faces::FaceEast] =
+        parseValue<BoundaryType>(boundary, "east", BoundaryType::EMPTY);
+    this->boundaryTypes[Faces::FaceSouth] =
+        parseValue<BoundaryType>(boundary, "south", BoundaryType::EMPTY);
+    this->boundaryTypes[Faces::FaceNorth] =
+        parseValue<BoundaryType>(boundary, "north", BoundaryType::EMPTY);
+    this->boundaryTypes[Faces::FaceBottom] =
+        parseValue<BoundaryType>(boundary, "bottom", BoundaryType::EMPTY);
+    this->boundaryTypes[Faces::FaceTop] =
+        parseValue<BoundaryType>(boundary, "top", BoundaryType::EMPTY);
+}
 
 template <class Specific, class Fields, unsigned padding>
 void Problem<Specific, Fields, padding>::initialiseGrid(PaddedGrid<Fields, padding>& grid) const {

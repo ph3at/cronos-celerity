@@ -1,11 +1,14 @@
-#include "user-interface/run.h"
 #include <cstdlib>
+#include <iostream>
+
+#include "user-interface/config-parser.h"
 
 int main(int argc, char** argv) {
-    if (argc < 2 || std::string("-amrOff").compare(argv[1]) != 0) {
-        runAMR<ShockTube>();
+    if (argc < 2) {
+        std::cerr << "Missing configuration file." << std::endl;
+        return EXIT_FAILURE;
     } else {
-        runRK<ShockTube>();
+        parseAndRun(argv[1]);
     }
 
     return EXIT_SUCCESS;

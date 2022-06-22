@@ -1,0 +1,48 @@
+problem = "shock tube"
+
+enable_amr = true
+
+[general]
+cfl_threshold = 0.4
+thermal = true
+time_delta = 0.000002
+time_start = 0.0
+time_end = 0.0001
+precise_end = true
+gamma = 1.4
+
+[amr]
+refinement_factor = 4
+refinement_interval = 4
+buffer_size = 4
+efficiency_threshold = 0.6
+truncation_error_threshold = 1e-4
+
+[grid]
+number_cells_x = 10
+x_start = 0.45
+x_end = 0.55
+number_cells_y = 2
+y_start = 0.45
+y_end = 0.55
+number_cells_z = 2
+z_start = 0.45
+z_end = 0.55
+
+[boundary]
+west = "outflow"
+east = "user"
+south = "extrapolate"
+north = "extrapolate"
+bottom = "extrapolate"
+top = "extrapolate"
+
+[specific]
+shock_dir = "x"
+shock_pos = 0.5
+density_left_init = 1.0
+density_right_init = 1.0
+velocity_left_init = -19.59745
+velocity_right_init = -19.59745
+pressure_left_init = 1000.0
+pressure_right_init = 0.01

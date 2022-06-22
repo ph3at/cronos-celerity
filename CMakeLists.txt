@@ -27,6 +27,17 @@ IF(USE_OpenMP)
   ENDIF()
 ENDIF()
 
+########
+# TOML #
+########
+include(FetchContent)
+FetchContent_Declare(
+    tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG        v3.1.0
+)
+find_package(tomlplusplus REQUIRED)
+
 #########
 # Build #
 #########
@@ -48,5 +59,6 @@ include(CTest)
 include(Catch)
 catch_discover_tests(tests)
 
-# Copy test data to build folder
+# Copy test data and configuration to build folder
 file(COPY test/test-data DESTINATION .)
+file(COPY configuration DESTINATION .)

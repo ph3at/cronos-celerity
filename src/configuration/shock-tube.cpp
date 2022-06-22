@@ -35,6 +35,36 @@ ShockTube::ShockTube(const ShockTube& blueprint)
       pressureLeftInit(blueprint.pressureLeftInit), pressureRightInit(blueprint.pressureRightInit) {
 }
 
+ShockTube::ShockTube(const toml::table& config)
+    : Problem<ShockTube, FieldStruct, GHOST_CELLS>(config) {
+    std::cout << std::endl << "Shock tube specific parameters:" << std::endl;
+    const toml::node_view<const toml::node>& specific = config["specific"];
+    this->shockDir = parseValue<Direction>(specific, "shock_dir", Direction::DirX);
+    this->shockPos = parseValue<double>(specific, "shock_pos", 0.5);
+    this->densityLeftInit = parseValue<double>(specific, "density_left_init", 1.0);
+    this->densityRightInit = parseValue<double>(specific, "density_right_init", 1.0);
+    this->velocityXLeftInit = this->shockDir == Direction::DirX
+                                  ? parseValue<double>(specific, "velocity_left_init", -20.0)
+                                  : 0.0;
+    this->velocityXRightInit = this->shockDir == Direction::DirX
+                                   ? parseValue<double>(specific, "velocity_right_init", -20.0)
+                                   : 0.0;
+    this->velocityYLeftInit = this->shockDir == Direction::DirY
+                                  ? parseValue<double>(specific, "velocity_left_init", -20.0)
+                                  : 0.0;
+    this->velocityYRightInit = this->shockDir == Direction::DirY
+                                   ? parseValue<double>(specific, "velocity_right_init", -20.0)
+                                   : 0.0;
+    this->velocityZLeftInit = this->shockDir == Direction::DirZ
+                                  ? parseValue<double>(specific, "velocity_left_init", -20.0)
+                                  : 0.0;
+    this->velocityZRightInit = this->shockDir == Direction::DirZ
+                                   ? parseValue<double>(specific, "velocity_right_init", -20.0)
+                                   : 0.0;
+    this->pressureLeftInit = parseValue<double>(specific, "pressure_left_init", 1000.0);
+    this->pressureRightInit = parseValue<double>(specific, "pressure_right_init", 0.01);
+}
+
 void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {
     double posParallel;
     for (unsigned x = 0; x < grid.xDim(); x++) {
