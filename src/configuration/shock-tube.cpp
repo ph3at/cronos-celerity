@@ -1,13 +1,18 @@
 #include "shock-tube.h"
 
 ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double timeDelta,
-                     const double timeStart, const double timeEnd, const double gamma,
+                     const double timeStart, const double timeEnd, const bool preciseEnd,
+                     const double gamma, const std::array<double, Direction::DirMax> posLeft,
+                     const std::array<double, Direction::DirMax> posRight,
+                     const std::array<std::size_t, Direction::DirMax> numberCells,
+                     const std::array<BoundaryType, Faces::FaceMax> boundaryTypes,
                      const Direction shockDir, const double shockPos, const double densityLeftInit,
                      const double densityRightInit, const double velocityLeftInit,
                      const double velocityRightInit, const double pressureLeftInit,
                      const double pressureRightInit)
     : Problem<ShockTube, FieldStruct, GHOST_CELLS>(cflThreshold, thermal, timeDelta, timeStart,
-                                                   timeEnd, gamma),
+                                                   timeEnd, preciseEnd, gamma, posLeft, posRight,
+                                                   numberCells, boundaryTypes),
       shockDir(shockDir), shockPos(shockPos), densityLeftInit(densityLeftInit),
       densityRightInit(densityRightInit),
       velocityXLeftInit(shockDir == Direction::DirX ? velocityLeftInit : 0.0),
@@ -18,23 +23,35 @@ ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double
       velocityZRightInit(shockDir == Direction::DirZ ? velocityRightInit : 0.0),
       pressureLeftInit(pressureLeftInit), pressureRightInit(pressureRightInit) {}
 
+ShockTube::ShockTube(const ShockTube& blueprint)
+    : Problem<ShockTube, FieldStruct, GHOST_CELLS>(blueprint), shockDir(blueprint.shockDir),
+      shockPos(blueprint.shockPos), densityLeftInit(blueprint.densityLeftInit),
+      densityRightInit(blueprint.densityRightInit), velocityXLeftInit(blueprint.velocityXLeftInit),
+      velocityXRightInit(blueprint.velocityXRightInit),
+      velocityYLeftInit(blueprint.velocityYLeftInit),
+      velocityYRightInit(blueprint.velocityYRightInit),
+      velocityZLeftInit(blueprint.velocityZLeftInit),
+      velocityZRightInit(blueprint.velocityZRightInit),
+      pressureLeftInit(blueprint.pressureLeftInit), pressureRightInit(blueprint.pressureRightInit) {
+}
+
 void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {
     double posParallel;
     for (unsigned x = 0; x < grid.xDim(); x++) {
         for (unsigned y = 0; y < grid.yDim(); y++) {
             for (unsigned z = 0; z < grid.zDim(); z++) {
                 if (this->shockDir == Direction::DirX) {
-                    posParallel = grid.posLeft[Direction::DirX] +
+                    posParallel = this->posLeft[Direction::DirX] +
                                   (static_cast<double>(x) - GHOST_CELLS + 0.5) *
-                                      grid.cellSize[Direction::DirX];
+                                      this->cellSize[Direction::DirX];
                 } else if (this->shockDir == Direction::DirY) {
-                    posParallel = grid.posLeft[Direction::DirY] +
+                    posParallel = this->posLeft[Direction::DirY] +
                                   (static_cast<double>(y) - GHOST_CELLS + 0.5) *
-                                      grid.cellSize[Direction::DirY];
+                                      this->cellSize[Direction::DirY];
                 } else {
-                    posParallel = grid.posLeft[Direction::DirZ] +
+                    posParallel = this->posLeft[Direction::DirZ] +
                                   (static_cast<double>(z) - GHOST_CELLS + 0.5) *
-                                      grid.cellSize[Direction::DirZ];
+                                      this->cellSize[Direction::DirZ];
                 }
                 if (posParallel < this->shockPos) {
                     grid(x, y, z)[FieldNames::DENSITY] = this->densityLeftInit;
@@ -104,14 +121,15 @@ constexpr bool THERMAL = true;
 constexpr double TIME_DELTA = 0.000002;
 constexpr double TIME_START = 0.0;
 constexpr double TIME_END = 0.0005;
+constexpr bool PRECISE_END = true;
 constexpr double GAMMA = 1.4;
-constexpr std::size_t NUMBER_CELLS_X = 20;
+constexpr std::size_t NUMBER_CELLS_X = 10;
 constexpr double X_START = 0.45;
 constexpr double X_END = 0.55;
-constexpr std::size_t NUMBER_CELLS_Y = 5;
+constexpr std::size_t NUMBER_CELLS_Y = 2;
 constexpr double Y_START = 0.45;
 constexpr double Y_END = 0.55;
-constexpr std::size_t NUMBER_CELLS_Z = 5;
+constexpr std::size_t NUMBER_CELLS_Z = 2;
 constexpr double Z_START = 0.45;
 constexpr double Z_END = 0.55;
 constexpr Direction SHOCK_DIR = Direction::DirX;
@@ -123,7 +141,7 @@ constexpr double VELOCITY_RIGHT_INIT = -19.59745;
 constexpr double PRESSURE_LEFT_INIT = 1000.0;
 constexpr double PRESSURE_RIGHT_INIT = 0.01;
 
-std::pair<PaddedGrid<FieldStruct, GHOST_CELLS>, ShockTube> ShockTube::initialiseTestProblem() {
+ShockTube ShockTube::initialiseTestProblem() {
     const std::array<double, Direction::DirMax> posLeft = { X_START, Y_START, Z_START };
     const std::array<double, Direction::DirMax> posRight = { X_END, Y_END, Z_END };
 
@@ -132,12 +150,11 @@ std::pair<PaddedGrid<FieldStruct, GHOST_CELLS>, ShockTube> ShockTube::initialise
         BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE, BoundaryType::EXTRAPOLATE
     };
 
-    PaddedGrid<FieldStruct, GHOST_CELLS> grid({}, NUMBER_CELLS_X, NUMBER_CELLS_Y, NUMBER_CELLS_Z,
-                                              posLeft, posRight, boundaryTypes);
+    ShockTube problem(CFL_THRESHOLD, THERMAL, TIME_DELTA, TIME_START, TIME_END, PRECISE_END, GAMMA,
+                      posLeft, posRight, { NUMBER_CELLS_X, NUMBER_CELLS_Y, NUMBER_CELLS_Z },
+                      boundaryTypes, SHOCK_DIR, SHOCK_POS, DENSITY_LEFT_INIT, DENSITY_RIGHT_INIT,
+                      VELOCITY_LEFT_INIT, VELOCITY_RIGHT_INIT, PRESSURE_LEFT_INIT,
+                      PRESSURE_RIGHT_INIT);
 
-    ShockTube problem(CFL_THRESHOLD, THERMAL, TIME_DELTA, TIME_START, TIME_END, GAMMA, SHOCK_DIR,
-                      SHOCK_POS, DENSITY_LEFT_INIT, DENSITY_RIGHT_INIT, VELOCITY_LEFT_INIT,
-                      VELOCITY_RIGHT_INIT, PRESSURE_LEFT_INIT, PRESSURE_RIGHT_INIT);
-
-    return std::make_pair(grid, problem);
+    return problem;
 }

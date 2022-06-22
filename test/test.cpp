@@ -6,10 +6,9 @@
 #include "../src/solver/runge-kutta-solver.h"
 
 TEST_CASE("Shock-Tube integration test", "[IntegrationTest]") {
-    std::pair<PaddedGrid<FieldStruct, GHOST_CELLS>, ShockTube> shockTube =
-        ShockTube::initialiseTestProblem();
+    ShockTube shockTube = ShockTube::initialiseTestProblem();
 
-    RungeKuttaSolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube.first, shockTube.second);
+    RungeKuttaSolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube);
     solver.initialise();
 
     double deviationPerStep = 1.0005;
@@ -19,7 +18,7 @@ TEST_CASE("Shock-Tube integration test", "[IntegrationTest]") {
         solver.adjust();
         const SimpleGrid<FieldStruct> baseline =
             GridFunctions::readFromFile("test-data/step-" + std::to_string(timeStep) + ".dat");
-        double averageDeviation = GridFunctions::compare(baseline, shockTube.first, false, false);
+        double averageDeviation = GridFunctions::compare(baseline, solver.grid, false, false);
         REQUIRE(averageDeviation < deviationThreshold - 1.0);
         deviationThreshold *= deviationPerStep;
     }

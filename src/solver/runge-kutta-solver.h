@@ -19,13 +19,14 @@ template <class ProblemType, class Fields, unsigned padding>
 class RungeKuttaSolver
     : public Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding> {
   public:
-    RungeKuttaSolver(PaddedGrid<Fields, padding>& grid,
-                     const Problem<ProblemType, Fields, padding>& problem,
+    RungeKuttaSolver(const ProblemType& problem, const unsigned rungeKuttaSteps = 2,
+                     const bool doOutput = false);
+    RungeKuttaSolver(const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
                      const unsigned rungeKuttaSteps = 2, const bool doOutput = false);
 
+    void init();
     void singleStep();
     void adjustConfig();
-    void init(){};
     void finaliseResult(){};
 
   private:
@@ -46,14 +47,34 @@ class RungeKuttaSolver
 };
 
 template <class ProblemType, class Fields, unsigned padding>
+RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(const ProblemType& problem,
+                                                                 const unsigned rungeKuttaSteps,
+                                                                 const bool doOutput)
+    : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(
+          problem, doOutput),
+      changeBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
+                   problem.numberCells[Direction::DirY] + 2 * padding,
+                   problem.numberCells[Direction::DirZ] + 2 * padding),
+      gridSubstepBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
+                        problem.numberCells[Direction::DirY] + 2 * padding,
+                        problem.numberCells[Direction::DirZ] + 2 * padding),
+      rungeKuttaSteps(rungeKuttaSteps) {}
+
+template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(
-    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem,
+    const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
     const unsigned rungeKuttaSteps, const bool doOutput)
     : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(
           grid, problem, doOutput),
       changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
       gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
       rungeKuttaSteps(rungeKuttaSteps) {}
+
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::init() {
+    this->problem.initialiseGrid(this->grid);
+    Boundary::applyAll(this->grid, this->problem);
+}
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::singleStep() {
@@ -134,7 +155,7 @@ template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::updateCFL(
     const std::pair<double, double> characVelocities, const unsigned direction) {
     double maxVelocity = std::max(characVelocities.first, characVelocities.second);
-    double localCFL = maxVelocity * this->grid.inverseCellSize[direction];
+    double localCFL = maxVelocity * this->problem.inverseCellSize[direction];
     this->cfl = std::max(this->cfl, localCFL);
 }
 
@@ -170,15 +191,15 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::integrateTime(const unsigne
                     const double changeX =
                         (this->changeBuffer(x + 1, y, z)[Direction::DirX][field] -
                          this->changeBuffer(x, y, z)[Direction::DirX][field]) *
-                        this->grid.inverseCellSize[Direction::DirX];
+                        this->problem.inverseCellSize[Direction::DirX];
                     const double changeY =
                         (this->changeBuffer(x, y + 1, z)[Direction::DirY][field] -
                          this->changeBuffer(x, y, z)[Direction::DirY][field]) *
-                        this->grid.inverseCellSize[Direction::DirY];
+                        this->problem.inverseCellSize[Direction::DirY];
                     const double changeZ =
                         (this->changeBuffer(x, y, z + 1)[Direction::DirZ][field] -
                          this->changeBuffer(x, y, z)[Direction::DirZ][field]) *
-                        this->grid.inverseCellSize[Direction::DirZ];
+                        this->problem.inverseCellSize[Direction::DirZ];
                     const double change = changeX + changeY + changeZ;
                     if (substep == 0) { // if-statement should be pulled out by compiler
                         this->grid(x, y, z)[field] -= this->timeDelta * change;
@@ -196,7 +217,7 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::integrateTime(const unsigne
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::adjustConfig() {
     this->timeDelta = this->problem.cflThreshold / this->cfl;
-    if (this->preciseEnd) {
+    if (this->problem.preciseEnd) {
         this->timeDelta = std::min(this->timeDelta, this->timeEnd - this->timeCurrent);
     }
 }

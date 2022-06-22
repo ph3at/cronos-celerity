@@ -11,9 +11,7 @@ namespace ErrorEstimation {
 template <class ProblemType, class Fields, unsigned padding>
 std::optional<CellFlags::Flags>
 getFlags(const PaddedGrid<Fields, padding>& grid, const std::array<unsigned, 3> gridOffset,
-         const double timeDelta, const double errorThreshold,
-         const Problem<ProblemType, Fields, padding>& problem,
-         const std::array<BoundaryType, Faces::FaceMax>& boundaryTypes);
+         const double timeDelta, const double errorThreshold, const ProblemType& problem);
 };
 
 template <class Fields, unsigned padding>
@@ -37,13 +35,20 @@ inline Fields interpolate(const PaddedGrid<Fields, padding>& other, unsigned x, 
     return fields;
 }
 
+template <class ProblemType> ProblemType createUpperProblem(const ProblemType& problem) {
+    ProblemType upperProblem(problem);
+    for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
+        upperProblem.numberCells[dir] = problem.numberCells[dir] / 2;
+        upperProblem.cellSize[dir] = (upperProblem.posRight[dir] - upperProblem.posLeft[dir]) /
+                                     upperProblem.numberCells[dir];
+        upperProblem.inverseCellSize[dir] = 1.0 / upperProblem.cellSize[dir];
+    }
+    return upperProblem;
+}
+
 template <class Fields, unsigned padding>
-PaddedGrid<Fields, padding>
-createUpper(const PaddedGrid<Fields, padding>& grid,
-            const std::array<BoundaryType, Faces::FaceMax> boundaryTypes) {
-    PaddedGrid<Fields, padding> upper(
-        grid.defaultValue, (grid.xEnd() - grid.xStart()) / 2, (grid.yEnd() - grid.yStart()) / 2,
-        (grid.zEnd() - grid.zStart()) / 2, grid.posLeft, grid.posRight, boundaryTypes);
+void initialiseUpperGrid(PaddedGrid<Fields, padding>& upper,
+                         const PaddedGrid<Fields, padding>& grid) {
     for (unsigned x = 1; x + 1 < upper.xDim(); x++) {
         for (unsigned y = 1; y + 1 < upper.yDim(); y++) {
             for (unsigned z = 1; z + 1 < upper.zDim(); z++) {
@@ -63,7 +68,6 @@ createUpper(const PaddedGrid<Fields, padding>& grid,
             upper(upper.xDim() - 1, y, z) = upper(upper.xDim() - 2, y, z);
         }
     }
-    return upper;
 }
 
 template <class Fields, unsigned padding>
@@ -96,16 +100,15 @@ template <class ProblemType, class Fields, unsigned padding>
 std::optional<CellFlags::Flags>
 ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
                           const std::array<unsigned, 3> gridOffset, const double timeDelta,
-                          const double errorThreshold,
-                          const Problem<ProblemType, Fields, padding>& problem,
-                          const std::array<BoundaryType, Faces::FaceMax>& boundaryTypes) {
-    PaddedGrid<Fields, padding> baseGrid(grid);
-    PaddedGrid<Fields, padding> upperGrid = createUpper(baseGrid, boundaryTypes);
-    RungeKuttaSolver<ProblemType, Fields, padding> solver1(baseGrid, problem, 1);
+                          const double errorThreshold, const ProblemType& problem) {
+    RungeKuttaSolver<ProblemType, Fields, padding> solver1(grid, problem, 1);
     solver1.timeDelta = timeDelta;
     solver1.singleStep();
     solver1.singleStep();
-    RungeKuttaSolver<ProblemType, Fields, padding> solver2(upperGrid, problem, 1);
+
+    ProblemType upperProblem = createUpperProblem(problem);
+    RungeKuttaSolver<ProblemType, Fields, padding> solver2(upperProblem, 1);
+    initialiseUpperGrid(solver2.grid, grid);
     solver2.timeDelta = timeDelta * 2.0;
     solver2.singleStep();
 
@@ -113,17 +116,17 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
     unsigned firstX = 0;
     bool foundError = false;
     unsigned emptyYs = 0;
-    for (unsigned x = upperGrid.xStart(); x < upperGrid.xEnd(); x++) {
+    for (unsigned x = solver2.grid.xStart(); x < solver2.grid.xEnd(); x++) {
         CellFlags::FlagsY flagsY;
         unsigned firstY = 0;
         bool foundY = false;
         unsigned emptyZs = 0;
-        for (unsigned y = upperGrid.yStart(); y < upperGrid.yEnd(); y++) {
+        for (unsigned y = solver2.grid.yStart(); y < solver2.grid.yEnd(); y++) {
             CellFlags::FlagsZ flagsZ;
             unsigned start = 0;
             bool streak = false;
-            for (unsigned z = upperGrid.zStart(); z < upperGrid.zEnd(); z++) {
-                if (checkThreshold(upperGrid, baseGrid, x, y, z, errorThreshold)) {
+            for (unsigned z = solver2.grid.zStart(); z < solver2.grid.zEnd(); z++) {
+                if (checkThreshold(solver2.grid, solver1.grid, x, y, z, errorThreshold)) {
                     if (!foundError) {
                         firstX = 2 * x - padding + gridOffset[0];
                         foundError = true;
@@ -145,7 +148,7 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
             if (streak) {
                 flagsZ.push_back(
                     std::make_pair(2 * start - padding + gridOffset[2],
-                                   2 * (upperGrid.zEnd() - 1) - padding + gridOffset[2]));
+                                   2 * (solver2.grid.zEnd() - 1) - padding + gridOffset[2]));
             }
             if (foundY) {
                 if (flagsZ.size() > 0) {

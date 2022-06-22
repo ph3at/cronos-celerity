@@ -20,30 +20,42 @@ template <class Specific, class Fields, class ProblemType, unsigned padding> cla
     void report() const;
     void finalise();
 
+    PaddedGrid<Fields, padding> grid;
+
     double timeDelta;
     double timeCurrent;
     unsigned timeStep;
     double timeEnd;
 
-    bool preciseEnd = true;
     const bool doOutput;
 
   protected:
-    Solver(PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem,
+    Solver(const ProblemType& problem, const bool doOutput = false);
+    Solver(const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
            const bool doOutput = false);
-
-    PaddedGrid<Fields, padding>& grid;
-    const Problem<ProblemType, Fields, padding>& problem;
+    const ProblemType& problem;
 
   private:
     void doSolve();
 };
 
 template <class Specific, class Fields, class ProblemType, unsigned padding>
-Solver<Specific, Fields, ProblemType, padding>::Solver(
-    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem,
-    const bool doOutput)
-    : doOutput(doOutput), grid(grid), problem(problem) {
+Solver<Specific, Fields, ProblemType, padding>::Solver(const ProblemType& problem,
+                                                       const bool doOutput)
+    : grid({}, problem.numberCells[Direction::DirX], problem.numberCells[Direction::DirY],
+           problem.numberCells[Direction::DirZ]),
+      doOutput(doOutput), problem(problem) {
+    this->timeEnd = problem.timeEnd;
+    this->timeDelta = problem.timeDelta;
+    this->timeCurrent = problem.timeStart;
+    this->timeStep = 0;
+}
+
+template <class Specific, class Fields, class ProblemType, unsigned padding>
+Solver<Specific, Fields, ProblemType, padding>::Solver(const PaddedGrid<Fields, padding>& grid,
+                                                       const ProblemType& problem,
+                                                       const bool doOutput)
+    : grid(grid), doOutput(doOutput), problem(problem) {
     this->timeEnd = problem.timeEnd;
     this->timeDelta = problem.timeDelta;
     this->timeCurrent = problem.timeStart;
@@ -85,8 +97,6 @@ void Solver<Specific, Fields, ProblemType, padding>::step() {
 
 template <class Specific, class Fields, class ProblemType, unsigned padding>
 void Solver<Specific, Fields, ProblemType, padding>::initialise() {
-    this->problem.initialiseGrid(this->grid);
-    Boundary::applyAll(this->grid, this->problem);
     static_cast<Specific*>(this)->init();
 }
 

@@ -12,8 +12,9 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding>
 class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields,
                                 ProblemType, padding> {
   public:
-    AMRSolver(PaddedGrid<Fields, padding>& grid,
-              const Problem<ProblemType, Fields, padding>& problem,
+    AMRSolver(const ProblemType& problem, const AMRParameters& configuration,
+              const bool doOutput = false);
+    AMRSolver(const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
               const AMRParameters& configuration, const bool doOutput = false);
 
     void init();
@@ -34,18 +35,26 @@ class AMRSolver : public Solver<AMRSolver<SolverType, ProblemType, Fields, paddi
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
+AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(const ProblemType& problem,
+                                                               const AMRParameters& configuration,
+                                                               const bool doOutput)
+    : Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields, ProblemType, padding>(
+          problem, doOutput),
+      configuration(configuration), refinery(problem, configuration),
+      nodes(this->refinery.getNodes()) {}
+
+template <class SolverType, class ProblemType, class Fields, unsigned padding>
 AMRSolver<SolverType, ProblemType, Fields, padding>::AMRSolver(
-    PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem,
+    const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
     const AMRParameters& configuration, const bool doOutput)
     : Solver<AMRSolver<SolverType, ProblemType, Fields, padding>, Fields, ProblemType, padding>(
           grid, problem, doOutput),
-      configuration(configuration),
-      refinery(Refinery<SolverType, ProblemType, Fields, padding>(problem, configuration)),
-      nodes(refinery.getNodes()) {}
+      configuration(configuration), refinery(problem, configuration),
+      nodes(this->refinery.getNodes()) {}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::init() {
-    this->refinery.initialRefine(this->grid, this->problem);
+    this->refinery.initialRefine();
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
@@ -145,7 +154,7 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::updateTimeDelta(const 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 void AMRSolver<SolverType, ProblemType, Fields, padding>::adjustConfig() {
     double minTimeDelta = this->minTimeDelta(0);
-    if (this->preciseEnd) {
+    if (this->problem.preciseEnd) {
         minTimeDelta = std::min(this->timeEnd - this->timeCurrent, minTimeDelta);
     }
     this->timeDelta = minTimeDelta;
@@ -172,9 +181,7 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::extractGrid() {
     const size_t ySize = (this->grid.yEnd() - this->grid.yStart()) * sizeFactor;
     const size_t zSize = (this->grid.zEnd() - this->grid.zStart()) * sizeFactor;
 
-    PaddedGrid<Fields, padding> result(this->grid.defaultValue, xSize, ySize, zSize,
-                                       this->grid.posLeft, this->grid.posRight,
-                                       this->grid.boundaryTypes);
+    PaddedGrid<Fields, padding> result(this->grid.defaultValue, xSize, ySize, zSize);
     const double invRefinementFactor =
         1.0 / static_cast<double>(this->configuration.refinementFactor);
     for (unsigned xGlobal = 0, x = result.xStart(); xGlobal < xSize; xGlobal++, x++) {

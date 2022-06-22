@@ -12,17 +12,16 @@
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding> class Refinery {
   public:
-    Refinery(const Problem<ProblemType, Fields, padding>& problem,
-             const AMRParameters& configuration);
+    Refinery(const ProblemType& problem, const AMRParameters& configuration);
 
     std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>>& getNodes();
 
     void refine();
-    void initialRefine(const PaddedGrid<Fields, padding>& grid,
-                       const Problem<ProblemType, Fields, padding>& problem);
+    void initialRefine();
 
   private:
-    const Problem<ProblemType, Fields, padding>& problem;
+    const ProblemType& problem;
+    ProblemType nonRootProblem;
     const AMRParameters& configuration;
 
     std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>> amrNodes;
@@ -44,9 +43,14 @@ template <class SolverType, class ProblemType, class Fields, unsigned padding> c
 };
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-Refinery<SolverType, ProblemType, Fields, padding>::Refinery(
-    const Problem<ProblemType, Fields, padding>& problem, const AMRParameters& configuration)
-    : problem(problem), configuration(configuration) {}
+Refinery<SolverType, ProblemType, Fields, padding>::Refinery(const ProblemType& problem,
+                                                             const AMRParameters& configuration)
+    : problem(problem), nonRootProblem(problem), configuration(configuration) {
+    this->nonRootProblem.boundaryTypes = { BoundaryType::EMPTY, BoundaryType::EMPTY,
+                                           BoundaryType::EMPTY, BoundaryType::EMPTY,
+                                           BoundaryType::EMPTY, BoundaryType::EMPTY };
+    this->nonRootProblem.preciseEnd = false;
+}
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<std::vector<AMRNode<SolverType, ProblemType, Fields, padding>>>&
@@ -55,18 +59,20 @@ Refinery<SolverType, ProblemType, Fields, padding>::getNodes() {
 }
 
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
-void Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
-    const PaddedGrid<Fields, padding>& grid, const Problem<ProblemType, Fields, padding>& problem) {
+void Refinery<SolverType, ProblemType, Fields, padding>::initialRefine() {
     this->amrNodes.clear();
     this->oldNodes.clear();
 
-    GridBoundary::Boundary rootBoundary = { std::make_pair(0, grid.xEnd() - padding - 1),
-                                            std::make_pair(0, grid.yEnd() - padding - 1),
-                                            std::make_pair(0, grid.zEnd() - padding - 1) };
+    GridBoundary::Boundary rootBoundary = {
+        std::make_pair(0, this->problem.numberCells[Direction::DirX] - 1),
+        std::make_pair(0, this->problem.numberCells[Direction::DirY] - 1),
+        std::make_pair(0, this->problem.numberCells[Direction::DirZ] - 1)
+    };
     this->amrNodes.push_back({});
-    this->amrNodes[0].emplace_back(0, grid, rootBoundary, problem, this->configuration,
-                                   problem.timeDelta, problem.timeStart);
+    constexpr unsigned rootNodeId = 0;
+    this->amrNodes[0].emplace_back(rootNodeId, rootBoundary, this->problem, this->configuration);
     AMRNode<SolverType, ProblemType, Fields, padding>& root = this->amrNodes[0][0];
+    root.solver.initialise();
 
     const bool initialiseFromProblem = true;
     unsigned level = 0;
@@ -82,7 +88,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::initialRefine(
                     { node.gridBoundary[0].first, node.gridBoundary[1].first,
                       node.gridBoundary[2].first },
                     node.solver.timeDelta, this->configuration.truncationErrorThreshold,
-                    this->problem, root.grid.boundaryTypes);
+                    this->problem);
             if (gridFlags.has_value()) {
                 if (noFlags) {
                     noFlags = false;
@@ -155,7 +161,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
                     { node.gridBoundary[0].first, node.gridBoundary[1].first,
                       node.gridBoundary[2].first },
                     node.solver.timeDelta, this->configuration.truncationErrorThreshold,
-                    this->problem, this->oldNodes[0][0].grid.boundaryTypes);
+                    this->problem);
             if (nodeFlags.has_value()) {
                 if (first) {
                     refine = true;
@@ -434,31 +440,30 @@ void Refinery<SolverType, ProblemType, Fields, padding>::createGrids(
     newGrids.reserve(grids.size());
     const double factor =
         1.0 / static_cast<double>(std::pow(this->configuration.refinementFactor, level));
-    const std::array<double, 3> cellSize = { root.grid.cellSize[0] * factor,
-                                             root.grid.cellSize[1] * factor,
-                                             root.grid.cellSize[2] * factor };
-    const double timeDelta = root.solver.timeDelta * factor;
-    const double timeCurrent = root.solver.timeCurrent;
+    for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
+        this->nonRootProblem.cellSize[dir] = this->problem.cellSize[dir] * factor;
+        this->nonRootProblem.inverseCellSize[dir] = this->problem.inverseCellSize[dir] / factor;
+    }
+    this->nonRootProblem.timeDelta = root.solver.timeDelta * factor;
+    this->nonRootProblem.timeStart = root.solver.timeCurrent;
     unsigned nodeId = 0;
     std::cout << "New grids for level " << level << ":" << std::endl;
     for (const GridBoundary::Boundary& grid : grids) {
         std::cout << "([" << grid[0].first << "," << grid[0].second << "],[" << grid[1].first << ","
                   << grid[1].second << "],[" << grid[2].first << "," << grid[2].second << "])"
                   << std::endl;
-        std::array<unsigned, 3> dim;
-        std::array<double, 3> posLeft;
-        std::array<double, 3> posRight;
         for (unsigned dir = 0; dir < 3; dir++) {
-            posLeft[dir] =
-                root.grid.posLeft[dir] + static_cast<double>(grid[dir].first) * cellSize[dir];
-            posRight[dir] =
-                root.grid.posLeft[dir] + static_cast<double>(grid[dir].second + 1) * cellSize[dir];
-            dim[dir] = grid[dir].second - grid[dir].first + 1;
+            this->nonRootProblem.posLeft[dir] =
+                this->problem.posLeft[dir] +
+                static_cast<double>(grid[dir].first) * this->nonRootProblem.cellSize[dir];
+            this->nonRootProblem.posRight[dir] =
+                this->problem.posLeft[dir] +
+                static_cast<double>(grid[dir].second + 1) * this->nonRootProblem.cellSize[dir];
+            this->nonRootProblem.numberCells[dir] = grid[dir].second - grid[dir].first + 1;
         }
-        newGrids.emplace_back(nodeId, root.grid.defaultValue, dim, posLeft, posRight, grid,
-                              this->problem, this->configuration, timeDelta, timeCurrent);
+        newGrids.emplace_back(nodeId, grid, this->nonRootProblem, this->configuration);
         if (initialiseFromProblem) {
-            this->problem.initialiseGrid(newGrids[nodeId].grid);
+            this->nonRootProblem.initialiseGrid(newGrids[nodeId].grid);
         } else {
             this->initialiseGrid(level, nodeId);
         }
