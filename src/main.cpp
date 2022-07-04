@@ -1,30 +1,15 @@
-#include <string>
+#include <cstdlib>
+#include <iostream>
 
-#include "configuration/constants.h"
-#include "configuration/shock-tube.h"
-#include "grid/grid-functions.h"
-#include "grid/padded-grid.h"
-#include "solver/runge-kutta-solver.h"
+#include "user-interface/config-parser.h"
 
 int main(int argc, char** argv) {
-
-    ShockTube problem = ShockTube::initialiseTestProblem();
-
-    PaddedGrid<FieldStruct, GHOST_CELLS> grid({}, problem.numberCells[Direction::DirX],
-                                              problem.numberCells[Direction::DirY],
-                                              problem.numberCells[Direction::DirZ]);
-
-    RungeKuttaSolver<ShockTube> solver(grid, problem);
-    solver.initialise();
-    std::cout << "----------------- Solving Grid -----------------" << std::endl << std::endl;
-
-    for (unsigned timeStep = 1; timeStep <= 16; timeStep++) {
-        solver.step();
-        const SimpleGrid<FieldStruct> baseline =
-            GridFunctions::readFromFile("test-data/step-" + std::to_string(timeStep) + ".dat");
-        GridFunctions::compare(baseline, grid, true, false);
+    if (argc < 2) {
+        std::cerr << "Missing configuration file." << std::endl;
+        return EXIT_FAILURE;
+    } else {
+        parseAndRun(argv[1]);
     }
-    solver.report();
 
     return EXIT_SUCCESS;
 }

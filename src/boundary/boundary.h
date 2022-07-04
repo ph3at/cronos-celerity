@@ -13,28 +13,33 @@
 #include "outflow.h"
 
 namespace Boundary {
-template <class T>
-void applyAll(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Problem<T>& problem);
+template <class T, unsigned padding>
+void applyAll(PaddedGrid<FieldStruct, padding>& grid,
+              const Problem<T, FieldStruct, padding>& problem);
 
-template <class T>
-void applyField(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Problem<T>& problem,
-                const unsigned field);
+template <class T, unsigned padding>
+void applyField(PaddedGrid<FieldStruct, padding>& grid,
+                const Problem<T, FieldStruct, padding>& problem, const unsigned field);
 }; // namespace Boundary
 
-template <class T>
-void Boundary::applyAll(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Problem<T>& problem) {
+template <class T, unsigned padding>
+void Boundary::applyAll(PaddedGrid<FieldStruct, padding>& grid,
+                        const Problem<T, FieldStruct, padding>& problem) {
     for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
         applyField(grid, problem, field);
     }
 }
 
-template <class T>
-void Boundary::applyField(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const Problem<T>& problem,
-                          const unsigned field) {
+template <class T, unsigned padding>
+void Boundary::applyField(PaddedGrid<FieldStruct, padding>& grid,
+                          const Problem<T, FieldStruct, padding>& problem, const unsigned field) {
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
         /* GPUs only support compile time polymorphism, so we are using this Frankenstein here.
          * Sorry. */
-        if (problem.boundaryTypes[face] == EXTRAPOLATE) {
+        if (problem.boundaryTypes[face] == EMPTY) {
+            /* Used for applying boundaries at a different point (e.g. AMR) or for keeping the
+             * boundary at its initial values. */
+        } else if (problem.boundaryTypes[face] == EXTRAPOLATE) {
             Extrapolate::apply(grid, field, face);
         } else if (problem.boundaryTypes[face] == OUTFLOW) {
             Outflow::apply(grid, field, face);

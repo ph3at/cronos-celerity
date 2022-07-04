@@ -1,14 +1,10 @@
 #pragma once
 
-#include <algorithm>
 #include <omp.h>
-#include <optional>
 
 #include "../boundary/boundary.h"
-#include "../configuration/constants.h"
 #include "../data-types/direction.h"
 #include "../data-types/faces.h"
-#include "../data-types/fields.h"
 #include "../grid/grid-functions.h"
 #include "../grid/padded-grid.h"
 #include "../grid/simple-grid.h"
@@ -17,69 +13,85 @@
 #include "../solver/base-solver.h"
 #include "../transformation/transformations.h"
 
-typedef std::array<FieldStruct, Direction::DirMax> Changes;
+template <class Fields> using Changes = std::array<Fields, Direction::DirMax>;
 
-template <class ProblemType>
+template <class ProblemType, class Fields, unsigned padding>
 class RungeKuttaSolver
-    : public Solver<RungeKuttaSolver<ProblemType>, FieldStruct, ProblemType, GHOST_CELLS> {
+    : public Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding> {
   public:
-    RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
-                     const Problem<ProblemType>& problem);
+    RungeKuttaSolver(const ProblemType& problem, const unsigned rungeKuttaSteps = 2,
+                     const bool doOutput = false);
+    RungeKuttaSolver(const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
+                     const unsigned rungeKuttaSteps = 2, const bool doOutput = false);
 
+    void init();
     void singleStep();
-    bool isFinished() const;
+    void adjustConfig();
+    void finaliseResult(){};
 
   private:
-    SimpleGrid<Changes> changeBuffer;
-    SimpleGrid<FieldStruct> gridSubstepBuffer;
+    SimpleGrid<Changes<Fields>> changeBuffer;
+    SimpleGrid<Fields> gridSubstepBuffer;
 
     double cfl;
-    const unsigned rungeKuttaSteps = 2;
+    const unsigned rungeKuttaSteps;
 
-    void computeStep();
     void saveGrid();
     void prepareSubstep();
     void computeSubstep();
-    Changes computeChanges(const unsigned x, const unsigned y, const unsigned z);
+    Changes<Fields> computeChanges(const unsigned x, const unsigned y, const unsigned z);
     void updateCFL(std::pair<double, double> characVelocities, const unsigned direction);
     void finaliseSubstep(const unsigned substep);
     void integrateTime(const unsigned substep);
-    void advanceTime(const unsigned substep);
-    void adjustTimeDelta();
     void checkErrors();
 };
 
-template <class ProblemType>
-RungeKuttaSolver<ProblemType>::RungeKuttaSolver(PaddedGrid<FieldStruct, GHOST_CELLS>& grid,
-                                                const Problem<ProblemType>& problem)
-    : Solver<RungeKuttaSolver<ProblemType>, FieldStruct, ProblemType, GHOST_CELLS>(grid, problem),
+template <class ProblemType, class Fields, unsigned padding>
+RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(const ProblemType& problem,
+                                                                 const unsigned rungeKuttaSteps,
+                                                                 const bool doOutput)
+    : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(
+          problem, doOutput),
+      changeBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
+                   problem.numberCells[Direction::DirY] + 2 * padding,
+                   problem.numberCells[Direction::DirZ] + 2 * padding),
+      gridSubstepBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
+                        problem.numberCells[Direction::DirY] + 2 * padding,
+                        problem.numberCells[Direction::DirZ] + 2 * padding),
+      rungeKuttaSteps(rungeKuttaSteps) {}
+
+template <class ProblemType, class Fields, unsigned padding>
+RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(
+    const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
+    const unsigned rungeKuttaSteps, const bool doOutput)
+    : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(
+          grid, problem, doOutput),
       changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
-      gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()) {}
+      gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
+      rungeKuttaSteps(rungeKuttaSteps) {}
 
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::singleStep() {
-    this->computeStep();
-    this->adjustTimeDelta();
-    this->timeStep++;
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::init() {
+    this->problem.initialiseGrid(this->grid);
+    Boundary::applyAll(this->grid, this->problem);
 }
 
-template <class ProblemType> bool RungeKuttaSolver<ProblemType>::isFinished() const {
-    return this->timeCurrent >= this->timeEnd;
-}
-
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::computeStep() {
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::singleStep() {
+    this->cfl = 0.0;
     for (unsigned substep = 0; substep < this->rungeKuttaSteps; substep++) {
         this->prepareSubstep();
         this->computeSubstep();
         this->finaliseSubstep(substep);
-        this->advanceTime(substep);
     }
 }
 
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::saveGrid() {
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::saveGrid() {
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
-                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                for (unsigned field = 0; field < Fields().size(); field++) {
                     this->gridSubstepBuffer(x, y, z)[field] = this->grid(x, y, z)[field];
                 }
             }
@@ -87,7 +99,8 @@ template <class ProblemType> void RungeKuttaSolver<ProblemType>::saveGrid() {
     }
 }
 
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::prepareSubstep() {
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::prepareSubstep() {
     // Number of negative temperatures is printed here, seems unnecessary
 
     // Start clock(s) -- time measurement omitted for now
@@ -97,7 +110,8 @@ template <class ProblemType> void RungeKuttaSolver<ProblemType>::prepareSubstep(
     // CarbuncleFlag computation (not included by default)
 }
 
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::computeSubstep() {
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::computeSubstep() {
 #pragma omp parallel for
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd() + 1; x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd() + 1; y++) {
@@ -108,9 +122,10 @@ template <class ProblemType> void RungeKuttaSolver<ProblemType>::computeSubstep(
     }
 }
 
-template <class ProblemType>
-Changes RungeKuttaSolver<ProblemType>::computeChanges(const unsigned x, const unsigned y,
-                                                      const unsigned z) {
+template <class ProblemType, class Fields, unsigned padding>
+Changes<Fields> RungeKuttaSolver<ProblemType, Fields, padding>::computeChanges(const unsigned x,
+                                                                               const unsigned y,
+                                                                               const unsigned z) {
     PerFaceValues reconstruction = Reconstruction::reconstruct(this->grid, x, y, z);
 
     std::array<PhysValues, Faces::FaceMax> physicalValues;
@@ -122,7 +137,7 @@ Changes RungeKuttaSolver<ProblemType>::computeChanges(const unsigned x, const un
         RiemannSolver::computeFluxes(physicalValues[face], reconstruction[face], face);
     }
 
-    Changes changes;
+    Changes<Fields> changes;
     for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
         unsigned face = dir * 2;
         std::pair<double, double> characVelocities = RiemannSolver::characteristicVelocity(
@@ -136,16 +151,16 @@ Changes RungeKuttaSolver<ProblemType>::computeChanges(const unsigned x, const un
     return changes;
 }
 
-template <class ProblemType>
-void RungeKuttaSolver<ProblemType>::updateCFL(const std::pair<double, double> characVelocities,
-                                              const unsigned direction) {
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::updateCFL(
+    const std::pair<double, double> characVelocities, const unsigned direction) {
     double maxVelocity = std::max(characVelocities.first, characVelocities.second);
     double localCFL = maxVelocity * this->problem.inverseCellSize[direction];
     this->cfl = std::max(this->cfl, localCFL);
 }
 
-template <class ProblemType>
-void RungeKuttaSolver<ProblemType>::finaliseSubstep(const unsigned substep) {
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
     this->checkErrors();
 
     this->problem.applySource(this->grid);
@@ -163,16 +178,16 @@ void RungeKuttaSolver<ProblemType>::finaliseSubstep(const unsigned substep) {
     // phystest
 }
 
-template <class ProblemType>
-void RungeKuttaSolver<ProblemType>::integrateTime(const unsigned substep) {
-    if (substep == 0) {
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::integrateTime(const unsigned substep) {
+    if (substep == 0 && this->rungeKuttaSteps > 1) {
         this->saveGrid();
     }
 #pragma omp parallel for
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
-                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                for (unsigned field = 0; field < Fields().size(); field++) {
                     const double changeX =
                         (this->changeBuffer(x + 1, y, z)[Direction::DirX][field] -
                          this->changeBuffer(x, y, z)[Direction::DirX][field]) *
@@ -199,18 +214,16 @@ void RungeKuttaSolver<ProblemType>::integrateTime(const unsigned substep) {
     }
 }
 
-template <class ProblemType>
-void RungeKuttaSolver<ProblemType>::advanceTime(const unsigned substep) {
-    if (substep == 0) {
-        this->timeCurrent += this->timeDelta;
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::adjustConfig() {
+    this->timeDelta = this->problem.cflThreshold / this->cfl;
+    if (this->problem.preciseEnd) {
+        this->timeDelta = std::min(this->timeDelta, this->timeEnd - this->timeCurrent);
     }
 }
 
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::adjustTimeDelta() {
-    this->timeDelta = this->problem.cflThreshold / this->cfl;
-}
-
-template <class ProblemType> void RungeKuttaSolver<ProblemType>::checkErrors() {
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSolver<ProblemType, Fields, padding>::checkErrors() {
     if (GridFunctions::checkNaN(this->grid)) {
         std::cerr << "Encountered NaN" << std::endl;
     }

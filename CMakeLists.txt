@@ -5,7 +5,6 @@ project( cronos-amr )
 # Compiler Options #
 ####################
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
-
 IF(MSVC)
   add_compile_options( /MP /W3 )
 ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
@@ -13,6 +12,11 @@ ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
 ENDIF()
 set( CMAKE_CXX_STANDARD 20 )
 set( CMAKE_CXX_STANDARD_REQUIRED ON )
+IF(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options( -O0 -pg )
+ELSE()
+    add_compile_options( -03 )
+ENDIF()
 
 ##########
 # OpenMP #
@@ -25,6 +29,17 @@ IF(USE_OpenMP AND NOT MSVC)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
   ENDIF()
 ENDIF()
+
+########
+# TOML #
+########
+include(FetchContent)
+FetchContent_Declare(
+    tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG        v3.1.0
+)
+find_package(tomlplusplus REQUIRED)
 
 #########
 # Build #
@@ -47,5 +62,6 @@ include(CTest)
 include(Catch)
 catch_discover_tests(tests)
 
-# Copy test data to build folder
+# Copy test data and configuration to build folder
 file(COPY test/test-data DESTINATION .)
+file(COPY configuration DESTINATION .)

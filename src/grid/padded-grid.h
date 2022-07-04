@@ -4,11 +4,17 @@
 #include <cstddef>
 #include <vector>
 
+#include "../boundary/boundary-types.h"
+#include "../data-types/direction.h"
+#include "../data-types/faces.h"
+
 template <class T, unsigned padding> class PaddedGrid {
   public:
     PaddedGrid(const T defaultValue, const size_t xDim, const size_t yDim, const size_t zDim);
+    PaddedGrid(const PaddedGrid<T, padding>& blueprint);
 
     void clear();
+    void swap(PaddedGrid<T, padding>& other);
 
     T& operator()(const size_t x, const size_t y, const size_t z);
     T operator()(const size_t x, const size_t y, const size_t z) const;
@@ -23,7 +29,7 @@ template <class T, unsigned padding> class PaddedGrid {
     size_t yEnd() const { return this->ySize - padding; }
     size_t zEnd() const { return this->zSize - padding; }
 
-    const T defaultValue;
+    T defaultValue;
 
   private:
     PaddedGrid();
@@ -49,6 +55,16 @@ PaddedGrid<T, padding>::PaddedGrid(const T defaultValue, const size_t xDim, cons
     }
 }
 
+template <class T, unsigned padding>
+PaddedGrid<T, padding>::PaddedGrid(const PaddedGrid<T, padding>& blueprint)
+    : defaultValue(blueprint.defaultValue), xSize(blueprint.xSize), ySize(blueprint.ySize),
+      zSize(blueprint.zSize) {
+    this->data.reserve(blueprint.data.size());
+    for (size_t i = 0; i < blueprint.data.size(); i++) {
+        this->data.push_back(blueprint.data[i]);
+    }
+}
+
 template <class T, unsigned padding> void PaddedGrid<T, padding>::clear() {
     for (unsigned x = this->xStart(); x < this->xEnd(); x++) {
         for (unsigned y = this->yStart(); y < this->yEnd(); y++) {
@@ -58,6 +74,15 @@ template <class T, unsigned padding> void PaddedGrid<T, padding>::clear() {
             }
         }
     }
+}
+
+template <class T, unsigned padding>
+void PaddedGrid<T, padding>::swap(PaddedGrid<T, padding>& other) {
+    this->data.swap(other.data);
+    std::swap(this->xSize, other.xSize);
+    std::swap(this->ySize, other.ySize);
+    std::swap(this->zSize, other.zSize);
+    this->defaultValue.swap(other.defaultValue);
 }
 
 template <class T, unsigned padding>
