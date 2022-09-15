@@ -1,6 +1,9 @@
 #pragma once
 
+#ifdef PARALLEL
 #include <omp.h>
+#include <vector>
+#endif
 
 #include "../boundary/boundary.h"
 #include "../data-types/direction.h"
@@ -34,6 +37,9 @@ class RungeKuttaSolver
     SimpleGrid<Fields> gridSubstepBuffer;
 
     double cfl;
+#ifdef PARALLEL
+    std::vector<double> threadLocalCFL;
+#endif
     const unsigned rungeKuttaSteps;
 
     void saveGrid();
@@ -58,7 +64,11 @@ RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(const ProblemTy
       gridSubstepBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
                         problem.numberCells[Direction::DirY] + 2 * padding,
                         problem.numberCells[Direction::DirZ] + 2 * padding),
-      rungeKuttaSteps(rungeKuttaSteps) {}
+#ifdef PARALLEL
+      threadLocalCFL(omp_get_max_threads(), 0.0),
+#endif
+      rungeKuttaSteps(rungeKuttaSteps) {
+}
 
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(
@@ -68,7 +78,11 @@ RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(
           grid, problem, doOutput),
       changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
       gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
-      rungeKuttaSteps(rungeKuttaSteps) {}
+#ifdef PARALLEL
+      threadLocalCFL(omp_get_max_threads(), 0.0),
+#endif
+      rungeKuttaSteps(rungeKuttaSteps) {
+}
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::init() {
@@ -84,6 +98,13 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::singleStep() {
         this->computeSubstep();
         this->finaliseSubstep(substep);
     }
+#ifdef PARALLEL
+    // Not parallelised, as thread creation is likely more expensive than the loop itself
+    for (int thread = 0; thread < omp_get_max_threads(); thread++) {
+        this->cfl = std::max(this->cfl, this->threadLocalCFL[thread]);
+        this->threadLocalCFL[thread] = 0.0;
+    }
+#endif
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -112,7 +133,9 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::prepareSubstep() {
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::computeSubstep() {
-#pragma omp parallel for
+#ifdef PARALLEL
+#pragma omp parallel for reduction(max : cfl)
+#endif
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd() + 1; x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd() + 1; y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd() + 1; z++) {
@@ -156,7 +179,12 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::updateCFL(
     const std::pair<double, double> characVelocities, const unsigned direction) {
     double maxVelocity = std::max(characVelocities.first, characVelocities.second);
     double localCFL = maxVelocity * this->problem.inverseCellSize[direction];
+#ifdef PARALLEL
+    int threadNum = omp_get_thread_num();
+    this->threadLocalCFL[threadNum] = std::max(this->threadLocalCFL[threadNum], localCFL);
+#else
     this->cfl = std::max(this->cfl, localCFL);
+#endif
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -183,7 +211,9 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::integrateTime(const unsigne
     if (substep == 0 && this->rungeKuttaSteps > 1) {
         this->saveGrid();
     }
+#ifdef PARALLEL
 #pragma omp parallel for
+#endif
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
