@@ -101,32 +101,33 @@ std::optional<CellFlags::Flags>
 ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
                           const std::array<unsigned, 3> gridOffset, const double timeDelta,
                           const double errorThreshold, const ProblemType& problem) {
-    RungeKuttaSolver<ProblemType, Fields, padding> solver1(grid, problem, 1);
-    solver1.timeDelta = timeDelta;
-    solver1.singleStep();
-    solver1.singleStep();
+    RungeKuttaSolver<ProblemType, Fields, padding> solverRegular(grid, problem, 1);
+    solverRegular.timeDelta = timeDelta;
+    solverRegular.singleStep();
+    solverRegular.singleStep();
 
     ProblemType upperProblem = createUpperProblem(problem);
-    RungeKuttaSolver<ProblemType, Fields, padding> solver2(upperProblem, 1);
-    initialiseUpperGrid(solver2.grid, grid);
-    solver2.timeDelta = timeDelta * 2.0;
-    solver2.singleStep();
+    RungeKuttaSolver<ProblemType, Fields, padding> solverCoarse(upperProblem, 1);
+    initialiseUpperGrid(solverCoarse.grid, grid);
+    solverCoarse.timeDelta = timeDelta * 2.0;
+    solverCoarse.singleStep();
 
     CellFlags::FlagsX flagsX;
     unsigned firstX = 0;
     bool foundError = false;
     unsigned emptyYs = 0;
-    for (unsigned x = solver2.grid.xStart(); x < solver2.grid.xEnd(); x++) {
+    for (unsigned x = solverCoarse.grid.xStart(); x < solverCoarse.grid.xEnd(); x++) {
         CellFlags::FlagsY flagsY;
         unsigned firstY = 0;
         bool foundY = false;
         unsigned emptyZs = 0;
-        for (unsigned y = solver2.grid.yStart(); y < solver2.grid.yEnd(); y++) {
+        for (unsigned y = solverCoarse.grid.yStart(); y < solverCoarse.grid.yEnd(); y++) {
             CellFlags::FlagsZ flagsZ;
             unsigned start = 0;
             bool streak = false;
-            for (unsigned z = solver2.grid.zStart(); z < solver2.grid.zEnd(); z++) {
-                if (checkThreshold(solver2.grid, solver1.grid, x, y, z, errorThreshold)) {
+            for (unsigned z = solverCoarse.grid.zStart(); z < solverCoarse.grid.zEnd(); z++) {
+                if (checkThreshold(solverCoarse.grid, solverRegular.grid, x, y, z,
+                                   errorThreshold)) {
                     if (!foundError) {
                         firstX = 2 * x - padding + gridOffset[0];
                         foundError = true;
@@ -148,7 +149,7 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
             if (streak) {
                 flagsZ.push_back(
                     std::make_pair(2 * start - padding + gridOffset[2],
-                                   2 * (solver2.grid.zEnd() - 1) - padding + gridOffset[2]));
+                                   2 * (solverCoarse.grid.zEnd() - 1) - padding + gridOffset[2]));
             }
             if (foundY) {
                 if (flagsZ.size() > 0) {
