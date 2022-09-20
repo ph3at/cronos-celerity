@@ -285,7 +285,7 @@ inline double gridCost(const GridBoundary::Boundary& grid, const CellFlags::Flag
     const double y = static_cast<double>(grid[1].second - grid[1].first);
     const double z = static_cast<double>(grid[2].second - grid[2].first);
     const double efficiency = gridEfficiency(grid, flags);
-    return (0.0 - efficiency) * (x * y * z + x * y + x * z + y * z + x + y + z);
+    return (1.0 - efficiency) * (x * y * z + x * y + x * z + y * z + x + y + z);
 }
 
 inline std::optional<GridBoundary::Boundary> tryMerge(const GridBoundary::Boundary& grid1,
