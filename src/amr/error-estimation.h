@@ -126,11 +126,11 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
                 if (checkThreshold(solverCoarse.grid, solverRegular.grid, x, y, z,
                                    errorThreshold)) {
                     if (!foundError) {
-                        firstX = 2 * x - padding + gridOffset[0];
+                        firstX = 2 * (x - padding) + gridOffset[0];
                         foundError = true;
                     }
                     if (!foundY) {
-                        firstY = 2 * y - padding + gridOffset[1];
+                        firstY = 2 * (y - padding) + gridOffset[1];
                         foundY = true;
                     }
                     if (!streak) {
@@ -139,14 +139,14 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
                     }
                 } else if (streak) {
                     streak = false;
-                    flagsZ.push_back(std::make_pair(2 * start - padding + gridOffset[2],
-                                                    2 * z - padding + gridOffset[2]));
+                    flagsZ.push_back(std::make_pair(2 * (start - padding) + gridOffset[2],
+                                                    2 * (z - padding) + gridOffset[2] - 1));
                 }
             }
             if (streak) {
                 flagsZ.push_back(
-                    std::make_pair(2 * start - padding + gridOffset[2],
-                                   2 * (solverCoarse.grid.zEnd() - 1) - padding + gridOffset[2]));
+                    std::make_pair(2 * (start - padding) + gridOffset[2],
+                                   2 * (solverCoarse.grid.zEnd() - padding) + gridOffset[2] - 1));
             }
             if (foundY) {
                 if (flagsZ.size() > 0) {
@@ -155,8 +155,9 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
                     }
                     emptyZs = 0;
                     flagsY.push_back(flagsZ);
+                    flagsY.push_back(flagsZ);
                 } else {
-                    emptyZs++;
+                    emptyZs += 2;
                 }
             }
         }
@@ -167,8 +168,9 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
                 }
                 emptyYs = 0;
                 flagsX.push_back(std::make_pair(firstY, flagsY));
+                flagsX.push_back(std::make_pair(firstY, flagsY));
             } else {
-                emptyYs++;
+                emptyYs += 2;
             }
         }
     }
