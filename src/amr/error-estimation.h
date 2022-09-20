@@ -74,23 +74,20 @@ template <class Fields, unsigned padding>
 inline bool checkThreshold(const PaddedGrid<Fields, padding>& upper,
                            const PaddedGrid<Fields, padding>& base, const unsigned x,
                            const unsigned y, const unsigned z, const double errorThreshold) {
-    for (unsigned xx = 2 * x - padding; xx < 2 * x - padding + 2; xx++) {
-        for (unsigned yy = 2 * y - padding; yy < 2 * y - padding + 2; yy++) {
-            for (unsigned zz = 2 * z - padding; zz < 2 * z - padding + 2; zz++) {
-                for (unsigned field = 0; field < Fields().size(); field++) {
-                    const double diff = upper(x, y, z)[field] - base(xx, yy, zz)[field];
-                    const double avg = (upper(x, y, z)[field] + base(xx, yy, zz)[field]) / 2.0;
-                    double error;
-                    if (avg == 0.0) {
-                        error = std::abs(diff);
-                    } else {
-                        error = std::abs(diff / avg);
-                    }
-                    if (error > errorThreshold) {
-                        return true;
-                    }
-                }
-            }
+    Fields baseValues = average(base, x, y, z);
+    for (unsigned field = 0; field < Fields().size(); field++) {
+        const double diff = upper(x, y, z)[field] - baseValues[field];
+        const double avg = (upper(x, y, z)[field] + baseValues[field]) / 2.0;
+        double error;
+        if (avg != 0.0) {
+            error = std::abs(diff / avg);
+        } else if (baseValues[field] != 0.0) {
+            error = std::abs(diff / baseValues[field]);
+        } else {
+            error = std::abs(diff);
+        }
+        if (error > errorThreshold) {
+            return true;
         }
     }
     return false;
