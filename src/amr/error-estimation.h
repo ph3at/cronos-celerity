@@ -15,22 +15,25 @@ getFlags(const PaddedGrid<Fields, padding>& grid, const std::array<unsigned, 3> 
 };
 
 template <class Fields, unsigned padding>
-inline Fields average(const PaddedGrid<Fields, padding>& other, unsigned x, unsigned y,
+inline Fields average(const PaddedGrid<Fields, padding>& baseGrid, unsigned x, unsigned y,
                       unsigned z) {
-    const unsigned xBase = 2 * x - padding;
-    const unsigned yBase = 2 * y - padding;
-    const unsigned zBase = 2 * z - padding;
+    const size_t xBase = 2 * x - padding;
+    const size_t yBase = 2 * y - padding;
+    const size_t zBase = 2 * z - padding;
     Fields fields = { 0.0 };
+    double lowerCells = 0.0;
+    for (size_t xGrid = xBase; xGrid < std::min(xBase + 2, baseGrid.xEnd()); xGrid++) {
+        for (size_t yGrid = yBase; yGrid < std::min(yBase + 2, baseGrid.yEnd()); yGrid++) {
+            for (size_t zGrid = zBase; zGrid < std::min(zBase + 2, baseGrid.zEnd()); zGrid++) {
+                for (size_t field = 0; field < fields.size(); field++) {
+                    fields[field] += baseGrid(xGrid, yGrid, zGrid)[field];
+                }
+                lowerCells += 1.0;
+            }
+        }
+    }
     for (unsigned field = 0; field < fields.size(); field++) {
-        fields[field] += other(xBase, yBase, zBase)[field];
-        fields[field] += other(xBase, yBase, zBase + 1)[field];
-        fields[field] += other(xBase, yBase + 1, zBase)[field];
-        fields[field] += other(xBase, yBase + 1, zBase + 1)[field];
-        fields[field] += other(xBase + 1, yBase, zBase)[field];
-        fields[field] += other(xBase + 1, yBase, zBase + 1)[field];
-        fields[field] += other(xBase + 1, yBase + 1, zBase)[field];
-        fields[field] += other(xBase + 1, yBase + 1, zBase + 1)[field];
-        fields[field] /= 8.0;
+        fields[field] /= lowerCells;
     }
     return fields;
 }
@@ -38,10 +41,11 @@ inline Fields average(const PaddedGrid<Fields, padding>& other, unsigned x, unsi
 template <class ProblemType> ProblemType createUpperProblem(const ProblemType& problem) {
     ProblemType upperProblem(problem);
     for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
-        upperProblem.numberCells[dir] = problem.numberCells[dir] / 2;
-        upperProblem.cellSize[dir] = (upperProblem.posRight[dir] - upperProblem.posLeft[dir]) /
-                                     upperProblem.numberCells[dir];
-        upperProblem.inverseCellSize[dir] = 1.0 / upperProblem.cellSize[dir];
+        upperProblem.numberCells[dir] = (problem.numberCells[dir] + 1) / 2;
+        upperProblem.cellSize[dir] = problem.cellSize[dir] * 2.0;
+        upperProblem.inverseCellSize[dir] = problem.inverseCellSize[dir] / 2.0;
+        upperProblem.posRight[dir] =
+            upperProblem.posLeft[dir] + upperProblem.numberCells[dir] * upperProblem.cellSize[dir];
     }
     return upperProblem;
 }
@@ -49,23 +53,11 @@ template <class ProblemType> ProblemType createUpperProblem(const ProblemType& p
 template <class Fields, unsigned padding>
 void initialiseUpperGrid(PaddedGrid<Fields, padding>& upper,
                          const PaddedGrid<Fields, padding>& grid) {
-    for (unsigned x = 1; x + 1 < upper.xDim(); x++) {
-        for (unsigned y = 1; y + 1 < upper.yDim(); y++) {
-            for (unsigned z = 1; z + 1 < upper.zDim(); z++) {
+    for (unsigned x = upper.xStart(); x < upper.xEnd(); x++) {
+        for (unsigned y = upper.yStart(); y < upper.yEnd(); y++) {
+            for (unsigned z = upper.zStart(); z < upper.zEnd(); z++) {
                 upper(x, y, z) = average(grid, x, y, z);
             }
-            upper(x, y, 0) = upper(x, y, 1);
-            upper(x, y, upper.zDim() - 1) = upper(x, y, upper.zDim() - 2);
-        }
-        for (unsigned z = 0; z < upper.zDim(); z++) {
-            upper(x, 0, z) = upper(x, 1, z);
-            upper(x, upper.yDim() - 1, z) = upper(x, upper.yDim() - 2, z);
-        }
-    }
-    for (unsigned y = 1; y + 1 < upper.yDim(); y++) {
-        for (unsigned z = 1; z + 1 < upper.zDim(); z++) {
-            upper(0, y, z) = upper(1, y, z);
-            upper(upper.xDim() - 1, y, z) = upper(upper.xDim() - 2, y, z);
         }
     }
 }
@@ -99,6 +91,7 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
                           const std::array<unsigned, 3> gridOffset, const double timeDelta,
                           const double errorThreshold, const ProblemType& problem) {
     RungeKuttaSolver<ProblemType, Fields, padding> solverRegular(grid, problem, 1);
+    Boundary::applyAll(solverRegular.grid, problem);
     solverRegular.timeDelta = timeDelta;
     solverRegular.singleStep();
     solverRegular.singleStep();
@@ -106,8 +99,13 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
     ProblemType upperProblem = createUpperProblem(problem);
     RungeKuttaSolver<ProblemType, Fields, padding> solverCoarse(upperProblem, 1);
     initialiseUpperGrid(solverCoarse.grid, grid);
+    Boundary::applyAll(solverCoarse.grid, upperProblem);
     solverCoarse.timeDelta = timeDelta * 2.0;
     solverCoarse.singleStep();
+
+    const unsigned xMax = gridOffset[Direction::DirX] + grid.xEnd() - padding - 1;
+    const unsigned yMax = gridOffset[Direction::DirY] + grid.yEnd() - padding - 1;
+    const unsigned zMax = gridOffset[Direction::DirZ] + grid.zEnd() - padding - 1;
 
     CellFlags::FlagsX flagsX;
     unsigned firstX = 0;
@@ -144,33 +142,37 @@ ErrorEstimation::getFlags(const PaddedGrid<Fields, padding>& grid,
                 }
             }
             if (streak) {
-                flagsZ.push_back(
-                    std::make_pair(2 * (start - padding) + gridOffset[2],
-                                   2 * (solverCoarse.grid.zEnd() - padding) + gridOffset[2] - 1));
+                flagsZ.push_back(std::make_pair(2 * (start - padding) + gridOffset[2], zMax));
             }
             if (foundY) {
                 if (flagsZ.size() > 0) {
                     for (unsigned z = 0; z < emptyZs; z++) {
-                        flagsY.push_back(CellFlags::FlagsZ({}));
+                        flagsY.emplace_back();
+                        flagsY.emplace_back();
                     }
                     emptyZs = 0;
                     flagsY.push_back(flagsZ);
-                    flagsY.push_back(flagsZ);
+                    if (firstY + flagsY.size() <= yMax) {
+                        flagsY.push_back(flagsZ);
+                    }
                 } else {
-                    emptyZs += 2;
+                    emptyZs++;
                 }
             }
         }
         if (foundError) {
             if (foundY) {
                 for (unsigned y = 0; y < emptyYs; y++) {
-                    flagsX.push_back(std::make_pair(0, CellFlags::FlagsY({})));
+                    flagsX.emplace_back(0, CellFlags::FlagsY());
+                    flagsX.emplace_back(0, CellFlags::FlagsY());
                 }
                 emptyYs = 0;
                 flagsX.push_back(std::make_pair(firstY, flagsY));
-                flagsX.push_back(std::make_pair(firstY, flagsY));
+                if (firstX + flagsX.size() <= xMax) {
+                    flagsX.push_back(std::make_pair(firstY, flagsY));
+                }
             } else {
-                emptyYs += 2;
+                emptyYs++;
             }
         }
     }
