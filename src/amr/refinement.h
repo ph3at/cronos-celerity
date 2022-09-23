@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <iterator>
 #include <limits>
 
@@ -77,7 +78,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::initialRefine() {
     const bool initialiseFromProblem = true;
     unsigned level = 0;
     std::vector<GridBoundary::Boundary> parents(1, root.gridBoundary);
-    while (true) {
+    while (level < this->configuration.maxRefinementDepth) {
         ProblemType levelProblem(this->amrNodes[level][0].problem);
         levelProblem.boundaryTypes = this->problem.boundaryTypes;
         std::cout << "Refining level " << level << std::endl;
@@ -149,10 +150,13 @@ void Refinery<SolverType, ProblemType, Fields, padding>::refine() {
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 std::vector<CellFlags::Flags>
 Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
-    const int maxLevel = static_cast<int>(this->oldNodes.size());
+    const int maxLevel =
+        static_cast<int>(std::min(this->oldNodes.size(),
+                                  static_cast<size_t>(this->configuration.maxRefinementDepth))) -
+        1;
     std::vector<CellFlags::Flags> flags;
     bool refine = false;
-    for (int level = maxLevel - 1; level >= 0; level--) {
+    for (int level = maxLevel; level >= 0; level--) {
         ProblemType levelProblem(this->oldNodes[level][0].problem);
         levelProblem.boundaryTypes = this->problem.boundaryTypes;
         bool first = true;

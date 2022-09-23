@@ -17,6 +17,7 @@ refinement_interval = 4
 buffer_size = 4
 efficiency_threshold = 0.6
 truncation_error_threshold = 1e-4
+max_refinement_depth = 2
 
 [grid]
 number_cells_x = 10

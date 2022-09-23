@@ -35,7 +35,8 @@ AMRParameters parseAMRConfig(const toml::table& config) {
         .refinementInterval = parseValue<unsigned>(amr, "refinement_interval", 4),
         .bufferSize = parseValue<unsigned>(amr, "buffer_size", 4),
         .efficiencyThreshold = parseValue<double>(amr, "efficiency_threshold", 0.6),
-        .truncationErrorThreshold = parseValue<double>(amr, "truncation_error_threshold", 1e-4)
+        .truncationErrorThreshold = parseValue<double>(amr, "truncation_error_threshold", 1e-4),
+        .maxRefinementDepth = parseValue<unsigned>(amr, "max_refinement_depth", 1)
     };
     return amrConfig;
 }

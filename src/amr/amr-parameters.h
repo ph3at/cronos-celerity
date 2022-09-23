@@ -6,4 +6,5 @@ typedef struct amrParameters {
     unsigned bufferSize;
     double efficiencyThreshold;
     double truncationErrorThreshold;
+    unsigned maxRefinementDepth;
 } AMRParameters;
