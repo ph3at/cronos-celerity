@@ -78,6 +78,8 @@ void Refinery<SolverType, ProblemType, Fields, padding>::initialRefine() {
     unsigned level = 0;
     std::vector<GridBoundary::Boundary> parents(1, root.gridBoundary);
     while (true) {
+        ProblemType levelProblem(this->amrNodes[level][0].problem);
+        levelProblem.boundaryTypes = this->problem.boundaryTypes;
         std::cout << "Refining level " << level << std::endl;
         CellFlags::Flags levelFlags;
         bool noFlags = true;
@@ -88,7 +90,7 @@ void Refinery<SolverType, ProblemType, Fields, padding>::initialRefine() {
                     { node.gridBoundary[0].first, node.gridBoundary[1].first,
                       node.gridBoundary[2].first },
                     node.solver.timeDelta, this->configuration.truncationErrorThreshold,
-                    this->problem);
+                    levelProblem);
             if (gridFlags.has_value()) {
                 if (noFlags) {
                     noFlags = false;
@@ -151,6 +153,8 @@ Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
     std::vector<CellFlags::Flags> flags;
     bool refine = false;
     for (int level = maxLevel - 1; level >= 0; level--) {
+        ProblemType levelProblem(this->oldNodes[level][0].problem);
+        levelProblem.boundaryTypes = this->problem.boundaryTypes;
         bool first = true;
         CellFlags::Flags levelFlags;
         for (const AMRNode<SolverType, ProblemType, Fields, padding>& node :
@@ -161,7 +165,7 @@ Refinery<SolverType, ProblemType, Fields, padding>::flagCells() const {
                     { node.gridBoundary[0].first, node.gridBoundary[1].first,
                       node.gridBoundary[2].first },
                     node.solver.timeDelta, this->configuration.truncationErrorThreshold,
-                    this->problem);
+                    levelProblem);
             if (nodeFlags.has_value()) {
                 if (first) {
                     refine = true;
