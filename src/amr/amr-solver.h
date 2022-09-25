@@ -127,7 +127,7 @@ void AMRSolver<SolverType, ProblemType, Fields, padding>::levelStep(const unsign
 template <class SolverType, class ProblemType, class Fields, unsigned padding>
 double AMRSolver<SolverType, ProblemType, Fields, padding>::minTimeDelta(const unsigned level) {
     if (level < this->nodes.size()) {
-        double minTimeDelta = this->minTimeDelta(level + 1) /
+        double minTimeDelta = this->minTimeDelta(level + 1) *
                               static_cast<double>(this->configuration.refinementFactor);
         for (AMRNode<SolverType, ProblemType, Fields, padding>& node : this->nodes[level]) {
             node.solver.adjust();
