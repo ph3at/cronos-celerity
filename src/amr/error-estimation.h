@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <optional>
 
 #include "../boundary/boundary.h"
@@ -64,19 +65,19 @@ void initialiseUpperGrid(PaddedGrid<Fields, padding>& upper,
 
 template <class Fields, unsigned padding>
 inline bool checkThreshold(const PaddedGrid<Fields, padding>& upper,
-                           const PaddedGrid<Fields, padding>& base, const unsigned x,
+                           const PaddedGrid<Fields, padding>& lower, const unsigned x,
                            const unsigned y, const unsigned z, const double errorThreshold) {
-    Fields baseValues = average(base, x, y, z);
+    Fields lowerValues = average(lower, x, y, z);
     for (unsigned field = 0; field < Fields().size(); field++) {
-        const double diff = upper(x, y, z)[field] - baseValues[field];
-        const double avg = (upper(x, y, z)[field] + baseValues[field]) / 2.0;
+        const double diff = std::abs(upper(x, y, z)[field] - lowerValues[field]);
+        const double avg = 0.5 * (std::abs(upper(x, y, z)[field]) + std::abs(lowerValues[field]));
         double error;
         if (avg != 0.0) {
-            error = std::abs(diff / avg);
-        } else if (baseValues[field] != 0.0) {
-            error = std::abs(diff / baseValues[field]);
+            error = diff / avg;
+        } else if (lowerValues[field] != 0.0) {
+            error = diff / lowerValues[field];
         } else {
-            error = std::abs(diff);
+            error = diff;
         }
         if (error > errorThreshold) {
             return true;
