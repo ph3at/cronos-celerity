@@ -3,6 +3,8 @@
 #include <cassert>
 #include <cmath>
 
+#include <fstream>
+
 #include "padded-grid.h"
 #include "simple-grid.h"
 
@@ -17,6 +19,8 @@ double compare(const PaddedGrid<FieldStruct, padding1>& baseline,
                const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput,
                const bool verbose);
 SimpleGrid<FieldStruct> readFromFile(const std::string filename);
+template <unsigned padding>
+void writeToFile(const std::string fileName, const PaddedGrid<FieldStruct, padding>& grid);
 }; // namespace GridFunctions
 
 template <unsigned padding>
@@ -101,3 +105,21 @@ double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
     return averageDeviation;
 }
 
+template <unsigned padding>
+void GridFunctions::writeToFile(const std::string fileName,
+                                const PaddedGrid<FieldStruct, padding>& grid) {
+    std::ofstream outputStream;
+    outputStream.open(fileName, std::ios::out);
+    outputStream.precision(20);
+    outputStream << grid.xEnd() - grid.xStart() << " " << grid.yEnd() - grid.yStart() << " "
+                 << grid.zEnd() - grid.zStart() << std::endl;
+    for (unsigned x = grid.xStart(); x < grid.xEnd(); x++) {
+        for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
+            for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
+                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                    outputStream << std::fixed << grid(x, y, z)[field] << std::endl;
+                }
+            }
+        }
+    }
+}
