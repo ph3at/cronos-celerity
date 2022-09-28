@@ -1,46 +1,46 @@
 cmake_minimum_required(VERSION 3.22)
-project( cronos-amr )
+project(cronos-amr)
 
 ####################
 # Compiler Options #
 ####################
-set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
-IF(MSVC)
-  add_compile_options( /MP /W3 )
-ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-  add_compile_options( -Wall -Wextra -Wpedantic -march=native )
-ENDIF()
-set( CMAKE_CXX_STANDARD 20 )
-set( CMAKE_CXX_STANDARD_REQUIRED ON )
-IF(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options( -O0 -pg )
-ELSE()
-    add_compile_options( -O3 )
-ENDIF()
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+function(set_compiler_parameters TARGET)
+  set_target_properties(${TARGET} PROPERTIES
+    CXX_STANDARD 20
+    CXX_EXTENSIONS OFF
+  )
+  target_compile_options(${TARGET} PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/D_CRT_SECURE_NO_WARNINGS /MP /W4 /permissive- /bigobj /Zi /utf-8>
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -pedantic -g -march=native>
+    $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color>
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
+  )
+  target_link_options(${TARGET} PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/DEBUG /ignore:4099>
+  )
+endfunction()
 
 ##########
 # OpenMP #
 ##########
-OPTION (USE_OpenMP "Use OpenMP" ON)
-IF(USE_OpenMP AND NOT MSVC)
-  FIND_PACKAGE(OpenMP)
-  IF(OPENMP_FOUND)
+option(USE_OpenMP "Use OpenMP" ON)
+if(USE_OpenMP AND NOT MSVC)
+  find_package(OpenMP)
+  if(OPENMP_FOUND)
     add_compile_definitions(PARALLEL)
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  ENDIF()
-ENDIF()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  endif()
+endif()
 
 ########
 # TOML #
 ########
-include(FetchContent)
-FetchContent_Declare(
-    tomlplusplus
-    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
-    GIT_TAG        v3.1.0
-)
-find_package(tomlplusplus REQUIRED)
+set(CMAKE_FOLDER "vendor/tomlplusplus")
+  add_subdirectory(vendor/tomlplusplus)
+unset(CMAKE_FOLDER)
 
 #########
 # Build #
@@ -50,13 +50,19 @@ list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 file(GLOB_RECURSE HDR src/*.h)
 
 add_executable(cronos-amr src/main.cpp ${SRC} ${HDR})
+set_compiler_parameters(cronos-amr)
+target_link_libraries(cronos-amr PRIVATE tomlplusplus::tomlplusplus)
 
 ###########
 # Testing #
 ###########
-find_package(Catch2 2 REQUIRED)
+set(CMAKE_FOLDER "vendor/Catch2")
+    add_subdirectory(vendor/Catch2)
+    include("vendor/Catch2/extras/Catch.cmake")
+unset(CMAKE_FOLDER)
 add_executable(tests test/test.cpp ${SRC} ${HDR})
-target_link_libraries(tests PRIVATE Catch2::Catch2)
+set_compiler_parameters(tests)
+target_link_libraries(tests PRIVATE Catch2::Catch2WithMain tomlplusplus::tomlplusplus)
 
 # Automatically register tests
 include(CTest)
