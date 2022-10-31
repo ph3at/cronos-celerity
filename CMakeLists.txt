@@ -1,5 +1,22 @@
 cmake_minimum_required(VERSION 3.22)
-project(cronos-amr)
+project(cronos-amr-sycl)
+
+###################
+# hipSYCL Options #
+###################
+find_package(hipSYCL CONFIG REQUIRED)
+
+if(NOT HIPSYCL_DEBUG_LEVEL)
+  if(CMAKE_BUILD_TYPE MATCHES "Debug")
+    set(HIPSYCL_DEBUG_LEVEL "3" CACHE STRING
+      "Choose the debug level, options are: 0 (no debug), 1 (print errors), 2 (also print warnings), 3 (also print general information)" FORCE)
+  else()
+    set(HIPSYCL_DEBUG_LEVEL "2" CACHE STRING
+      "Choose the debug level, options are: 0 (no debug), 1 (print errors), 2 (also print warnings), 3 (also print general information)" FORCE)
+  endif()
+endif()
+
+add_compile_definitions(HIPSYCL_DEBUG_LEVEL=${HIPSYCL_DEBUG_LEVEL})
 
 ####################
 # Compiler Options #
@@ -49,9 +66,10 @@ file(GLOB_RECURSE SRC src/*.cpp)
 list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 file(GLOB_RECURSE HDR src/*.h)
 
-add_executable(cronos-amr src/main.cpp ${SRC} ${HDR})
-set_compiler_parameters(cronos-amr)
-target_link_libraries(cronos-amr PRIVATE tomlplusplus::tomlplusplus)
+add_executable(cronos-amr-sycl src/main.cpp ${SRC} ${HDR})
+add_sycl_to_target(TARGET cronos-amr-sycl SOURCES ${SRC})
+set_compiler_parameters(cronos-amr-sycl)
+target_link_libraries(cronos-amr-sycl PRIVATE tomlplusplus::tomlplusplus)
 
 ###########
 # Testing #
@@ -61,6 +79,7 @@ set(CMAKE_FOLDER "vendor/Catch2")
     include("vendor/Catch2/extras/Catch.cmake")
 unset(CMAKE_FOLDER)
 add_executable(tests test/test.cpp ${SRC} ${HDR})
+add_sycl_to_target(TARGET tests SOURCES ${SRC})
 set_compiler_parameters(tests)
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain tomlplusplus::tomlplusplus)
 
