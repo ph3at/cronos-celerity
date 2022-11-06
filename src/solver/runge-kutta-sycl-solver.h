@@ -8,24 +8,22 @@
 #include "../grid/simple-grid.h"
 #include "../riemann/reconstruction.h"
 #include "../riemann/riemann-solver.h"
-#include "../solver/base-solver.h"
 #include "../transformation/transformations.h"
 
 template <class Fields> using Changes = std::array<Fields, Direction::DirMax>;
 
-template <class ProblemType, class Fields, unsigned padding>
-class RungeKuttaSyclSolver : public Solver<RungeKuttaSyclSolver<ProblemType, Fields, padding>,
-                                           Fields, ProblemType, padding> {
+template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyclSolver {
   public:
-    RungeKuttaSyclSolver(const ProblemType& problem, const unsigned rungeKuttaSteps = 2,
-                         const bool doOutput = false);
+    RungeKuttaSyclSolver(const ProblemType& problem, const unsigned rungeKuttaSteps = 2);
     RungeKuttaSyclSolver(const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
-                         const unsigned rungeKuttaSteps = 2, const bool doOutput = false);
+                         const unsigned rungeKuttaSteps = 2);
 
-    void init();
-    void singleStep();
-    void adjustConfig();
+    void initialise();
+    void step();
+    void adjust();
     void finaliseResult(){};
+
+    PaddedGrid<Fields, padding> grid;
 
   private:
     SimpleGrid<Changes<Fields>> changeBuffer;
@@ -33,6 +31,12 @@ class RungeKuttaSyclSolver : public Solver<RungeKuttaSyclSolver<ProblemType, Fie
 
     double cfl;
     const unsigned rungeKuttaSteps;
+
+    const ProblemType& problem;
+
+    double timeDelta;
+    double timeCurrent;
+    const double timeEnd;
 
     void saveGrid();
     void prepareSubstep();
@@ -46,41 +50,42 @@ class RungeKuttaSyclSolver : public Solver<RungeKuttaSyclSolver<ProblemType, Fie
 
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
-    const ProblemType& problem, const unsigned rungeKuttaSteps, const bool doOutput)
-    : Solver<RungeKuttaSyclSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(
-          problem, doOutput),
+    const ProblemType& problem, const unsigned rungeKuttaSteps)
+    : grid({}, problem.numberCells[Direction::DirX], problem.numberCells[Direction::DirY],
+           problem.numberCells[Direction::DirZ]),
       changeBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
                    problem.numberCells[Direction::DirY] + 2 * padding,
                    problem.numberCells[Direction::DirZ] + 2 * padding),
       gridSubstepBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
                         problem.numberCells[Direction::DirY] + 2 * padding,
                         problem.numberCells[Direction::DirZ] + 2 * padding),
-      rungeKuttaSteps(rungeKuttaSteps) {}
+      rungeKuttaSteps(rungeKuttaSteps), problem(problem), timeDelta(problem.timeDelta),
+      timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {}
 
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
     const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
-    const unsigned rungeKuttaSteps, const bool doOutput)
-    : Solver<RungeKuttaSyclSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(
-          grid, problem, doOutput),
-      changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
+    const unsigned rungeKuttaSteps)
+    : grid(grid), changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
       gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
-      rungeKuttaSteps(rungeKuttaSteps) {}
+      rungeKuttaSteps(rungeKuttaSteps), problem(problem), timeDelta(problem.timeDelta),
+      timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {}
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSyclSolver<ProblemType, Fields, padding>::init() {
+void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
     this->problem.initialiseGrid(this->grid);
     Boundary::applyAll(this->grid, this->problem);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSyclSolver<ProblemType, Fields, padding>::singleStep() {
+void RungeKuttaSyclSolver<ProblemType, Fields, padding>::step() {
     this->cfl = 0.0;
     for (unsigned substep = 0; substep < this->rungeKuttaSteps; substep++) {
         this->prepareSubstep();
         this->computeSubstep();
         this->finaliseSubstep(substep);
     }
+    timeCurrent += timeDelta;
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -209,7 +214,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(const uns
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSyclSolver<ProblemType, Fields, padding>::adjustConfig() {
+void RungeKuttaSyclSolver<ProblemType, Fields, padding>::adjust() {
     this->timeDelta = this->problem.cflThreshold / this->cfl;
     if (this->problem.preciseEnd) {
         this->timeDelta = std::min(this->timeDelta, this->timeEnd - this->timeCurrent);
