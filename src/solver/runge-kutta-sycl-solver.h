@@ -1,10 +1,5 @@
 #pragma once
 
-#ifdef PARALLEL
-#include <omp.h>
-#include <vector>
-#endif
-
 #include "../boundary/boundary.h"
 #include "../data-types/direction.h"
 #include "../data-types/faces.h"
@@ -19,13 +14,13 @@
 template <class Fields> using Changes = std::array<Fields, Direction::DirMax>;
 
 template <class ProblemType, class Fields, unsigned padding>
-class RungeKuttaSyclSolver
-    : public Solver<RungeKuttaSyclSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding> {
+class RungeKuttaSyclSolver : public Solver<RungeKuttaSyclSolver<ProblemType, Fields, padding>,
+                                           Fields, ProblemType, padding> {
   public:
     RungeKuttaSyclSolver(const ProblemType& problem, const unsigned rungeKuttaSteps = 2,
-                     const bool doOutput = false);
+                         const bool doOutput = false);
     RungeKuttaSyclSolver(const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
-                     const unsigned rungeKuttaSteps = 2, const bool doOutput = false);
+                         const unsigned rungeKuttaSteps = 2, const bool doOutput = false);
 
     void init();
     void singleStep();
@@ -37,9 +32,6 @@ class RungeKuttaSyclSolver
     SimpleGrid<Fields> gridSubstepBuffer;
 
     double cfl;
-#ifdef PARALLEL
-    std::vector<double> threadLocalCFL;
-#endif
     const unsigned rungeKuttaSteps;
 
     void saveGrid();
@@ -53,9 +45,8 @@ class RungeKuttaSyclSolver
 };
 
 template <class ProblemType, class Fields, unsigned padding>
-RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(const ProblemType& problem,
-                                                                 const unsigned rungeKuttaSteps,
-                                                                 const bool doOutput)
+RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
+    const ProblemType& problem, const unsigned rungeKuttaSteps, const bool doOutput)
     : Solver<RungeKuttaSyclSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(
           problem, doOutput),
       changeBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
@@ -64,11 +55,7 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(const P
       gridSubstepBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
                         problem.numberCells[Direction::DirY] + 2 * padding,
                         problem.numberCells[Direction::DirZ] + 2 * padding),
-#ifdef PARALLEL
-      threadLocalCFL(omp_get_max_threads(), 0.0),
-#endif
-      rungeKuttaSteps(rungeKuttaSteps) {
-}
+      rungeKuttaSteps(rungeKuttaSteps) {}
 
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
@@ -78,11 +65,7 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
           grid, problem, doOutput),
       changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
       gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
-#ifdef PARALLEL
-      threadLocalCFL(omp_get_max_threads(), 0.0),
-#endif
-      rungeKuttaSteps(rungeKuttaSteps) {
-}
+      rungeKuttaSteps(rungeKuttaSteps) {}
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::init() {
@@ -98,13 +81,6 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::singleStep() {
         this->computeSubstep();
         this->finaliseSubstep(substep);
     }
-#ifdef PARALLEL
-    // Not parallelised, as thread creation is likely more expensive than the loop itself
-    for (int thread = 0; thread < omp_get_max_threads(); thread++) {
-        this->cfl = std::max(this->cfl, this->threadLocalCFL[thread]);
-        this->threadLocalCFL[thread] = 0.0;
-    }
-#endif
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -133,9 +109,6 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::prepareSubstep() {
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
-#ifdef PARALLEL
-#pragma omp parallel for reduction(max : cfl)
-#endif
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd() + 1; x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd() + 1; y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd() + 1; z++) {
@@ -146,9 +119,8 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-Changes<Fields> RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(const unsigned x,
-                                                                               const unsigned y,
-                                                                               const unsigned z) {
+Changes<Fields> RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(
+    const unsigned x, const unsigned y, const unsigned z) {
     PerFaceValues reconstruction = Reconstruction::reconstruct(this->grid, x, y, z);
 
     std::array<PhysValues, Faces::FaceMax> physicalValues;
@@ -179,12 +151,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::updateCFL(
     const std::pair<double, double> characVelocities, const unsigned direction) {
     double maxVelocity = std::max(characVelocities.first, characVelocities.second);
     double localCFL = maxVelocity * this->problem.inverseCellSize[direction];
-#ifdef PARALLEL
-    int threadNum = omp_get_thread_num();
-    this->threadLocalCFL[threadNum] = std::max(this->threadLocalCFL[threadNum], localCFL);
-#else
     this->cfl = std::max(this->cfl, localCFL);
-#endif
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -211,9 +178,6 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(const uns
     if (substep == 0 && this->rungeKuttaSteps > 1) {
         this->saveGrid();
     }
-#ifdef PARALLEL
-#pragma omp parallel for
-#endif
     for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
