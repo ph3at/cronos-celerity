@@ -41,7 +41,7 @@ TEST_CASE("Shock-Tube integration test with sycl", "[IntegrationTest][sycl]") {
         solver.adjust();
         const SimpleGrid<FieldStruct> baseline =
             GridFunctions::readFromFile("test-data/step-" + std::to_string(timeStep) + ".dat");
-        double averageDeviation = GridFunctions::compare(baseline, solver.grid, false, false);
+        double averageDeviation = GridFunctions::compare(baseline, solver.grid(), false, false);
         REQUIRE(averageDeviation < deviationThreshold - 1.0);
         deviationThreshold *= deviationPerStep;
     }
@@ -64,7 +64,8 @@ TEST_CASE("Shock-Tube integration test comparison host v sycl", "[IntegrationTes
         solver.adjust();
         syclSolver.adjust();
         const auto& baseline = solver.grid;
-        double averageDeviation = GridFunctions::compare(baseline, syclSolver.grid, false, false);
+        double averageDeviation = GridFunctions::compare(baseline, syclSolver.grid(), false, false);
+        CAPTURE(timeStep);
         CHECK(averageDeviation == 0);
         REQUIRE(averageDeviation < deviationThreshold - 1.0);
         deviationThreshold *= deviationPerStep;

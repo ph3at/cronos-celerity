@@ -24,13 +24,14 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void adjust();
     void finaliseResult(){};
 
-    PaddedGrid<Fields, padding> grid;
+    PaddedGrid<Fields, padding> grid() const { return toGrid(m_grid); }
 
   private:
     const std::size_t m_sizeX;
     const std::size_t m_sizeY;
     const std::size_t m_sizeZ;
 
+    std::vector<Fields> m_grid;
     std::vector<Changes<Fields>> changeBuffer;
     std::vector<Fields> gridSubstepBuffer;
 
@@ -56,24 +57,50 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
                       const std::size_t z) const noexcept {
         return x * m_sizeY * m_sizeZ + y * m_sizeZ + z;
     }
+
+    PaddedGrid<Fields, padding> toGrid(const std::vector<Fields>& vecGrid) const {
+        auto paddedGrid = PaddedGrid<Fields, padding>({}, m_sizeX - 2 * padding,
+                                                      m_sizeY - 2 * padding, m_sizeZ - 2 * padding);
+        for (std::size_t x = 0; x < m_sizeX; ++x) {
+            for (std::size_t y = 0; y < m_sizeY; ++y) {
+                for (std::size_t z = 0; z < m_sizeZ; ++z) {
+                    paddedGrid(x, y, z) = vecGrid[idx3d(x, y, z)];
+                }
+            }
+        }
+        return paddedGrid;
+    }
+
+    std::vector<Fields> fromGrid(const PaddedGrid<Fields, padding>& paddedGrid) const {
+        auto vecGrid = std::vector<Fields>(m_sizeX * m_sizeY * m_sizeZ);
+        for (std::size_t x = 0; x < m_sizeX; ++x) {
+            for (std::size_t y = 0; y < m_sizeY; ++y) {
+                for (std::size_t z = 0; z < m_sizeZ; ++z) {
+                    vecGrid[idx3d(x, y, z)] = paddedGrid(x, y, z);
+                }
+            }
+        }
+        return vecGrid;
+    }
 };
 
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
     const ProblemType& problem, const unsigned rungeKuttaSteps)
-    : grid({}, problem.numberCells[Direction::DirX], problem.numberCells[Direction::DirY],
-           problem.numberCells[Direction::DirZ]),
-      m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
+    : m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
       m_sizeY(problem.numberCells[Direction::DirY] + 2 * padding),
       m_sizeZ(problem.numberCells[Direction::DirZ] + 2 * padding),
-      changeBuffer(m_sizeX * m_sizeY * m_sizeZ), gridSubstepBuffer(m_sizeX * m_sizeY * m_sizeZ),
-      rungeKuttaSteps(rungeKuttaSteps), problem(problem), timeDelta(problem.timeDelta),
-      timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {}
+      m_grid(m_sizeX * m_sizeY * m_sizeZ), changeBuffer(m_sizeX * m_sizeY * m_sizeZ),
+      gridSubstepBuffer(m_sizeX * m_sizeY * m_sizeZ), rungeKuttaSteps(rungeKuttaSteps),
+      problem(problem), timeDelta(problem.timeDelta), timeCurrent(problem.timeStart),
+      timeEnd(problem.timeEnd) {}
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
+    auto grid = toGrid(m_grid);
     problem.initialiseGrid(grid);
     Boundary::applyAll(grid, problem);
+    m_grid = fromGrid(grid);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -89,11 +116,11 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::step() {
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::saveGrid() {
-    for (unsigned x = grid.xStart(); x < grid.xEnd(); x++) {
-        for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
-            for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
-                for (unsigned field = 0; field < Fields().size(); field++) {
-                    gridSubstepBuffer[idx3d(x, y, z)][field] = grid(x, y, z)[field];
+    for (unsigned x = padding; x < m_sizeX - padding; ++x) {
+        for (unsigned y = padding; y < m_sizeY - padding; ++y) {
+            for (unsigned z = padding; z < m_sizeZ - padding; ++z) {
+                for (unsigned field = 0; field < Fields().size(); ++field) {
+                    gridSubstepBuffer[idx3d(x, y, z)][field] = m_grid[idx3d(x, y, z)][field];
                 }
             }
         }
@@ -106,16 +133,25 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::prepareSubstep() {
 
     // Start clock(s) -- time measurement omitted for now
 
-    changeBuffer.clear();
+    for (unsigned x = padding; x < m_sizeX - padding; ++x) {
+        for (unsigned y = padding; y < m_sizeY - padding; ++y) {
+            for (unsigned z = padding; z < m_sizeZ - padding; ++z) {
+                using buffer_type =
+                    std::remove_cv_t<std::remove_reference_t<decltype(changeBuffer)>>;
+                using value_type = typename buffer_type::value_type;
+                changeBuffer[idx3d(x, y, z)] = value_type();
+            }
+        }
+    }
 
     // CarbuncleFlag computation (not included by default)
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
-    for (unsigned x = grid.xStart(); x < grid.xEnd() + 1; x++) {
-        for (unsigned y = grid.yStart(); y < grid.yEnd() + 1; y++) {
-            for (unsigned z = grid.zStart(); z < grid.zEnd() + 1; z++) {
+    for (unsigned x = padding; x < m_sizeX - padding + 1; ++x) {
+        for (unsigned y = padding; y < m_sizeY - padding + 1; ++y) {
+            for (unsigned z = padding; z < m_sizeZ - padding + 1; ++z) {
                 changeBuffer[idx3d(x, y, z)] = computeChanges(x, y, z);
             }
         }
@@ -125,7 +161,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
 template <class ProblemType, class Fields, unsigned padding>
 Changes<Fields> RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(
     const unsigned x, const unsigned y, const unsigned z) {
-    PerFaceValues reconstruction = Reconstruction::reconstruct(grid, x, y, z);
+    PerFaceValues reconstruction = Reconstruction::reconstruct(toGrid(m_grid), x, y, z);
 
     std::array<PhysValues, Faces::FaceMax> physicalValues;
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
@@ -162,14 +198,18 @@ template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
     checkErrors();
 
-    problem.applySource(grid);
+    auto paddedGrid = toGrid(m_grid);
+    problem.applySource(paddedGrid);
     checkErrors();
 
-    Transformation::primitiveToConservative(grid, problem.thermal, problem.gamma);
+    Transformation::primitiveToConservative(paddedGrid, problem.thermal, problem.gamma);
+    m_grid = fromGrid(paddedGrid);
     integrateTime(substep);
-    Transformation::conservativeToPrimitive(grid, problem.thermal, problem.gamma);
+    paddedGrid = toGrid(m_grid);
+    Transformation::conservativeToPrimitive(paddedGrid, problem.thermal, problem.gamma);
 
-    Boundary::applyAll(grid, problem);
+    Boundary::applyAll(paddedGrid, problem);
+    m_grid = fromGrid(paddedGrid);
 
     // Stop clock(s)
     // runtime estimation -- time measurement omitted for now
@@ -182,9 +222,9 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(const uns
     if (substep == 0 && rungeKuttaSteps > 1) {
         saveGrid();
     }
-    for (unsigned x = grid.xStart(); x < grid.xEnd(); x++) {
-        for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
-            for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
+    for (unsigned x = padding; x < m_sizeX - padding; x++) {
+        for (unsigned y = padding; y < m_sizeY - padding; y++) {
+            for (unsigned z = padding; z < m_sizeZ - padding; z++) {
                 for (unsigned field = 0; field < Fields().size(); field++) {
                     const double changeX =
                         (changeBuffer[idx3d(x + 1, y, z)][Direction::DirX][field] -
@@ -200,11 +240,11 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(const uns
                         problem.inverseCellSize[Direction::DirZ];
                     const double change = changeX + changeY + changeZ;
                     if (substep == 0) { // if-statement should be pulled out by compiler
-                        grid(x, y, z)[field] -= timeDelta * change;
+                        m_grid[idx3d(x, y, z)][field] -= timeDelta * change;
                     } else {
-                        grid(x, y, z)[field] = 0.5 * gridSubstepBuffer[idx3d(x, y, z)][field] +
-                                               0.5 * grid(x, y, z)[field] -
-                                               0.5 * timeDelta * change;
+                        m_grid[idx3d(x, y, z)][field] =
+                            0.5 * gridSubstepBuffer[idx3d(x, y, z)][field] +
+                            0.5 * m_grid[idx3d(x, y, z)][field] - 0.5 * timeDelta * change;
                     }
                 }
             }
@@ -222,7 +262,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::adjust() {
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::checkErrors() {
-    if (GridFunctions::checkNaN(grid)) {
+    if (GridFunctions::checkNaN(toGrid(m_grid))) {
         std::cerr << "Encountered NaN" << std::endl;
     }
 }
