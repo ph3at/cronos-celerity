@@ -64,28 +64,28 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
-    this->problem.initialiseGrid(this->grid);
-    Boundary::applyAll(this->grid, this->problem);
+    problem.initialiseGrid(grid);
+    Boundary::applyAll(grid, problem);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::step() {
-    this->cfl = 0.0;
-    for (unsigned substep = 0; substep < this->rungeKuttaSteps; substep++) {
-        this->prepareSubstep();
-        this->computeSubstep();
-        this->finaliseSubstep(substep);
+    cfl = 0.0;
+    for (unsigned substep = 0; substep < rungeKuttaSteps; substep++) {
+        prepareSubstep();
+        computeSubstep();
+        finaliseSubstep(substep);
     }
     timeCurrent += timeDelta;
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::saveGrid() {
-    for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
-        for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
-            for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
+    for (unsigned x = grid.xStart(); x < grid.xEnd(); x++) {
+        for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
+            for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
                 for (unsigned field = 0; field < Fields().size(); field++) {
-                    this->gridSubstepBuffer(x, y, z)[field] = this->grid(x, y, z)[field];
+                    gridSubstepBuffer(x, y, z)[field] = grid(x, y, z)[field];
                 }
             }
         }
@@ -98,17 +98,17 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::prepareSubstep() {
 
     // Start clock(s) -- time measurement omitted for now
 
-    this->changeBuffer.clear();
+    changeBuffer.clear();
 
     // CarbuncleFlag computation (not included by default)
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
-    for (unsigned x = this->grid.xStart(); x < this->grid.xEnd() + 1; x++) {
-        for (unsigned y = this->grid.yStart(); y < this->grid.yEnd() + 1; y++) {
-            for (unsigned z = this->grid.zStart(); z < this->grid.zEnd() + 1; z++) {
-                this->changeBuffer(x, y, z) = this->computeChanges(x, y, z);
+    for (unsigned x = grid.xStart(); x < grid.xEnd() + 1; x++) {
+        for (unsigned y = grid.yStart(); y < grid.yEnd() + 1; y++) {
+            for (unsigned z = grid.zStart(); z < grid.zEnd() + 1; z++) {
+                changeBuffer(x, y, z) = computeChanges(x, y, z);
             }
         }
     }
@@ -117,14 +117,14 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
 template <class ProblemType, class Fields, unsigned padding>
 Changes<Fields> RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(
     const unsigned x, const unsigned y, const unsigned z) {
-    PerFaceValues reconstruction = Reconstruction::reconstruct(this->grid, x, y, z);
+    PerFaceValues reconstruction = Reconstruction::reconstruct(grid, x, y, z);
 
     std::array<PhysValues, Faces::FaceMax> physicalValues;
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
         Transformation::reconstToConservatives(physicalValues[face], reconstruction[face],
-                                               this->problem.thermal, this->problem.gamma);
+                                               problem.thermal, problem.gamma);
         physicalValues[face].thermalPressure = Transformation::computeThermalPressure(
-            reconstruction[face], this->problem.thermal, this->problem.gamma);
+            reconstruction[face], problem.thermal, problem.gamma);
         RiemannSolver::computeFluxes(physicalValues[face], reconstruction[face], face);
     }
 
@@ -133,8 +133,8 @@ Changes<Fields> RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChang
         unsigned face = dir * 2;
         std::pair<double, double> characVelocities = RiemannSolver::characteristicVelocity(
             physicalValues[face], physicalValues[face + 1], reconstruction[face],
-            reconstruction[face + 1], this->problem.gamma, dir);
-        this->updateCFL(characVelocities, dir);
+            reconstruction[face + 1], problem.gamma, dir);
+        updateCFL(characVelocities, dir);
         changes[dir] = RiemannSolver::numericalFlux(characVelocities, physicalValues[face],
                                                     physicalValues[face + 1], reconstruction[face],
                                                     reconstruction[face + 1], dir);
@@ -146,22 +146,22 @@ template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::updateCFL(
     const std::pair<double, double> characVelocities, const unsigned direction) {
     double maxVelocity = std::max(characVelocities.first, characVelocities.second);
-    double localCFL = maxVelocity * this->problem.inverseCellSize[direction];
-    this->cfl = std::max(this->cfl, localCFL);
+    double localCFL = maxVelocity * problem.inverseCellSize[direction];
+    cfl = std::max(cfl, localCFL);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
-    this->checkErrors();
+    checkErrors();
 
-    this->problem.applySource(this->grid);
-    this->checkErrors();
+    problem.applySource(grid);
+    checkErrors();
 
-    Transformation::primitiveToConservative(this->grid, this->problem.thermal, this->problem.gamma);
-    this->integrateTime(substep);
-    Transformation::conservativeToPrimitive(this->grid, this->problem.thermal, this->problem.gamma);
+    Transformation::primitiveToConservative(grid, problem.thermal, problem.gamma);
+    integrateTime(substep);
+    Transformation::conservativeToPrimitive(grid, problem.thermal, problem.gamma);
 
-    Boundary::applyAll(this->grid, this->problem);
+    Boundary::applyAll(grid, problem);
 
     // Stop clock(s)
     // runtime estimation -- time measurement omitted for now
@@ -171,32 +171,29 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const u
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(const unsigned substep) {
-    if (substep == 0 && this->rungeKuttaSteps > 1) {
-        this->saveGrid();
+    if (substep == 0 && rungeKuttaSteps > 1) {
+        saveGrid();
     }
-    for (unsigned x = this->grid.xStart(); x < this->grid.xEnd(); x++) {
-        for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
-            for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
+    for (unsigned x = grid.xStart(); x < grid.xEnd(); x++) {
+        for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
+            for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
                 for (unsigned field = 0; field < Fields().size(); field++) {
-                    const double changeX =
-                        (this->changeBuffer(x + 1, y, z)[Direction::DirX][field] -
-                         this->changeBuffer(x, y, z)[Direction::DirX][field]) *
-                        this->problem.inverseCellSize[Direction::DirX];
-                    const double changeY =
-                        (this->changeBuffer(x, y + 1, z)[Direction::DirY][field] -
-                         this->changeBuffer(x, y, z)[Direction::DirY][field]) *
-                        this->problem.inverseCellSize[Direction::DirY];
-                    const double changeZ =
-                        (this->changeBuffer(x, y, z + 1)[Direction::DirZ][field] -
-                         this->changeBuffer(x, y, z)[Direction::DirZ][field]) *
-                        this->problem.inverseCellSize[Direction::DirZ];
+                    const double changeX = (changeBuffer(x + 1, y, z)[Direction::DirX][field] -
+                                            changeBuffer(x, y, z)[Direction::DirX][field]) *
+                                           problem.inverseCellSize[Direction::DirX];
+                    const double changeY = (changeBuffer(x, y + 1, z)[Direction::DirY][field] -
+                                            changeBuffer(x, y, z)[Direction::DirY][field]) *
+                                           problem.inverseCellSize[Direction::DirY];
+                    const double changeZ = (changeBuffer(x, y, z + 1)[Direction::DirZ][field] -
+                                            changeBuffer(x, y, z)[Direction::DirZ][field]) *
+                                           problem.inverseCellSize[Direction::DirZ];
                     const double change = changeX + changeY + changeZ;
                     if (substep == 0) { // if-statement should be pulled out by compiler
-                        this->grid(x, y, z)[field] -= this->timeDelta * change;
+                        grid(x, y, z)[field] -= timeDelta * change;
                     } else {
-                        this->grid(x, y, z)[field] = 0.5 * this->gridSubstepBuffer(x, y, z)[field] +
-                                                     0.5 * this->grid(x, y, z)[field] -
-                                                     0.5 * this->timeDelta * change;
+                        grid(x, y, z)[field] = 0.5 * gridSubstepBuffer(x, y, z)[field] +
+                                               0.5 * grid(x, y, z)[field] -
+                                               0.5 * timeDelta * change;
                     }
                 }
             }
@@ -206,15 +203,15 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(const uns
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::adjust() {
-    this->timeDelta = this->problem.cflThreshold / this->cfl;
-    if (this->problem.preciseEnd) {
-        this->timeDelta = std::min(this->timeDelta, this->timeEnd - this->timeCurrent);
+    timeDelta = problem.cflThreshold / cfl;
+    if (problem.preciseEnd) {
+        timeDelta = std::min(timeDelta, timeEnd - timeCurrent);
     }
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::checkErrors() {
-    if (GridFunctions::checkNaN(this->grid)) {
+    if (GridFunctions::checkNaN(grid)) {
         std::cerr << "Encountered NaN" << std::endl;
     }
 }
