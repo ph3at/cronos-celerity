@@ -116,3 +116,45 @@ void conservativeToPrimitive(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const b
     }
 }
 }; // namespace Transformation
+
+namespace TransformationSycl {
+
+using grid::utils::idx3d;
+
+void primitiveToConservative(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims,
+                             const bool isThermal, const double gamma) {
+    for (std::size_t x = 0; x < dims[0]; x++) {
+        for (std::size_t y = 0; y < dims[1]; y++) {
+            for (std::size_t z = 0; z < dims[2]; z++) {
+                Transformation::velocityToMomentum(grid[idx3d(x, y, z, dims)]);
+                if (isThermal) { // Compiler should pull this out of the loop
+                    grid[idx3d(x, y, z, dims)][FieldNames::THERMAL_ENERGY] =
+                        Transformation::thermalEnergyToEnergy(grid[idx3d(x, y, z, dims)]);
+                } else {
+                    grid[idx3d(x, y, z, dims)][FieldNames::THERMAL_ENERGY] =
+                        Transformation::temperatureToEnergy(grid[idx3d(x, y, z, dims)], gamma);
+                }
+            }
+        }
+    }
+}
+
+void conservativeToPrimitive(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims,
+                             const bool isThermal, const double gamma) {
+    for (std::size_t x = 0; x < dims[0]; ++x) {
+        for (std::size_t y = 0; y < dims[1]; ++y) {
+            for (std::size_t z = 0; z < dims[2]; ++z) {
+                Transformation::momentumToVelocity(grid[idx3d(x, y, z, dims)]);
+                if (isThermal) { // Compiler should pull this out of the loop
+                    grid[idx3d(x, y, z, dims)][FieldNames::THERMAL_ENERGY] =
+                        Transformation::energyToThermalEnergy(grid[idx3d(x, y, z, dims)]);
+                } else {
+                    grid[idx3d(x, y, z, dims)][FieldNames::THERMAL_ENERGY] =
+                        Transformation::energyToTemperature(grid[idx3d(x, y, z, dims)], gamma);
+                }
+            }
+        }
+    }
+}
+
+} // namespace TransformationSycl

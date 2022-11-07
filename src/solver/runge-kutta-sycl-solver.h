@@ -7,6 +7,7 @@
 #include "../data-types/faces.h"
 #include "../grid/grid-functions.h"
 #include "../grid/padded-grid.h"
+#include "../grid/utils.h"
 #include "../riemann/reconstruction.h"
 #include "../riemann/riemann-solver.h"
 #include "../transformation/transformations.h"
@@ -55,7 +56,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
 
     std::size_t idx3d(const std::size_t x, const std::size_t y,
                       const std::size_t z) const noexcept {
-        return x * m_sizeY * m_sizeZ + y * m_sizeZ + z;
+        return grid::utils::idx3d(x, y, z, { m_sizeX, m_sizeY, m_sizeZ });
     }
 
     PaddedGrid<Fields, padding> toGrid(const std::vector<Fields>& vecGrid) const {
@@ -196,20 +197,21 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::updateCFL(
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
+    const auto dims = grid::utils::dimensions{ m_sizeX, m_sizeY, m_sizeZ };
+
     checkErrors();
 
-    auto paddedGrid = toGrid(m_grid);
-    problem.applySource(paddedGrid);
-    checkErrors();
+    // Unused for now
+    // problem.applySource(paddedGrid);
+    // checkErrors();
 
-    Transformation::primitiveToConservative(paddedGrid, problem.thermal, problem.gamma);
-    m_grid = fromGrid(paddedGrid);
+    TransformationSycl::primitiveToConservative(m_grid, dims, problem.thermal, problem.gamma);
     integrateTime(substep);
-    paddedGrid = toGrid(m_grid);
-    Transformation::conservativeToPrimitive(paddedGrid, problem.thermal, problem.gamma);
+    TransformationSycl::conservativeToPrimitive(m_grid, dims, problem.thermal, problem.gamma);
 
-    Boundary::applyAll(paddedGrid, problem);
-    m_grid = fromGrid(paddedGrid);
+    auto grid = toGrid(m_grid);
+    Boundary::applyAll(grid, problem);
+    m_grid = fromGrid(grid);
 
     // Stop clock(s)
     // runtime estimation -- time measurement omitted for now
