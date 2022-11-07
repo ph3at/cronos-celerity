@@ -1,11 +1,12 @@
 #pragma once
 
+#include <vector>
+
 #include "../boundary/boundary.h"
 #include "../data-types/direction.h"
 #include "../data-types/faces.h"
 #include "../grid/grid-functions.h"
 #include "../grid/padded-grid.h"
-#include "../grid/simple-grid.h"
 #include "../riemann/reconstruction.h"
 #include "../riemann/riemann-solver.h"
 #include "../transformation/transformations.h"
@@ -26,8 +27,12 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     PaddedGrid<Fields, padding> grid;
 
   private:
-    SimpleGrid<Changes<Fields>> changeBuffer;
-    SimpleGrid<Fields> gridSubstepBuffer;
+    const std::size_t m_sizeX;
+    const std::size_t m_sizeY;
+    const std::size_t m_sizeZ;
+
+    std::vector<Changes<Fields>> changeBuffer;
+    std::vector<Fields> gridSubstepBuffer;
 
     double cfl;
     const unsigned rungeKuttaSteps;
@@ -46,6 +51,11 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void finaliseSubstep(const unsigned substep);
     void integrateTime(const unsigned substep);
     void checkErrors();
+
+    std::size_t idx3d(const std::size_t x, const std::size_t y,
+                      const std::size_t z) const noexcept {
+        return x * m_sizeY * m_sizeZ + y * m_sizeZ + z;
+    }
 };
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -53,12 +63,10 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
     const ProblemType& problem, const unsigned rungeKuttaSteps)
     : grid({}, problem.numberCells[Direction::DirX], problem.numberCells[Direction::DirY],
            problem.numberCells[Direction::DirZ]),
-      changeBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
-                   problem.numberCells[Direction::DirY] + 2 * padding,
-                   problem.numberCells[Direction::DirZ] + 2 * padding),
-      gridSubstepBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
-                        problem.numberCells[Direction::DirY] + 2 * padding,
-                        problem.numberCells[Direction::DirZ] + 2 * padding),
+      m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
+      m_sizeY(problem.numberCells[Direction::DirY] + 2 * padding),
+      m_sizeZ(problem.numberCells[Direction::DirZ] + 2 * padding),
+      changeBuffer(m_sizeX * m_sizeY * m_sizeZ), gridSubstepBuffer(m_sizeX * m_sizeY * m_sizeZ),
       rungeKuttaSteps(rungeKuttaSteps), problem(problem), timeDelta(problem.timeDelta),
       timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {}
 
@@ -85,7 +93,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::saveGrid() {
         for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
             for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
                 for (unsigned field = 0; field < Fields().size(); field++) {
-                    gridSubstepBuffer(x, y, z)[field] = grid(x, y, z)[field];
+                    gridSubstepBuffer[idx3d(x, y, z)][field] = grid(x, y, z)[field];
                 }
             }
         }
@@ -108,7 +116,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
     for (unsigned x = grid.xStart(); x < grid.xEnd() + 1; x++) {
         for (unsigned y = grid.yStart(); y < grid.yEnd() + 1; y++) {
             for (unsigned z = grid.zStart(); z < grid.zEnd() + 1; z++) {
-                changeBuffer(x, y, z) = computeChanges(x, y, z);
+                changeBuffer[idx3d(x, y, z)] = computeChanges(x, y, z);
             }
         }
     }
@@ -178,20 +186,23 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(const uns
         for (unsigned y = grid.yStart(); y < grid.yEnd(); y++) {
             for (unsigned z = grid.zStart(); z < grid.zEnd(); z++) {
                 for (unsigned field = 0; field < Fields().size(); field++) {
-                    const double changeX = (changeBuffer(x + 1, y, z)[Direction::DirX][field] -
-                                            changeBuffer(x, y, z)[Direction::DirX][field]) *
-                                           problem.inverseCellSize[Direction::DirX];
-                    const double changeY = (changeBuffer(x, y + 1, z)[Direction::DirY][field] -
-                                            changeBuffer(x, y, z)[Direction::DirY][field]) *
-                                           problem.inverseCellSize[Direction::DirY];
-                    const double changeZ = (changeBuffer(x, y, z + 1)[Direction::DirZ][field] -
-                                            changeBuffer(x, y, z)[Direction::DirZ][field]) *
-                                           problem.inverseCellSize[Direction::DirZ];
+                    const double changeX =
+                        (changeBuffer[idx3d(x + 1, y, z)][Direction::DirX][field] -
+                         changeBuffer[idx3d(x, y, z)][Direction::DirX][field]) *
+                        problem.inverseCellSize[Direction::DirX];
+                    const double changeY =
+                        (changeBuffer[idx3d(x, y + 1, z)][Direction::DirY][field] -
+                         changeBuffer[idx3d(x, y, z)][Direction::DirY][field]) *
+                        problem.inverseCellSize[Direction::DirY];
+                    const double changeZ =
+                        (changeBuffer[idx3d(x, y, z + 1)][Direction::DirZ][field] -
+                         changeBuffer[idx3d(x, y, z)][Direction::DirZ][field]) *
+                        problem.inverseCellSize[Direction::DirZ];
                     const double change = changeX + changeY + changeZ;
                     if (substep == 0) { // if-statement should be pulled out by compiler
                         grid(x, y, z)[field] -= timeDelta * change;
                     } else {
-                        grid(x, y, z)[field] = 0.5 * gridSubstepBuffer(x, y, z)[field] +
+                        grid(x, y, z)[field] = 0.5 * gridSubstepBuffer[idx3d(x, y, z)][field] +
                                                0.5 * grid(x, y, z)[field] -
                                                0.5 * timeDelta * change;
                     }
