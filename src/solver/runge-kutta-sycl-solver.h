@@ -63,15 +63,6 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
       timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {}
 
 template <class ProblemType, class Fields, unsigned padding>
-RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(
-    const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
-    const unsigned rungeKuttaSteps)
-    : grid(grid), changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
-      gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
-      rungeKuttaSteps(rungeKuttaSteps), problem(problem), timeDelta(problem.timeDelta),
-      timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {}
-
-template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
     this->problem.initialiseGrid(this->grid);
     Boundary::applyAll(this->grid, this->problem);
