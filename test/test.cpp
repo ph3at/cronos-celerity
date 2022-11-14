@@ -2,6 +2,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <toml++/toml.h>
 
+#include <CL/sycl.hpp>
+
 #include "../src/configuration/shock-tube.h"
 #include "../src/grid/grid-functions.h"
 #include "../src/solver/runge-kutta-solver.h"
@@ -69,5 +71,44 @@ TEST_CASE("Shock-Tube integration test comparison host v sycl", "[IntegrationTes
         CHECK(averageDeviation == 0);
         REQUIRE(averageDeviation < deviationThreshold - 1.0);
         deviationThreshold *= deviationPerStep;
+    }
+}
+
+TEST_CASE("Sycl", "[sycl]") {
+    constexpr auto DATA_SIZE = 1000;
+
+    auto dataA = std::vector<float>(DATA_SIZE);
+    auto dataB = std::vector<float>(DATA_SIZE);
+    auto dataC = std::vector<float>(DATA_SIZE, -1);
+
+    for (std::size_t i = 0; i < DATA_SIZE; ++i) {
+        const auto value = static_cast<float>(i) / 100;
+        dataA[value];
+        dataB[-value];
+    }
+
+    for (const auto& elem : dataC) {
+        CHECK(elem == -1);
+    }
+
+    {
+        auto queue = cl::sycl::queue();
+        auto itemRange = cl::sycl::range<1>(DATA_SIZE);
+        auto bufferA = cl::sycl::buffer<float, 1>(dataA.data(), itemRange);
+        auto bufferB = cl::sycl::buffer<float, 1>(dataB.data(), itemRange);
+        auto bufferC = cl::sycl::buffer<float, 1>(dataC.data(), itemRange);
+
+        queue.submit([&](cl::sycl::handler& cgh) {
+            auto accA = bufferA.template get_access<cl::sycl::access::mode::read>(cgh);
+            auto accB = bufferB.template get_access<cl::sycl::access::mode::read>(cgh);
+            auto accC = bufferC.template get_access<cl::sycl::access::mode::discard_write>(cgh);
+
+            cgh.parallel_for(itemRange,
+                             [=](cl::sycl::id<1> id) { accC[id] = accA[id] + accB[id]; });
+        });
+    }
+
+    for (const auto& elem : dataC) {
+        CHECK(elem == 0);
     }
 }
