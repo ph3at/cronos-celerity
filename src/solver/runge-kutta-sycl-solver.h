@@ -159,7 +159,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
 template <class ProblemType, class Fields, unsigned padding>
 Changes<Fields> RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(const unsigned x, const unsigned y,
                                                                                    const unsigned z) {
-    PerFaceValues reconstruction = Reconstruction::reconstruct(toGrid(m_grid), x, y, z);
+    PerFaceValues reconstruction = ReconstructionSycl::reconstruct(m_grid, m_dims, x, y, z);
 
     std::array<PhysValues, Faces::FaceMax> physicalValues;
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
