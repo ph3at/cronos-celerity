@@ -2,11 +2,12 @@
 
 #include <cassert>
 #include <cmath>
-
 #include <fstream>
+#include <vector>
 
 #include "padded-grid.h"
 #include "simple-grid.h"
+#include "utils.h"
 
 #include "../configuration/constants.h"
 #include "../data-types/phys-fields.h"
@@ -15,16 +16,13 @@ namespace GridFunctions {
 bool checkNaN(const PaddedGrid<FieldStruct, GHOST_CELLS>& grid);
 template <unsigned padding> void printGrid(const PaddedGrid<FieldStruct, padding>& grid);
 template <unsigned padding1, unsigned padding2>
-double compare(const PaddedGrid<FieldStruct, padding1>& baseline,
-               const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput,
-               const bool verbose);
+double compare(const PaddedGrid<FieldStruct, padding1>& baseline, const PaddedGrid<FieldStruct, padding2>& other,
+               const bool doOutput, const bool verbose);
 SimpleGrid<FieldStruct> readFromFile(const std::string filename);
-template <unsigned padding>
-void writeToFile(const std::string fileName, const PaddedGrid<FieldStruct, padding>& grid);
+template <unsigned padding> void writeToFile(const std::string fileName, const PaddedGrid<FieldStruct, padding>& grid);
 }; // namespace GridFunctions
 
-template <unsigned padding>
-void GridFunctions::printGrid(const PaddedGrid<FieldStruct, padding>& grid) {
+template <unsigned padding> void GridFunctions::printGrid(const PaddedGrid<FieldStruct, padding>& grid) {
     std::cout.width(5);
     for (size_t x = 0; x < grid.xDim(); x++) {
         for (size_t y = 0; y < grid.yDim(); y++) {
@@ -46,8 +44,7 @@ void GridFunctions::printGrid(const PaddedGrid<FieldStruct, padding>& grid) {
 
 template <unsigned padding1, unsigned padding2>
 double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
-                              const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput,
-                              const bool verbose) {
+                              const PaddedGrid<FieldStruct, padding2>& other, const bool doOutput, const bool verbose) {
     assert(baseline.xEnd() - baseline.xStart() == other.xEnd() - other.xStart());
     assert(baseline.yEnd() - baseline.yStart() == other.yEnd() - other.yStart());
     assert(baseline.zEnd() - baseline.zStart() == other.zEnd() - other.zStart());
@@ -80,8 +77,8 @@ double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
                         }
                         double deviation = diff / std::abs(factor);
                         if (doOutput && verbose && deviation > 0.01) {
-                            std::cerr << "(" << x << "," << y << "," << z << ")[" << field << "]: ("
-                                      << correct << "," << actual << ")" << std::endl;
+                            std::cerr << "(" << x << "," << y << "," << z << ")[" << field << "]: (" << correct << ","
+                                      << actual << ")" << std::endl;
                         }
                         averageDeviation += deviation;
                     }
@@ -90,24 +87,21 @@ double GridFunctions::compare(const PaddedGrid<FieldStruct, padding1>& baseline,
             }
         }
     }
-    double numValues = static_cast<double>(
-        (baseline.xEnd() - baseline.xStart()) * (baseline.yEnd() - baseline.yStart()) *
-        (baseline.zEnd() - baseline.zStart()) * NUM_PHYSICAL_FIELDS);
+    double numValues =
+        static_cast<double>((baseline.xEnd() - baseline.xStart()) * (baseline.yEnd() - baseline.yStart()) *
+                            (baseline.zEnd() - baseline.zStart()) * NUM_PHYSICAL_FIELDS);
     averageDeviation /= numValues;
     if (doOutput) {
         double rms = std::sqrt(sumSquaredError / numValues);
-        std::cout << "Root of mean squared error: " << rms << ", with a maximum deviation of "
-                  << maxDiff << " at (" << maxX << "," << maxY << "," << maxZ << ")[" << fieldMax
-                  << "]"
-                  << " and average percentile deviation " << averageDeviation * 100.0 << "."
-                  << std::endl;
+        std::cout << "Root of mean squared error: " << rms << ", with a maximum deviation of " << maxDiff << " at ("
+                  << maxX << "," << maxY << "," << maxZ << ")[" << fieldMax << "]"
+                  << " and average percentile deviation " << averageDeviation * 100.0 << "." << std::endl;
     }
     return averageDeviation;
 }
 
 template <unsigned padding>
-void GridFunctions::writeToFile(const std::string fileName,
-                                const PaddedGrid<FieldStruct, padding>& grid) {
+void GridFunctions::writeToFile(const std::string fileName, const PaddedGrid<FieldStruct, padding>& grid) {
     std::ofstream outputStream;
     outputStream.open(fileName, std::ios::out);
     outputStream.precision(20);
@@ -123,3 +117,9 @@ void GridFunctions::writeToFile(const std::string fileName,
         }
     }
 }
+
+namespace GridFunctionsSycl {
+
+bool checkNaN(const std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims);
+
+} // namespace GridFunctionsSycl

@@ -251,7 +251,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::adjust() {
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::checkErrors() {
-    if (GridFunctions::checkNaN(toGrid(m_grid))) {
+    if (GridFunctionsSycl::checkNaN(m_grid, m_dims)) {
         std::cerr << "Encountered NaN" << std::endl;
     }
 }

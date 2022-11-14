@@ -1,8 +1,9 @@
+#include "grid-functions.h"
+
 #include <cmath>
 #include <fstream>
 
 #include "../data-types/faces.h"
-#include "grid-functions.h"
 
 namespace GridFunctions {
 bool checkNaN(const PaddedGrid<FieldStruct, GHOST_CELLS>& grid) {
@@ -44,3 +45,24 @@ SimpleGrid<FieldStruct> readFromFile(const std::string filename) {
     }
 }
 }; // namespace GridFunctions
+
+namespace GridFunctionsSycl {
+
+bool checkNaN(const std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims) {
+    using grid::utils::idx3d;
+
+    for (unsigned x = 0; x < dims[0]; x++) {
+        for (unsigned y = 0; y < dims[1]; y++) {
+            for (unsigned z = 0; z < dims[2]; z++) {
+                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                    if (std::isnan(grid[idx3d(x, y, z, dims)][field])) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+} // namespace GridFunctionsSycl
