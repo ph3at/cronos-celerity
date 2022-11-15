@@ -75,16 +75,37 @@ TEST_CASE("Shock-Tube integration test comparison host v sycl", "[IntegrationTes
 }
 
 TEST_CASE("Sycl", "[sycl]") {
-    constexpr auto DATA_SIZE = 1000;
+    constexpr auto GHOST_CELLS = 2;
+    constexpr int NUM_ELEMENTS[] = { 2, 3, 4 };
+    constexpr int DATA_SIZE[] = {
+        NUM_ELEMENTS[0] + 2 * GHOST_CELLS,
+        NUM_ELEMENTS[1] + 2 * GHOST_CELLS,
+        NUM_ELEMENTS[2] + 2 * GHOST_CELLS,
+    };
+    constexpr auto TOTAL_SIZE = DATA_SIZE[0] * DATA_SIZE[1] * DATA_SIZE[2];
 
-    auto dataA = std::vector<float>(DATA_SIZE);
-    auto dataB = std::vector<float>(DATA_SIZE);
-    auto dataC = std::vector<float>(DATA_SIZE, -1);
+    [[maybe_unused]] constexpr auto printData = [](const auto& data, const bool printGhostCells = true) {
+        const auto ghost_cells = printGhostCells ? 0 : GHOST_CELLS;
+        for (int d0 = ghost_cells; d0 < DATA_SIZE[0] - ghost_cells; ++d0) {
+            for (int d1 = ghost_cells; d1 < DATA_SIZE[1] - ghost_cells; ++d1) {
+                for (int d2 = ghost_cells; d2 < DATA_SIZE[2] - ghost_cells; ++d2) {
+                    const auto idx = d0 * DATA_SIZE[1] * DATA_SIZE[2] + d1 * DATA_SIZE[2] + d2;
+                    std::cout << data[idx] << " ";
+                }
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+        }
+    };
 
-    for (std::size_t i = 0; i < DATA_SIZE; ++i) {
-        const auto value = static_cast<float>(i) / 100;
-        dataA[value];
-        dataB[-value];
+    auto dataA = std::vector<int>(TOTAL_SIZE);
+    auto dataB = std::vector<int>(TOTAL_SIZE);
+    auto dataC = std::vector<int>(TOTAL_SIZE, -1);
+
+    for (std::size_t i = 0; i < TOTAL_SIZE; ++i) {
+        const auto value = i;
+        dataA[i] = value + 1;
+        dataB[i] = 2 * (value + 1);
     }
 
     for (const auto& elem : dataC) {
@@ -93,22 +114,51 @@ TEST_CASE("Sycl", "[sycl]") {
 
     {
         auto queue = cl::sycl::queue();
-        auto itemRange = cl::sycl::range<1>(DATA_SIZE);
-        auto bufferA = cl::sycl::buffer<float, 1>(dataA.data(), itemRange);
-        auto bufferB = cl::sycl::buffer<float, 1>(dataB.data(), itemRange);
-        auto bufferC = cl::sycl::buffer<float, 1>(dataC.data(), itemRange);
+        auto itemRange = cl::sycl::range<3>(NUM_ELEMENTS[0], NUM_ELEMENTS[1], NUM_ELEMENTS[2]);
+        auto totalRange = cl::sycl::range<3>(DATA_SIZE[0], DATA_SIZE[1], DATA_SIZE[2]);
+        auto bufferA = cl::sycl::buffer<int, 3>(dataA.data(), totalRange);
+        auto bufferB = cl::sycl::buffer<int, 3>(dataB.data(), totalRange);
+        auto bufferC = cl::sycl::buffer<int, 3>(dataC.data(), totalRange);
 
         queue.submit([&](cl::sycl::handler& cgh) {
             auto accA = bufferA.template get_access<cl::sycl::access::mode::read>(cgh);
             auto accB = bufferB.template get_access<cl::sycl::access::mode::read>(cgh);
             auto accC = bufferC.template get_access<cl::sycl::access::mode::discard_write>(cgh);
 
-            cgh.parallel_for(itemRange,
-                             [=](cl::sycl::id<1> id) { accC[id] = accA[id] + accB[id]; });
+            cgh.parallel_for(itemRange, [=](const cl::sycl::id<3> id) {
+                const auto offset = cl::sycl::id<3>(GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
+                const auto i = id + offset;
+
+                auto& res = accC[i];
+
+                for (int d = 0; d < 3; ++d) {
+                    for (int o = -GHOST_CELLS; o <= GHOST_CELLS; ++o) {
+                        auto idx = i;
+                        idx[d] += o;
+                        res += accA[idx] + accB[idx];
+                    }
+                }
+            });
         });
     }
 
-    for (const auto& elem : dataC) {
-        CHECK(elem == 0);
+    /*std::cout << "dataA:" << std::endl;
+    printData(dataA);
+
+    std::cout << "dataB:" << std::endl;
+    printData(dataB);
+
+    std::cout << "dataC:" << std::endl;
+    printData(dataC);*/
+
+    for (std::size_t d0 = GHOST_CELLS; d0 < DATA_SIZE[0] - GHOST_CELLS; ++d0) {
+        for (std::size_t d1 = GHOST_CELLS; d1 < DATA_SIZE[1] - GHOST_CELLS; ++d1) {
+            for (std::size_t d2 = GHOST_CELLS; d2 < DATA_SIZE[2] - GHOST_CELLS; ++d2) {
+                const auto idx = d0 * DATA_SIZE[1] * DATA_SIZE[2] + d1 * DATA_SIZE[2] + d2;
+                CHECK(dataC[idx] > 0);
+            }
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
     }
 }
