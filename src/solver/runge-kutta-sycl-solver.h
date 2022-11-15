@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <tuple>
 #include <vector>
 
 #include "../boundary/boundary.h"
@@ -36,8 +38,9 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     std::vector<Fields> m_grid;
     std::vector<Changes<Fields>> changeBuffer;
     std::vector<Fields> gridSubstepBuffer;
+    std::vector<double> m_cflBuffer;
 
-    double cfl;
+    double m_cfl;
     const unsigned rungeKuttaSteps;
 
     const ProblemType& problem;
@@ -49,8 +52,9 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void saveGrid();
     void prepareSubstep();
     void computeSubstep();
-    Changes<Fields> computeChanges(const unsigned x, const unsigned y, const unsigned z);
-    void updateCFL(std::pair<double, double> characVelocities, const unsigned direction);
+    std::pair<Changes<Fields>, double> computeChanges(const unsigned x, const unsigned y, const unsigned z) const;
+    double calcCFL(std::pair<double, double> characVelocities, const unsigned direction) const;
+    double reduceCFL(const double initialCFL, const std::vector<double>& cflBuffer) const;
     void finaliseSubstep(const unsigned substep);
     void integrateTime(const unsigned substep);
     void checkErrors();
@@ -93,8 +97,8 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(const P
       m_sizeZ(problem.numberCells[Direction::DirZ] + 2 * padding),
       m_dims(grid::utils::dimensions{ m_sizeX, m_sizeY, m_sizeZ }), m_grid(m_sizeX * m_sizeY * m_sizeZ),
       changeBuffer(m_sizeX * m_sizeY * m_sizeZ), gridSubstepBuffer(m_sizeX * m_sizeY * m_sizeZ),
-      rungeKuttaSteps(rungeKuttaSteps), problem(problem), timeDelta(problem.timeDelta), timeCurrent(problem.timeStart),
-      timeEnd(problem.timeEnd) {}
+      m_cflBuffer(m_sizeX * m_sizeY * m_sizeZ), rungeKuttaSteps(rungeKuttaSteps), problem(problem),
+      timeDelta(problem.timeDelta), timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {}
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
@@ -104,10 +108,11 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::step() {
-    cfl = 0.0;
+    m_cfl = 0.0;
     for (unsigned substep = 0; substep < rungeKuttaSteps; substep++) {
         prepareSubstep();
         computeSubstep();
+        m_cfl = reduceCFL(m_cfl, m_cflBuffer);
         finaliseSubstep(substep);
     }
     timeCurrent += timeDelta;
@@ -150,15 +155,17 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
     for (unsigned x = padding; x < m_sizeX - padding + 1; ++x) {
         for (unsigned y = padding; y < m_sizeY - padding + 1; ++y) {
             for (unsigned z = padding; z < m_sizeZ - padding + 1; ++z) {
-                changeBuffer[idx3d(x, y, z)] = computeChanges(x, y, z);
+                const auto idx = idx3d(x, y, z);
+                std::tie(changeBuffer[idx], m_cflBuffer[idx]) = computeChanges(x, y, z);
             }
         }
     }
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-Changes<Fields> RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(const unsigned x, const unsigned y,
-                                                                                   const unsigned z) {
+std::pair<Changes<Fields>, double>
+RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(const unsigned x, const unsigned y,
+                                                                   const unsigned z) const {
     PerFaceValues reconstruction = ReconstructionSycl::reconstruct(m_grid, m_dims, x, y, z);
 
     std::array<PhysValues, Faces::FaceMax> physicalValues;
@@ -171,24 +178,40 @@ Changes<Fields> RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChang
     }
 
     Changes<Fields> changes;
+    auto localCFL = 0.0;
     for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
         unsigned face = dir * 2;
         std::pair<double, double> characVelocities =
             RiemannSolver::characteristicVelocity(physicalValues[face], physicalValues[face + 1], reconstruction[face],
                                                   reconstruction[face + 1], problem.gamma, dir);
-        updateCFL(characVelocities, dir);
+        localCFL = std::max(localCFL, calcCFL(characVelocities, dir));
         changes[dir] = RiemannSolver::numericalFlux(characVelocities, physicalValues[face], physicalValues[face + 1],
                                                     reconstruction[face], reconstruction[face + 1], dir);
     }
-    return changes;
+    return { changes, localCFL };
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSyclSolver<ProblemType, Fields, padding>::updateCFL(const std::pair<double, double> characVelocities,
-                                                                   const unsigned direction) {
-    double maxVelocity = std::max(characVelocities.first, characVelocities.second);
-    double localCFL = maxVelocity * problem.inverseCellSize[direction];
-    cfl = std::max(cfl, localCFL);
+double RungeKuttaSyclSolver<ProblemType, Fields, padding>::calcCFL(const std::pair<double, double> characVelocities,
+                                                                   const unsigned direction) const {
+    const auto maxVelocity = std::max(characVelocities.first, characVelocities.second);
+    const auto localCFL = maxVelocity * problem.inverseCellSize[direction];
+    return localCFL;
+}
+
+template <class ProblemType, class Fields, unsigned padding>
+double RungeKuttaSyclSolver<ProblemType, Fields, padding>::reduceCFL(const double initialCFL,
+                                                                     const std::vector<double>& cflBuffer) const {
+    auto cfl = initialCFL;
+    for (unsigned x = padding; x < m_sizeX - padding + 1; ++x) {
+        for (unsigned y = padding; y < m_sizeY - padding + 1; ++y) {
+            for (unsigned z = padding; z < m_sizeZ - padding + 1; ++z) {
+                const auto idx = idx3d(x, y, z);
+                cfl = std::max(cfl, cflBuffer[idx]);
+            }
+        }
+    }
+    return cfl;
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -243,7 +266,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(const uns
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::adjust() {
-    timeDelta = problem.cflThreshold / cfl;
+    timeDelta = problem.cflThreshold / m_cfl;
     if (problem.preciseEnd) {
         timeDelta = std::min(timeDelta, timeEnd - timeCurrent);
     }
