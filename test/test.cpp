@@ -8,10 +8,10 @@
 #include <algorithm>
 #include <bit>
 #include <chrono>
-#include <functional>
 #include <iostream>
 #include <numeric>
-#include <random>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "../src/configuration/shock-tube.h"
@@ -173,12 +173,91 @@ TEST_CASE("Sycl", "[sycl]") {
     }
 }
 
-template <typename T, typename BinOp = std::plus<T>>
-T sycl_reduce(const std::vector<T>& data, const T initialValue, BinOp op = std::plus<T>{}) {
-    T result = initialValue;
+template <typename T> cl::sycl::buffer<T, 1> uploadBuffer(const std::vector<T>& data) {
+    return cl::sycl::buffer<T, 1>(data.data(), cl::sycl::range<1>(data.size()));
+}
 
-    if (!data.empty()) {
-        auto queue = cl::sycl::queue([=](const cl::sycl::exception_list exceptions) {
+template <typename T, typename BinOp = std::plus<T>>
+void syclReduce(cl::sycl::queue& queue, cl::sycl::buffer<T, 1>& data, BinOp op = std::plus<T>{}) {
+    auto device = queue.get_device();
+
+    const auto actualSize = data.get_count();
+    const auto ceiledSize = std::bit_ceil(actualSize);
+    const size_t workgroupSize = std::min(ceiledSize, device.get_info<cl::sycl::info::device::max_work_group_size>());
+    size_t remainingSize = ceiledSize;
+
+    data.set_final_data(nullptr);
+
+    {
+        do {
+            const auto reductionKernel = [actualSize, remainingSize, workgroupSize, &data,
+                                          op](cl::sycl::handler& cgh) mutable {
+                const auto range =
+                    cl::sycl::nd_range<1>{ cl::sycl::range<1>{ std::max(remainingSize, workgroupSize) },
+                                           cl::sycl::range<1>{ std::min(remainingSize, workgroupSize) } };
+
+                auto dataAccessor = data.template get_access<cl::sycl::access::mode::read_write>(cgh);
+                auto scratchBuffer =
+                    cl::sycl::accessor<T, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>(
+                        cl::sycl::range<1>(workgroupSize), cgh);
+
+                cgh.parallel_for(range, [dataAccessor, scratchBuffer, actualSize, workgroupSize, remainingSize,
+                                         op](cl::sycl::nd_item<1> id) {
+                    const auto gid = id.get_global_id(0);
+                    const auto lid = id.get_local_id(0);
+
+                    if (gid < actualSize) {
+                        scratchBuffer[lid] = dataAccessor[gid];
+                    } else {
+                        scratchBuffer[lid] = T();
+                    }
+                    id.barrier(cl::sycl::access::fence_space::local_space);
+
+                    if (gid < remainingSize) {
+                        const auto minSize = std::min(remainingSize, workgroupSize);
+                        for (size_t offset = minSize / 2; offset > 0; offset /= 2) {
+                            if (lid < offset) {
+                                scratchBuffer[lid] = op(scratchBuffer[lid], scratchBuffer[lid + offset]);
+                            }
+                            id.barrier(cl::sycl::access::fence_space::local_space);
+                        }
+
+                        if (lid == 0) {
+                            dataAccessor[id.get_group(0)] = scratchBuffer[lid];
+                        }
+                    }
+                });
+            };
+            queue.submit(reductionKernel);
+
+            remainingSize = remainingSize / workgroupSize;
+        } while (remainingSize > 1);
+    }
+}
+
+template <typename T> T getReductionResult(cl::sycl::buffer<T, 1>& data) {
+    const auto dataAccessor = data.template get_access<cl::sycl::access::mode::read>();
+    return dataAccessor[0];
+}
+
+class ScopedTimer {
+  public:
+    ScopedTimer(const std::string_view name) : m_name(name), m_start(std::chrono::high_resolution_clock::now()) {}
+    ~ScopedTimer() {
+        const auto end = std::chrono::high_resolution_clock::now();
+        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - m_start).count() / 1000.0;
+        std::cout << m_name << " took " << elapsed << "ms" << std::endl;
+    }
+
+  private:
+    const std::string m_name;
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_start;
+};
+
+TEST_CASE("Sycl reduction", "[sycl]") {
+    constexpr auto timedCreateQueue = []() {
+        const auto _ = ScopedTimer("Creating SYCL queue");
+        return cl::sycl::queue([](const cl::sycl::exception_list exceptions) {
             try {
                 for (const auto& e : exceptions) {
                     std::rethrow_exception(e);
@@ -187,101 +266,44 @@ T sycl_reduce(const std::vector<T>& data, const T initialValue, BinOp op = std::
                 std::cout << "Exception during reduction: " << e.what() << std::endl;
             }
         });
+    };
 
-        auto device = queue.get_device();
+    auto queue = timedCreateQueue();
 
-        const auto actualSize = data.size();
-        const auto ceiledSize = std::bit_ceil(actualSize);
-        const size_t workgroupSize =
-            std::min(ceiledSize, device.get_info<cl::sycl::info::device::max_work_group_size>());
-        size_t remainingSize = ceiledSize;
-
-        auto dataBuffer = cl::sycl::buffer<int, 1>(data.data(), cl::sycl::range<1>(actualSize));
-        dataBuffer.set_final_data(nullptr);
-
-        {
-            do {
-                const auto reductionKernel = [actualSize, remainingSize, workgroupSize, &dataBuffer,
-                                              op](cl::sycl::handler& cgh) mutable {
-                    const auto range =
-                        cl::sycl::nd_range<1>{ cl::sycl::range<1>{ std::max(remainingSize, workgroupSize) },
-                                               cl::sycl::range<1>{ std::min(remainingSize, workgroupSize) } };
-
-                    auto dataAccessor = dataBuffer.template get_access<cl::sycl::access::mode::read_write>(cgh);
-                    auto scratchBuffer =
-                        cl::sycl::accessor<T, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>(
-                            cl::sycl::range<1>(workgroupSize), cgh);
-
-                    cgh.parallel_for(range, [dataAccessor, scratchBuffer, actualSize, workgroupSize, remainingSize,
-                                             op](cl::sycl::nd_item<1> id) {
-                        const auto gid = id.get_global_id(0);
-                        const auto lid = id.get_local_id(0);
-
-                        if (gid < actualSize) {
-                            scratchBuffer[lid] = dataAccessor[gid];
-                        }
-                        id.barrier(cl::sycl::access::fence_space::local_space);
-
-                        if (gid < remainingSize) {
-                            const auto minSize = std::min(remainingSize, workgroupSize);
-                            for (size_t offset = minSize / 2; offset > 0; offset /= 2) {
-                                if (lid < offset) {
-                                    scratchBuffer[lid] = op(scratchBuffer[lid], scratchBuffer[lid + offset]);
-                                }
-                                id.barrier(cl::sycl::access::fence_space::local_space);
-                            }
-
-                            if (lid == 0) {
-                                dataAccessor[id.get_group(0)] = scratchBuffer[lid];
-                            }
-                        }
-                    });
-                };
-                queue.submit(reductionKernel);
-
-                remainingSize = remainingSize / workgroupSize;
-            } while (remainingSize > 1);
-        }
-
-        {
-            const auto dataAccessor = dataBuffer.template get_access<cl::sycl::access::mode::read>();
-            result = dataAccessor[0];
-        }
-    }
-
-    return result;
-}
-
-TEST_CASE("Sycl reduction", "[sycl]") {
-    const auto NUM_ELEMENTS = GENERATE(0, 1, 2, 128, 512, 1009, 1024, 3779, 1024 * 1024 * 512);
-
-    auto randomDevice = std::random_device();
-    auto randGen = std::ranlux48(randomDevice());
-    auto randDist = std::uniform_int_distribution<int>(0, 10);
-
+    const auto NUM_ELEMENTS = GENERATE(1, 2, 3, 4, 128, 2048, 4096, 7757, 512 * 1024 * 1024);
     auto data = std::vector<int>(NUM_ELEMENTS);
-    std::generate(data.begin(), data.end(), [&randDist, &randGen] { return randDist(randGen); });
+
+    {
+        const auto _ = ScopedTimer("Generating " + std::to_string(NUM_ELEMENTS) + " random elements");
+        std::iota(data.begin(), data.end(), 0);
+    }
 
     auto syclResult = 0;
     auto stlResult = 0;
 
     {
-        const auto timeStart = std::chrono::high_resolution_clock::now();
-        syclResult = sycl_reduce(data, 0);
-        const auto timeEnd = std::chrono::high_resolution_clock::now();
-        const auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(timeEnd - timeStart).count();
-        std::cout << "Sycl reduction of " << NUM_ELEMENTS << " elements took: " << elapsedTime / 1000.0 << "ms"
-                  << std::endl;
-    }
+        constexpr auto timedBufferUpload = [](const auto& data) {
+            const auto _ = ScopedTimer("Uploading buffer to GPU");
+            return uploadBuffer(data);
+        };
 
+        auto buffer = timedBufferUpload(data);
+
+        {
+            const auto _ = ScopedTimer("Sycl reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
+            syclReduce(queue, buffer);
+        }
+
+        {
+            const auto _ = ScopedTimer("Downloading buffer from GPU");
+            syclResult = getReductionResult(buffer);
+        }
+    }
     {
-        const auto timeStart = std::chrono::high_resolution_clock::now();
+        const auto _ = ScopedTimer("STL reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
         stlResult = std::accumulate(data.begin(), data.end(), 0);
-        const auto timeEnd = std::chrono::high_resolution_clock::now();
-        const auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(timeEnd - timeStart).count();
-        std::cout << "STL reduction of " << NUM_ELEMENTS << " elements took: " << elapsedTime / 1000.0 << "ms"
-                  << std::endl;
     }
 
     CHECK(syclResult == stlResult);
+    std::cout << std::endl;
 }
