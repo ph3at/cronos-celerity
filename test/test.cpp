@@ -271,7 +271,7 @@ TEST_CASE("Sycl reduction", "[sycl]") {
 
     auto queue = timedCreateQueue();
 
-    const auto NUM_ELEMENTS = GENERATE(1, 2, 3, 4, 128, 2048, 4096, 7757, 512 * 1024 * 1024);
+    const auto NUM_ELEMENTS = GENERATE(1, 2, 3, 4, 128, 2048, 4096, 7757 /*, 512 * 1024 * 1024*/);
     auto data = std::vector<int>(NUM_ELEMENTS);
 
     {

@@ -4,6 +4,8 @@
 #include <tuple>
 #include <vector>
 
+#include <CL/sycl.hpp>
+
 #include "../boundary/boundary.h"
 #include "../data-types/direction.h"
 #include "../data-types/faces.h"
@@ -25,9 +27,22 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void adjust();
     void finaliseResult(){};
 
-    PaddedGrid<Fields, padding> grid() const { return toGrid(m_grid); }
+    PaddedGrid<Fields, padding> grid() const {
+        auto paddedGrid =
+            PaddedGrid<Fields, padding>({}, m_sizeX - 2 * padding, m_sizeY - 2 * padding, m_sizeZ - 2 * padding);
+        for (std::size_t x = 0; x < m_sizeX; ++x) {
+            for (std::size_t y = 0; y < m_sizeY; ++y) {
+                for (std::size_t z = 0; z < m_sizeZ; ++z) {
+                    paddedGrid(x, y, z) = m_grid[idx3d(x, y, z)];
+                }
+            }
+        }
+        return paddedGrid;
+    }
 
   private:
+    cl::sycl::queue m_queue;
+
     const std::size_t m_sizeX;
     const std::size_t m_sizeY;
     const std::size_t m_sizeZ;
@@ -50,7 +65,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void saveGrid();
     void prepareSubstep();
     void computeSubstep();
-    std::pair<Changes<Fields>, double> computeChanges(const unsigned x, const unsigned y, const unsigned z) const;
+    std::pair<Changes<Fields>, double> computeChanges(const cl::sycl::id<3>& id) const;
     double calcCFL(std::pair<double, double> characVelocities, const unsigned direction) const;
     double reduceCFL(const double initialCFL, const std::vector<double>& cflBuffer) const;
     void finaliseSubstep(const unsigned substep);
@@ -61,25 +76,17 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
         return grid::utils::idx3d(x, y, z, m_dims);
     }
 
-    PaddedGrid<Fields, padding> toGrid(const std::vector<Fields>& vecGrid) const {
-        auto paddedGrid =
-            PaddedGrid<Fields, padding>({}, m_sizeX - 2 * padding, m_sizeY - 2 * padding, m_sizeZ - 2 * padding);
-        for (std::size_t x = 0; x < m_sizeX; ++x) {
-            for (std::size_t y = 0; y < m_sizeY; ++y) {
-                for (std::size_t z = 0; z < m_sizeZ; ++z) {
-                    paddedGrid(x, y, z) = vecGrid[idx3d(x, y, z)];
-                }
-            }
-        }
-        return paddedGrid;
+    cl::sycl::buffer<Fields, 3> toSyclGrid(const std::vector<Fields>& vecGrid) const {
+        return cl::sycl::buffer<Fields, 3>(vecGrid.data(), cl::sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ));
     }
 
-    std::vector<Fields> fromGrid(const PaddedGrid<Fields, padding>& paddedGrid) const {
+    std::vector<Fields> fromSyclGrid(const cl::sycl::buffer<Fields, 3>& syclGrid) const {
         auto vecGrid = std::vector<Fields>(m_sizeX * m_sizeY * m_sizeZ);
+        const auto gridAccessor = syclGrid.template get_access<cl::sycl::access::mode::read>();
         for (std::size_t x = 0; x < m_sizeX; ++x) {
             for (std::size_t y = 0; y < m_sizeY; ++y) {
                 for (std::size_t z = 0; z < m_sizeZ; ++z) {
-                    vecGrid[idx3d(x, y, z)] = paddedGrid(x, y, z);
+                    vecGrid[idx3d(x, y, z)] = gridAccessor[cl::sycl::id<3>(x, y, z)];
                 }
             }
         }
@@ -90,7 +97,16 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(const ProblemType& problem,
                                                                          const unsigned rungeKuttaSteps)
-    : m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
+    : m_queue([](const cl::sycl::exception_list exceptions) {
+          try {
+              for (const auto& e : exceptions) {
+                  std::rethrow_exception(e);
+              }
+          } catch (const cl::sycl::exception& e) {
+              std::cout << "Exception during reduction: " << e.what() << std::endl;
+          }
+      }),
+      m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
       m_sizeY(problem.numberCells[Direction::DirY] + 2 * padding),
       m_sizeZ(problem.numberCells[Direction::DirZ] + 2 * padding),
       m_dims(grid::utils::dimensions{ m_sizeX, m_sizeY, m_sizeZ }), m_grid(m_sizeX * m_sizeY * m_sizeZ),
@@ -154,7 +170,8 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
         for (unsigned y = padding; y < m_sizeY - padding + 1; ++y) {
             for (unsigned z = padding; z < m_sizeZ - padding + 1; ++z) {
                 const auto idx = idx3d(x, y, z);
-                std::tie(changeBuffer[idx], m_cflBuffer[idx]) = computeChanges(x, y, z);
+                const auto item = cl::sycl::id<3>(x, y, z);
+                std::tie(changeBuffer[idx], m_cflBuffer[idx]) = computeChanges(item);
             }
         }
     }
@@ -162,9 +179,8 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
 
 template <class ProblemType, class Fields, unsigned padding>
 std::pair<Changes<Fields>, double>
-RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(const unsigned x, const unsigned y,
-                                                                   const unsigned z) const {
-    PerFaceValues reconstruction = ReconstructionSycl::reconstruct(m_grid, m_dims, x, y, z);
+RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(const cl::sycl::id<3>& id) const {
+    PerFaceValues reconstruction = ReconstructionSycl::reconstruct(m_grid, m_dims, id[0], id[1], id[2]);
 
     std::array<PhysValues, Faces::FaceMax> physicalValues;
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
