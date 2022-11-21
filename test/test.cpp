@@ -178,7 +178,8 @@ template <typename T> cl::sycl::buffer<T, 1> uploadBuffer(const std::vector<T>& 
 }
 
 template <typename T, typename BinOp = std::plus<T>>
-void syclReduce(cl::sycl::queue& queue, cl::sycl::buffer<T, 1>& data, BinOp op = std::plus<T>{}) {
+void syclReduce(cl::sycl::queue& queue, cl::sycl::buffer<T, 1>& data, BinOp op = std::plus<T>{},
+                const T neutralElement = T()) {
     auto device = queue.get_device();
 
     const auto actualSize = data.get_count();
@@ -190,8 +191,8 @@ void syclReduce(cl::sycl::queue& queue, cl::sycl::buffer<T, 1>& data, BinOp op =
 
     {
         do {
-            const auto reductionKernel = [actualSize, remainingSize, workgroupSize, &data,
-                                          op](cl::sycl::handler& cgh) mutable {
+            const auto reductionKernel = [actualSize, remainingSize, workgroupSize, &data, op,
+                                          neutralElement](cl::sycl::handler& cgh) mutable {
                 const auto range =
                     cl::sycl::nd_range<1>{ cl::sycl::range<1>{ std::max(remainingSize, workgroupSize) },
                                            cl::sycl::range<1>{ std::min(remainingSize, workgroupSize) } };
@@ -201,15 +202,15 @@ void syclReduce(cl::sycl::queue& queue, cl::sycl::buffer<T, 1>& data, BinOp op =
                     cl::sycl::accessor<T, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>(
                         cl::sycl::range<1>(workgroupSize), cgh);
 
-                cgh.parallel_for(range, [dataAccessor, scratchBuffer, actualSize, workgroupSize, remainingSize,
-                                         op](cl::sycl::nd_item<1> id) {
+                cgh.parallel_for(range, [dataAccessor, scratchBuffer, actualSize, workgroupSize, remainingSize, op,
+                                         neutralElement](cl::sycl::nd_item<1> id) {
                     const auto gid = id.get_global_id(0);
                     const auto lid = id.get_local_id(0);
 
                     if (gid < actualSize) {
                         scratchBuffer[lid] = dataAccessor[gid];
                     } else {
-                        scratchBuffer[lid] = T();
+                        scratchBuffer[lid] = neutralElement;
                     }
                     id.barrier(cl::sycl::access::fence_space::local_space);
 
@@ -275,11 +276,13 @@ TEST_CASE("Sycl reduction", "[sycl]") {
 
     {
         const auto _ = ScopedTimer("Generating " + std::to_string(NUM_ELEMENTS) + " random elements");
-        std::iota(data.begin(), data.end(), 0);
+        std::iota(data.begin(), data.end(), -static_cast<int>(data.size()));
     }
 
     auto syclResult = 0;
     auto stlResult = 0;
+
+    constexpr auto reductionOp = [](const int a, const int b) { return std::max(a, b); };
 
     {
         constexpr auto timedBufferUpload = [](const auto& data) {
@@ -291,7 +294,7 @@ TEST_CASE("Sycl reduction", "[sycl]") {
 
         {
             const auto _ = ScopedTimer("Sycl reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
-            syclReduce(queue, buffer);
+            syclReduce(queue, buffer, reductionOp, std::numeric_limits<int>::lowest());
         }
 
         {
@@ -301,7 +304,7 @@ TEST_CASE("Sycl reduction", "[sycl]") {
     }
     {
         const auto _ = ScopedTimer("STL reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
-        stlResult = std::accumulate(data.begin(), data.end(), 0);
+        stlResult = std::accumulate(data.begin(), data.end(), std::numeric_limits<int>::lowest(), reductionOp);
     }
 
     CHECK(syclResult == stlResult);
