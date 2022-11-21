@@ -19,8 +19,6 @@ template <class Fields> using Changes = std::array<Fields, Direction::DirMax>;
 template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyclSolver {
   public:
     RungeKuttaSyclSolver(const ProblemType& problem, const unsigned rungeKuttaSteps = 2);
-    RungeKuttaSyclSolver(const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
-                         const unsigned rungeKuttaSteps = 2);
 
     void initialise();
     void step();
