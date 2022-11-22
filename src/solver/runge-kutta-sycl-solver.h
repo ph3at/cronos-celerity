@@ -80,7 +80,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
         return cl::sycl::buffer<Fields, 3>(vecGrid.data(), cl::sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ));
     }
 
-    std::vector<Fields> fromSyclGrid(const cl::sycl::buffer<Fields, 3>& syclGrid) const {
+    std::vector<Fields> fromSyclGrid(cl::sycl::buffer<Fields, 3>& syclGrid) const {
         auto vecGrid = std::vector<Fields>(m_sizeX * m_sizeY * m_sizeZ);
         const auto gridAccessor = syclGrid.template get_access<cl::sycl::access::mode::read>();
         for (std::size_t x = 0; x < m_sizeX; ++x) {
@@ -116,7 +116,10 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(const P
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
-    problem.initialiseGridSycl(m_grid, m_dims);
+    auto syclGrid = toSyclGrid(m_grid);
+    problem.initialiseGridSycl(m_queue, syclGrid);
+    m_queue.wait_and_throw();
+    m_grid = fromSyclGrid(syclGrid);
     BoundarySycl::applyAll(m_grid, m_dims, problem);
 }
 

@@ -4,6 +4,8 @@
 
 #include <vector>
 
+#include <CL/sycl.hpp>
+
 #include "../grid/utils.h"
 
 class ShockTube : public Problem<ShockTube, FieldStruct, GHOST_CELLS> {
@@ -20,7 +22,7 @@ class ShockTube : public Problem<ShockTube, FieldStruct, GHOST_CELLS> {
     ShockTube(const toml::table& config);
 
     void initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const;
-    void initialiseGridSycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims) const;
+    void initialiseGridSycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) const;
     void applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned field, const unsigned face) const;
     void applyBoundarySycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned field,
                            const unsigned face) const;
