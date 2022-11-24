@@ -1,11 +1,15 @@
 #pragma once
 
+#include <array>
 #include <vector>
+
+#include <CL/sycl.hpp>
 
 #include "../data-types/faces.h"
 #include "../data-types/phys-fields.h"
 #include "../grid/padded-grid.h"
 #include "../grid/utils.h"
+#include "boundary-types.h"
 
 namespace Outflow {
 template <unsigned padding>
@@ -127,117 +131,81 @@ void Outflow::apply(PaddedGrid<FieldStruct, padding>& grid, const unsigned field
 
 namespace OutflowSycl {
 
-template <unsigned padding>
-void applyX(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned field,
-            const bool isLeft) {
-    using grid::utils::idx3d;
+using Boundary::Axis;
+using Boundary::Dir;
 
-    const bool isParallelVelocity = field == FieldNames::VELOCITY_X;
-    int xInner, xOuter;
-    int direction;
-    if (isLeft) {
-        xInner = padding - 1;
-        xOuter = -1;
+template <Axis axis, Dir dir, unsigned padding>
+void apply(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field) {
+    constexpr auto idxMap = []() {
+        if constexpr (axis == Axis::X) {
+            return std::array{ 0, 1, 2 };
+        }
+        if constexpr (axis == Axis::Y) {
+            return std::array{ 1, 0, 2 };
+        }
+        if constexpr (axis == Axis::Z) {
+            return std::array{ 2, 0, 1 };
+        }
+    }();
+
+    auto inner = 0;
+    auto outer = 0;
+    auto direction = 0;
+
+    if constexpr (dir == Dir::LEFT) {
+        inner = padding - 1;
+        outer = -1;
         direction = -1;
     } else {
-        xInner = dims[0] - padding;
-        xOuter = dims[0];
+        inner = grid.get_range()[idxMap[0]] - padding;
+        outer = grid.get_range()[idxMap[0]];
         direction = 1;
     }
-    for (int x = xInner; x != xOuter; x += direction) {
-        for (unsigned y = 0; y < dims[1]; y++) {
-            for (unsigned z = 0; z < dims[2]; z++) {
-                if (grid[idx3d(xInner - direction, y, z, dims)][FieldNames::VELOCITY_X] * direction > 0.0) {
-                    grid[idx3d(x, y, z, dims)][field] = grid[idx3d(x - direction, y, z, dims)][field];
-                } else if (isParallelVelocity) {
-                    grid[idx3d(x, y, z, dims)][field] = -grid[idx3d(2 * xInner - x - direction, y, z, dims)][field];
+
+    constexpr auto velocityAxis = FieldNames::VELOCITY_X + idxMap[0];
+    const bool isParallelVelocity = field == velocityAxis;
+
+    queue.submit([&](cl::sycl::handler& cgh) {
+        auto gridAccessor = grid.template get_access<cl::sycl::access::mode::read_write>(cgh);
+
+        const auto range = cl::sycl::range<2>(grid.get_range()[idxMap[1]], grid.get_range()[idxMap[2]]);
+
+        cgh.parallel_for(range, [=](const cl::sycl::id<2> id) {
+            for (auto d = inner; d != outer; d += direction) {
+                auto dstIdx = cl::sycl::id<3>(0, 0, 0);
+                dstIdx[idxMap[0]] = d;
+                dstIdx[idxMap[1]] = id[0];
+                dstIdx[idxMap[2]] = id[1];
+
+                auto srcIdx = dstIdx;
+                srcIdx[idxMap[0]] -= direction;
+
+                if (gridAccessor[srcIdx][velocityAxis] * direction > 0.0) {
+                    gridAccessor[dstIdx][field] = gridAccessor[srcIdx][field];
                 } else {
-                    grid[idx3d(x, y, z, dims)][field] = grid[idx3d(2 * xInner - x - direction, y, z, dims)][field];
+                    srcIdx[idxMap[0]] = 2 * inner - dstIdx[idxMap[0]] - direction;
+                    const auto value = gridAccessor[srcIdx][field];
+                    gridAccessor[dstIdx][field] = isParallelVelocity ? -value : value;
                 }
             }
-        }
-    }
+        });
+    });
 }
 
 template <unsigned padding>
-void applyY(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned field,
-            const bool isLeft) {
-    using grid::utils::idx3d;
-
-    const bool isParallelVelocity = field == FieldNames::VELOCITY_Y;
-    int yInner, yOuter;
-    int direction;
-    if (isLeft) {
-        yInner = padding - 1;
-        yOuter = -1;
-        direction = -1;
-    } else {
-        yInner = dims[1] - padding;
-        yOuter = dims[1];
-        direction = 1;
-    }
-    for (unsigned x = 0; x < dims[0]; x++) {
-        for (int y = yInner; y != yOuter; y += direction) {
-            for (unsigned z = 0; z < dims[2]; z++) {
-                if (grid[idx3d(x, yInner - direction, z, dims)][FieldNames::VELOCITY_Y] * direction > 0.0) {
-                    grid[idx3d(x, y, z, dims)][field] = grid[idx3d(x, y - direction, z, dims)][field];
-                } else if (isParallelVelocity) {
-                    grid[idx3d(x, y, z, dims)][field] = -grid[idx3d(x, 2 * yInner - y - direction, z, dims)][field];
-                } else {
-                    grid[idx3d(x, y, z, dims)][field] = grid[idx3d(x, 2 * yInner - y - direction, z, dims)][field];
-                }
-            }
-        }
-    }
-}
-
-template <unsigned padding>
-void applyZ(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned field,
-            const bool isLeft) {
-    using grid::utils::idx3d;
-
-    const bool isParallelVelocity = field == FieldNames::VELOCITY_Z;
-    int zInner, zOuter;
-    int direction;
-    if (isLeft) {
-        zInner = padding - 1;
-        zOuter = -1;
-        direction = -1;
-    } else {
-        zInner = dims[2] - padding;
-        zOuter = dims[2];
-        direction = 1;
-    }
-    for (unsigned x = 0; x < dims[0]; x++) {
-        for (unsigned y = 0; y < dims[1]; y++) {
-            for (int z = zInner; z != zOuter; z += direction) {
-                if (grid[idx3d(x, y, zInner - direction, dims)][FieldNames::VELOCITY_Z] * direction > 0.0) {
-                    grid[idx3d(x, y, z, dims)][field] = grid[idx3d(x, y, z - direction, dims)][field];
-                } else if (isParallelVelocity) {
-                    grid[idx3d(x, y, z, dims)][field] = -grid[idx3d(x, y, 2 * zInner - z - direction, dims)][field];
-                } else {
-                    grid[idx3d(x, y, z, dims)][field] = grid[idx3d(x, y, 2 * zInner - z - direction, dims)][field];
-                }
-            }
-        }
-    }
-}
-
-template <unsigned padding>
-void apply(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned field,
-           const unsigned face) {
+void apply(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field, const unsigned face) {
     if (face == Faces::FaceWest) {
-        applyX<padding>(grid, dims, field, true);
+        apply<Axis::X, Dir::LEFT, padding>(queue, grid, field);
     } else if (face == Faces::FaceEast) {
-        applyX<padding>(grid, dims, field, false);
+        apply<Axis::X, Dir::RIGHT, padding>(queue, grid, field);
     } else if (face == Faces::FaceSouth) {
-        applyY<padding>(grid, dims, field, true);
+        apply<Axis::Y, Dir::LEFT, padding>(queue, grid, field);
     } else if (face == Faces::FaceNorth) {
-        applyY<padding>(grid, dims, field, false);
+        apply<Axis::Y, Dir::RIGHT, padding>(queue, grid, field);
     } else if (face == Faces::FaceBottom) {
-        applyZ<padding>(grid, dims, field, true);
+        apply<Axis::Z, Dir::LEFT, padding>(queue, grid, field);
     } else {
-        applyZ<padding>(grid, dims, field, false);
+        apply<Axis::Z, Dir::RIGHT, padding>(queue, grid, field);
     }
 }
 

@@ -24,7 +24,7 @@ class ShockTube : public Problem<ShockTube, FieldStruct, GHOST_CELLS> {
     void initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const;
     void initialiseGridSycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) const;
     void applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned field, const unsigned face) const;
-    void applyBoundarySycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned field,
+    void applyBoundarySycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
                            const unsigned face) const;
     void applySource(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const;
     void applySourceSycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims) const;

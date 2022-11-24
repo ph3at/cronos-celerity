@@ -3,6 +3,8 @@
 #include <iostream>
 #include <vector>
 
+#include <CL/sycl.hpp>
+
 #include "../configuration/constants.h"
 #include "../configuration/problem.h"
 #include "../configuration/shock-tube.h"
@@ -54,7 +56,7 @@ void Boundary::applyField(PaddedGrid<FieldStruct, padding>& grid, const Problem<
 namespace BoundarySycl {
 
 template <class T, unsigned padding>
-void applyField(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims,
+void applyField(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid,
                 const Problem<T, FieldStruct, padding>& problem, const unsigned field) {
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
         /* GPUs only support compile time polymorphism, so we are using this Frankenstein here.
@@ -63,11 +65,11 @@ void applyField(std::vector<FieldStruct>& grid, const grid::utils::dimensions& d
             /* Used for applying boundaries at a different point (e.g. AMR) or for keeping the
              * boundary at its initial values. */
         } else if (problem.boundaryTypes[face] == EXTRAPOLATE) {
-            ExtrapolateSycl::apply<padding>(grid, dims, field, face);
+            ExtrapolateSycl::apply<padding>(queue, grid, field, face);
         } else if (problem.boundaryTypes[face] == OUTFLOW) {
-            OutflowSycl::apply<padding>(grid, dims, field, face);
+            OutflowSycl::apply<padding>(queue, grid, field, face);
         } else if (problem.boundaryTypes[face] == USER) {
-            problem.applyBoundarySycl(grid, dims, field, face);
+            problem.applyBoundarySycl(queue, grid, field, face);
         } else {
             std::cerr << "Unknown boundary condition type encountered : " << problem.boundaryTypes[face] << std::endl;
         }
@@ -75,10 +77,10 @@ void applyField(std::vector<FieldStruct>& grid, const grid::utils::dimensions& d
 }
 
 template <class T, unsigned padding>
-void applyAll(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims,
+void applyAll(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid,
               const Problem<T, FieldStruct, padding>& problem) {
     for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-        applyField<T, padding>(grid, dims, problem, field);
+        applyField<T, padding>(queue, grid, problem, field);
     }
 }
 

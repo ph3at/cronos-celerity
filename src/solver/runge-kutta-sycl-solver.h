@@ -119,8 +119,9 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
     auto syclGrid = toSyclGrid(m_grid);
     problem.initialiseGridSycl(m_queue, syclGrid);
     m_queue.wait_and_throw();
+    BoundarySycl::applyAll(m_queue, syclGrid, problem);
+    m_queue.wait_and_throw();
     m_grid = fromSyclGrid(syclGrid);
-    BoundarySycl::applyAll(m_grid, m_dims, problem);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -242,7 +243,10 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const u
     integrateTime(substep);
     TransformationSycl::conservativeToPrimitive(m_grid, m_dims, problem.thermal, problem.gamma);
 
-    BoundarySycl::applyAll(m_grid, m_dims, problem);
+    auto syclGrid = toSyclGrid(m_grid);
+    BoundarySycl::applyAll(m_queue, syclGrid, problem);
+    m_queue.wait_and_throw();
+    m_grid = fromSyclGrid(syclGrid);
 
     // Stop clock(s)
     // runtime estimation -- time measurement omitted for now

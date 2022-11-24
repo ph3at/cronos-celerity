@@ -163,10 +163,8 @@ void ShockTube::applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const 
     }
 }
 
-void ShockTube::applyBoundarySycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims,
-                                  const unsigned field, const unsigned face) const {
-    using grid::utils::idx3d;
-
+void ShockTube::applyBoundarySycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
+                                  const unsigned face) const {
     if (face == Faces::FaceEast) {
         double initValue;
         if (field == FieldNames::DENSITY) {
@@ -183,13 +181,19 @@ void ShockTube::applyBoundarySycl(std::vector<FieldStruct>& grid, const grid::ut
             initValue = 0.0;
         }
 
-        for (unsigned x = dims[0] - GHOST_CELLS; x < dims[0]; x++) {
-            for (unsigned y = GHOST_CELLS; y < dims[1] - GHOST_CELLS; y++) {
-                for (unsigned z = GHOST_CELLS; z < dims[2] - GHOST_CELLS; z++) {
-                    grid[idx3d(x, y, z, dims)][field] = initValue;
-                }
-            }
-        }
+        queue.submit([&](cl::sycl::handler& cgh) {
+            auto gridAccessor = grid.template get_access<cl::sycl::access::mode::discard_write>(cgh);
+
+            const auto offset = cl::sycl::id<3>(grid.get_range()[0] - GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
+            const auto range =
+                cl::sycl::range<3>(grid.get_range()[0] - offset[0], grid.get_range()[1] - offset[1] - GHOST_CELLS,
+                                   grid.get_range()[2] - offset[2] - GHOST_CELLS);
+
+            cgh.parallel_for(range, [=](const cl::sycl::id<3> id) {
+                const auto idx = id + offset;
+                gridAccessor[idx][field] = initValue;
+            });
+        });
     }
 }
 

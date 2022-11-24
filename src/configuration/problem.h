@@ -1,7 +1,10 @@
 #pragma once
 
 #include <array>
+
 #include <toml++/toml.h>
+
+#include <CL/sycl.hpp>
 
 #include "../boundary/boundary-types.h"
 #include "../data-types/direction.h"
@@ -41,7 +44,7 @@ template <class Specific, class Fields, unsigned padding> class Problem {
     void initialiseGrid(PaddedGrid<Fields, padding>& grid) const;
     void initialiseGridSycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims) const;
     void applyBoundary(PaddedGrid<Fields, padding>& grid, const unsigned field, const unsigned face) const;
-    void applyBoundarySycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned field,
+    void applyBoundarySycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
                            const unsigned face) const;
     void applySource(PaddedGrid<Fields, padding>& grid) const;
     void applySourceSycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims) const;
@@ -127,10 +130,10 @@ void Problem<Specific, Fields, padding>::applyBoundary(PaddedGrid<Fields, paddin
     static_cast<const Specific*>(this)->applyBoundary(grid, field, face);
 }
 template <class Specific, class Fields, unsigned padding>
-void Problem<Specific, Fields, padding>::applyBoundarySycl(std::vector<FieldStruct>& grid,
-                                                           const grid::utils::dimensions& dims, const unsigned field,
+void Problem<Specific, Fields, padding>::applyBoundarySycl(cl::sycl::queue& queue,
+                                                           cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
                                                            const unsigned face) const {
-    static_cast<const Specific*>(this)->applyBoundarySycl(grid, dims, field, face);
+    static_cast<const Specific*>(this)->applyBoundarySycl(queue, grid, field, face);
 }
 
 template <class Specific, class Fields, unsigned padding>
