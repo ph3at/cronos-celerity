@@ -62,7 +62,6 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     double timeCurrent;
     const double timeEnd;
 
-    void saveGrid();
     void prepareSubstep();
     void computeSubstep();
     std::pair<Changes<Fields>, double> computeChanges(const cl::sycl::id<3>& id) const;
@@ -134,19 +133,6 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::step() {
         finaliseSubstep(substep);
     }
     timeCurrent += timeDelta;
-}
-
-template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSyclSolver<ProblemType, Fields, padding>::saveGrid() {
-    for (unsigned x = padding; x < m_sizeX - padding; ++x) {
-        for (unsigned y = padding; y < m_sizeY - padding; ++y) {
-            for (unsigned z = padding; z < m_sizeZ - padding; ++z) {
-                for (unsigned field = 0; field < Fields().size(); ++field) {
-                    gridSubstepBuffer[idx3d(x, y, z)][field] = m_grid[idx3d(x, y, z)][field];
-                }
-            }
-        }
-    }
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -263,7 +249,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const u
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(const unsigned substep) {
     if (substep == 0 && rungeKuttaSteps > 1) {
-        saveGrid();
+        gridSubstepBuffer = m_grid;
     }
     for (unsigned x = padding; x < m_sizeX - padding; x++) {
         for (unsigned y = padding; y < m_sizeY - padding; y++) {
