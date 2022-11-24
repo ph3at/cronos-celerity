@@ -241,11 +241,15 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const u
     m_grid = fromSyclGrid(syclGrid);
     checkErrors();
 
-    TransformationSycl::primitiveToConservative(m_grid, m_dims, problem.thermal, problem.gamma);
-    integrateTime(substep);
-    TransformationSycl::conservativeToPrimitive(m_grid, m_dims, problem.thermal, problem.gamma);
-
     syclGrid = toSyclGrid(m_grid);
+    TransformationSycl::primitiveToConservative(m_queue, syclGrid, problem.thermal, problem.gamma);
+    m_queue.wait_and_throw();
+    m_grid = fromSyclGrid(syclGrid);
+    integrateTime(substep);
+    syclGrid = toSyclGrid(m_grid);
+    TransformationSycl::conservativeToPrimitive(m_queue, syclGrid, problem.thermal, problem.gamma);
+    m_queue.wait_and_throw();
+
     BoundarySycl::applyAll(m_queue, syclGrid, problem);
     m_queue.wait_and_throw();
     m_grid = fromSyclGrid(syclGrid);
