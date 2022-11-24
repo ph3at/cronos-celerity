@@ -201,7 +201,7 @@ void ShockTube::applySource([[maybe_unused]] PaddedGrid<FieldStruct, GHOST_CELLS
     // No source in shock tube
 }
 
-void ShockTube::applySourceSycl([[maybe_unused]] std::vector<FieldStruct>& grid,
-                                [[maybe_unused]] const grid::utils::dimensions& dims) const {
+void ShockTube::applySourceSycl([[maybe_unused]] cl::sycl::queue& queue,
+                                [[maybe_unused]] cl::sycl::buffer<FieldStruct, 3>& grid) const {
     // No source in shock tube
 }

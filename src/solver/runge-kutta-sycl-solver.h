@@ -236,14 +236,16 @@ template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
     checkErrors();
 
-    problem.applySourceSycl(m_grid, m_dims);
+    auto syclGrid = toSyclGrid(m_grid);
+    problem.applySourceSycl(m_queue, syclGrid);
+    m_grid = fromSyclGrid(syclGrid);
     checkErrors();
 
     TransformationSycl::primitiveToConservative(m_grid, m_dims, problem.thermal, problem.gamma);
     integrateTime(substep);
     TransformationSycl::conservativeToPrimitive(m_grid, m_dims, problem.thermal, problem.gamma);
 
-    auto syclGrid = toSyclGrid(m_grid);
+    syclGrid = toSyclGrid(m_grid);
     BoundarySycl::applyAll(m_queue, syclGrid, problem);
     m_queue.wait_and_throw();
     m_grid = fromSyclGrid(syclGrid);
