@@ -283,16 +283,16 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(cl::sycl:
                 const auto nextYIdx = cl::sycl::id<3>(idx[0], idx[1] + 1, idx[2]);
                 const auto nextZIdx = cl::sycl::id<3>(idx[0], idx[1], idx[2] + 1);
 
-                const double changeX =
-                    (changeAccessor[nextXIdx][Direction::DirX][field] - changeAccessor[idx][Direction::DirX][field]) *
-                    inverseCellSize[Direction::DirX];
-                const double changeY =
-                    (changeAccessor[nextYIdx][Direction::DirY][field] - changeAccessor[idx][Direction::DirY][field]) *
-                    inverseCellSize[Direction::DirY];
-                const double changeZ =
-                    (changeAccessor[nextZIdx][Direction::DirZ][field] - changeAccessor[idx][Direction::DirZ][field]) *
-                    inverseCellSize[Direction::DirZ];
-                const double change = changeX + changeY + changeZ;
+                const auto calcDirChanges = [&](const auto& nextIdx, const auto& dir) {
+                    return (changeAccessor[nextIdx][dir][field] - changeAccessor[idx][dir][field]) *
+                           inverseCellSize[dir];
+                };
+
+                const auto changeX = calcDirChanges(nextXIdx, Direction::DirX);
+                const auto changeY = calcDirChanges(nextYIdx, Direction::DirY);
+                const auto changeZ = calcDirChanges(nextZIdx, Direction::DirZ);
+                const auto change = changeX + changeY + changeZ;
+
                 if (substep == 0) {
                     gridAccessor[idx][field] -= timeDelta * change;
                 } else {
