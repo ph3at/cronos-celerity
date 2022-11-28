@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <tuple>
 #include <vector>
 
@@ -15,6 +16,7 @@
 #include "../grid/utils.h"
 #include "../riemann/reconstruction.h"
 #include "../riemann/riemann-solver.h"
+#include "../sycl/reduction.h"
 #include "../transformation/transformations.h"
 
 template <class Fields> using Changes = std::array<Fields, Direction::DirMax>;
@@ -67,7 +69,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void computeSubstep();
     std::pair<Changes<Fields>, double> computeChanges(const cl::sycl::id<3>& id) const;
     double calcCFL(std::pair<double, double> characVelocities, const unsigned direction) const;
-    double reduceCFL(const double initialCFL, const std::vector<double>& cflBuffer) const;
+    double reduceCFL(const double initialCFL, const std::vector<double>& cflBuffer);
     void finaliseSubstep(const unsigned substep);
     void integrateTime(cl::sycl::queue& queue, cl::sycl::buffer<Fields, 3>& grid,
                        cl::sycl::buffer<Fields, 3>& gridSubstep, cl::sycl::buffer<Changes<Fields>, 3>& changes,
@@ -209,17 +211,12 @@ double RungeKuttaSyclSolver<ProblemType, Fields, padding>::calcCFL(const std::pa
 
 template <class ProblemType, class Fields, unsigned padding>
 double RungeKuttaSyclSolver<ProblemType, Fields, padding>::reduceCFL(const double initialCFL,
-                                                                     const std::vector<double>& cflBuffer) const {
-    auto cfl = initialCFL;
-    for (unsigned x = padding; x < m_sizeX - padding + 1; ++x) {
-        for (unsigned y = padding; y < m_sizeY - padding + 1; ++y) {
-            for (unsigned z = padding; z < m_sizeZ - padding + 1; ++z) {
-                const auto idx = idx3d(x, y, z);
-                cfl = std::max(cfl, cflBuffer[idx]);
-            }
-        }
-    }
-    return cfl;
+                                                                     const std::vector<double>& cflBuffer) {
+    auto cflSyclBuffer = cl::sycl::buffer<double, 1>(cflBuffer.data(), cl::sycl::range<1>(m_sizeX * m_sizeY * m_sizeZ));
+    const auto reducedCFL = utils::sycl::reduce(
+        m_queue, cflSyclBuffer, [](const auto& a, const auto& b) { return std::max(a, b); },
+        std::numeric_limits<double>::lowest());
+    return std::max(initialCFL, reducedCFL);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
