@@ -72,7 +72,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void integrateTime(cl::sycl::queue& queue, cl::sycl::buffer<Fields, 3>& grid,
                        cl::sycl::buffer<Fields, 3>& gridSubstep, cl::sycl::buffer<Changes<Fields>, 3>& changes,
                        const unsigned substep) const;
-    void checkErrors();
+    void checkErrors(cl::sycl::queue& queue, cl::sycl::buffer<Fields, 3>& grid) const;
 
     std::size_t idx3d(const std::size_t x, const std::size_t y, const std::size_t z) const noexcept {
         return grid::utils::idx3d(x, y, z, m_dims);
@@ -224,12 +224,14 @@ double RungeKuttaSyclSolver<ProblemType, Fields, padding>::reduceCFL(const doubl
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
-    checkErrors();
-
     auto syclGrid = toSyclGrid(m_grid);
+
+    checkErrors(m_queue, syclGrid);
+
     problem.applySourceSycl(m_queue, syclGrid);
-    m_grid = fromSyclGrid(syclGrid);
-    checkErrors();
+    m_queue.wait_and_throw();
+
+    checkErrors(m_queue, syclGrid);
 
     TransformationSycl::primitiveToConservative(m_queue, syclGrid, problem.thermal, problem.gamma);
     m_queue.wait_and_throw();
@@ -311,8 +313,9 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::adjust() {
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSyclSolver<ProblemType, Fields, padding>::checkErrors() {
-    if (GridFunctionsSycl::checkNaN(m_grid, m_dims)) {
+void RungeKuttaSyclSolver<ProblemType, Fields, padding>::checkErrors(cl::sycl::queue& queue,
+                                                                     cl::sycl::buffer<Fields, 3>& grid) const {
+    if (GridFunctionsSycl::checkNaN(queue, grid)) {
         std::cerr << "Encountered NaN" << std::endl;
     }
 }

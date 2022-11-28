@@ -4,6 +4,7 @@
 #include <fstream>
 
 #include "../data-types/faces.h"
+#include "../sycl/reduction.h"
 
 namespace GridFunctions {
 bool checkNaN(const PaddedGrid<FieldStruct, GHOST_CELLS>& grid) {
@@ -48,21 +49,23 @@ SimpleGrid<FieldStruct> readFromFile(const std::string filename) {
 
 namespace GridFunctionsSycl {
 
-bool checkNaN(const std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims) {
-    using grid::utils::idx3d;
-
-    for (unsigned x = 0; x < dims[0]; x++) {
-        for (unsigned y = 0; y < dims[1]; y++) {
-            for (unsigned z = 0; z < dims[2]; z++) {
-                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-                    if (std::isnan(grid[idx3d(x, y, z, dims)][field])) {
-                        return true;
-                    }
-                }
+bool checkNaN(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) {
+    const auto range = grid.get_range();
+    auto isNanBuffer = cl::sycl::buffer<bool, 1>(range.size());
+    queue.submit([&](cl::sycl::handler& cgh) {
+        auto gridAccessor = grid.template get_access<cl::sycl::access::mode::read>(cgh);
+        auto isNanBufferAccessor = isNanBuffer.template get_access<cl::sycl::access::mode::discard_write>(cgh);
+        cgh.parallel_for(range, [=](const cl::sycl::id<3> id) {
+            const auto linIdx = cl::sycl::id<1>(id[0] * range[2] * range[3] + id[1] * range[3] + id[3]);
+            auto& isNaN = isNanBufferAccessor[linIdx];
+            isNaN = false;
+            for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                isNaN |= std::isnan(gridAccessor[id][field]);
             }
-        }
-    }
-    return false;
+        });
+    });
+    queue.wait_and_throw();
+    return utils::sycl::reduce(queue, isNanBuffer, std::bit_or<bool>{});
 }
 
 } // namespace GridFunctionsSycl
