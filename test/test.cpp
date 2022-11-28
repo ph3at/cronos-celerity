@@ -18,6 +18,7 @@
 #include "../src/grid/grid-functions.h"
 #include "../src/solver/runge-kutta-solver.h"
 #include "../src/solver/runge-kutta-sycl-solver.h"
+#include "../src/sycl/reduction.h"
 
 TEST_CASE("Shock-Tube integration test", "[IntegrationTest]") {
     const toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
@@ -177,70 +178,6 @@ template <typename T> cl::sycl::buffer<T, 1> uploadBuffer(const std::vector<T>& 
     return cl::sycl::buffer<T, 1>(data.data(), cl::sycl::range<1>(data.size()));
 }
 
-template <typename T, typename BinOp = std::plus<T>>
-void syclReduce(cl::sycl::queue& queue, cl::sycl::buffer<T, 1>& data, BinOp op = std::plus<T>{},
-                const T neutralElement = T()) {
-    auto device = queue.get_device();
-
-    const auto actualSize = data.get_count();
-    const auto ceiledSize = std::bit_ceil(actualSize);
-    const size_t workgroupSize = std::min(ceiledSize, device.get_info<cl::sycl::info::device::max_work_group_size>());
-    size_t remainingSize = ceiledSize;
-
-    data.set_final_data(nullptr);
-
-    {
-        do {
-            const auto reductionKernel = [actualSize, remainingSize, workgroupSize, &data, op,
-                                          neutralElement](cl::sycl::handler& cgh) mutable {
-                const auto range =
-                    cl::sycl::nd_range<1>{ cl::sycl::range<1>{ std::max(remainingSize, workgroupSize) },
-                                           cl::sycl::range<1>{ std::min(remainingSize, workgroupSize) } };
-
-                auto dataAccessor = data.template get_access<cl::sycl::access::mode::read_write>(cgh);
-                auto scratchBuffer =
-                    cl::sycl::accessor<T, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>(
-                        cl::sycl::range<1>(workgroupSize), cgh);
-
-                cgh.parallel_for(range, [dataAccessor, scratchBuffer, actualSize, workgroupSize, remainingSize, op,
-                                         neutralElement](cl::sycl::nd_item<1> id) {
-                    const auto gid = id.get_global_id(0);
-                    const auto lid = id.get_local_id(0);
-
-                    if (gid < actualSize) {
-                        scratchBuffer[lid] = dataAccessor[gid];
-                    } else {
-                        scratchBuffer[lid] = neutralElement;
-                    }
-                    id.barrier(cl::sycl::access::fence_space::local_space);
-
-                    if (gid < remainingSize) {
-                        const auto minSize = std::min(remainingSize, workgroupSize);
-                        for (size_t offset = minSize / 2; offset > 0; offset /= 2) {
-                            if (lid < offset) {
-                                scratchBuffer[lid] = op(scratchBuffer[lid], scratchBuffer[lid + offset]);
-                            }
-                            id.barrier(cl::sycl::access::fence_space::local_space);
-                        }
-
-                        if (lid == 0) {
-                            dataAccessor[id.get_group(0)] = scratchBuffer[lid];
-                        }
-                    }
-                });
-            };
-            queue.submit(reductionKernel);
-
-            remainingSize = remainingSize / workgroupSize;
-        } while (remainingSize > 1);
-    }
-}
-
-template <typename T> T getReductionResult(cl::sycl::buffer<T, 1>& data) {
-    const auto dataAccessor = data.template get_access<cl::sycl::access::mode::read>();
-    return dataAccessor[0];
-}
-
 class ScopedTimer {
   public:
     ScopedTimer(const std::string_view name) : m_name(name), m_start(std::chrono::high_resolution_clock::now()) {}
@@ -294,12 +231,7 @@ TEST_CASE("Sycl reduction", "[sycl]") {
 
         {
             const auto _ = ScopedTimer("Sycl reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
-            syclReduce(queue, buffer, reductionOp, std::numeric_limits<int>::lowest());
-        }
-
-        {
-            const auto _ = ScopedTimer("Downloading buffer from GPU");
-            syclResult = getReductionResult(buffer);
+            syclResult = utils::sycl::reduce(queue, buffer, reductionOp, std::numeric_limits<int>::lowest());
         }
     }
     {
