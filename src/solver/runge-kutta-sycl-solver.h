@@ -30,13 +30,14 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void adjust();
     void finaliseResult(){};
 
-    PaddedGrid<Fields, padding> grid() const {
+    PaddedGrid<Fields, padding> grid() {
         auto paddedGrid =
             PaddedGrid<Fields, padding>({}, m_sizeX - 2 * padding, m_sizeY - 2 * padding, m_sizeZ - 2 * padding);
+        const auto gridAccessor = m_grid.template get_access<cl::sycl::access::mode::read>();
         for (std::size_t x = 0; x < m_sizeX; ++x) {
             for (std::size_t y = 0; y < m_sizeY; ++y) {
                 for (std::size_t z = 0; z < m_sizeZ; ++z) {
-                    paddedGrid(x, y, z) = m_grid[idx3d(x, y, z)];
+                    paddedGrid(x, y, z) = gridAccessor[cl::sycl::id<3>(x, y, z)];
                 }
             }
         }
@@ -49,12 +50,12 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     const std::size_t m_sizeX;
     const std::size_t m_sizeY;
     const std::size_t m_sizeZ;
-    const grid::utils::dimensions m_dims;
+    const grid::utils::dimensions m_dims; // TODO: Remove
 
-    std::vector<Fields> m_grid;
-    std::vector<Changes<Fields>> changeBuffer;
-    std::vector<Fields> gridSubstepBuffer;
-    std::vector<double> m_cflBuffer;
+    cl::sycl::buffer<Fields, 3> m_grid;
+    cl::sycl::buffer<Changes<Fields>, 3> m_changeBuffer;
+    cl::sycl::buffer<Fields, 3> m_gridSubstepBuffer;
+    cl::sycl::buffer<double, 1> m_cflBuffer;
 
     double m_cfl;
     const unsigned rungeKuttaSteps;
@@ -65,11 +66,11 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     double timeCurrent;
     const double timeEnd;
 
-    void prepareSubstep();
+    void prepareSubstep(cl::sycl::queue& queue, cl::sycl::buffer<Changes<Fields>, 3>& changeBuffer) const;
     void computeSubstep();
-    std::pair<Changes<Fields>, double> computeChanges(const cl::sycl::id<3>& id) const;
+    std::pair<Changes<Fields>, double> computeChanges(const std::vector<Fields>& grid, const cl::sycl::id<3>& id) const;
     double calcCFL(std::pair<double, double> characVelocities, const unsigned direction) const;
-    double reduceCFL(const double initialCFL, const std::vector<double>& cflBuffer);
+    double reduceCFL(cl::sycl::queue& queue, cl::sycl::buffer<double, 1>& cflBuffer, const double initialCFL) const;
     void finaliseSubstep(const unsigned substep);
     void integrateTime(cl::sycl::queue& queue, cl::sycl::buffer<Fields, 3>& grid,
                        cl::sycl::buffer<Fields, 3>& gridSubstep, cl::sycl::buffer<Changes<Fields>, 3>& changes,
@@ -114,69 +115,90 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(const P
       m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
       m_sizeY(problem.numberCells[Direction::DirY] + 2 * padding),
       m_sizeZ(problem.numberCells[Direction::DirZ] + 2 * padding),
-      m_dims(grid::utils::dimensions{ m_sizeX, m_sizeY, m_sizeZ }), m_grid(m_sizeX * m_sizeY * m_sizeZ),
-      changeBuffer(m_sizeX * m_sizeY * m_sizeZ), gridSubstepBuffer(m_sizeX * m_sizeY * m_sizeZ),
-      m_cflBuffer(m_sizeX * m_sizeY * m_sizeZ), rungeKuttaSteps(rungeKuttaSteps), problem(problem),
+      m_dims(grid::utils::dimensions{ m_sizeX, m_sizeY, m_sizeZ }),
+      m_grid(cl::sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
+      m_changeBuffer(cl::sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
+      m_gridSubstepBuffer(cl::sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
+      m_cflBuffer(cl::sycl::range<1>(m_sizeX * m_sizeY * m_sizeZ)), rungeKuttaSteps(rungeKuttaSteps), problem(problem),
       timeDelta(problem.timeDelta), timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {}
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
-    auto syclGrid = toSyclGrid(m_grid);
-    problem.initialiseGridSycl(m_queue, syclGrid);
+    problem.initialiseGridSycl(m_queue, m_grid);
     m_queue.wait_and_throw();
-    BoundarySycl::applyAll(m_queue, syclGrid, problem);
-    m_queue.wait_and_throw();
-    m_grid = fromSyclGrid(syclGrid);
+    BoundarySycl::applyAll(m_queue, m_grid, problem);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::step() {
     m_cfl = 0.0;
     for (unsigned substep = 0; substep < rungeKuttaSteps; substep++) {
-        prepareSubstep();
+        prepareSubstep(m_queue, m_changeBuffer);
+        m_queue.wait_and_throw();
         computeSubstep();
-        m_cfl = reduceCFL(m_cfl, m_cflBuffer);
+        m_cfl = reduceCFL(m_queue, m_cflBuffer, m_cfl);
         finaliseSubstep(substep);
     }
     timeCurrent += timeDelta;
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSyclSolver<ProblemType, Fields, padding>::prepareSubstep() {
+void RungeKuttaSyclSolver<ProblemType, Fields, padding>::prepareSubstep(
+    cl::sycl::queue& queue, cl::sycl::buffer<Changes<Fields>, 3>& changeBuffer) const {
     // Number of negative temperatures is printed here, seems unnecessary
 
     // Start clock(s) -- time measurement omitted for now
 
-    for (unsigned x = padding; x < m_sizeX - padding; ++x) {
-        for (unsigned y = padding; y < m_sizeY - padding; ++y) {
-            for (unsigned z = padding; z < m_sizeZ - padding; ++z) {
-                using buffer_type = std::remove_cv_t<std::remove_reference_t<decltype(changeBuffer)>>;
-                using value_type = typename buffer_type::value_type;
-                changeBuffer[idx3d(x, y, z)] = value_type();
-            }
-        }
-    }
+    // TODO: Clearing the buffer is not necessary -> get rid of it
+
+    queue.submit([&](cl::sycl::handler& cgh) {
+        auto changeAccessor = changeBuffer.template get_access<cl::sycl::access::mode::discard_write>(cgh);
+
+        auto range = changeBuffer.get_range();
+        range[0] -= 2 * padding;
+        range[1] -= 2 * padding;
+        range[2] -= 2 * padding;
+
+        cgh.parallel_for(range, [=](const cl::sycl::id<3> id) {
+            const auto offset = cl::sycl::id<3>(padding, padding, padding);
+            const auto idx = id + offset;
+            using buffer_type = std::remove_cv_t<std::remove_reference_t<decltype(changeBuffer)>>;
+            using value_type = typename buffer_type::value_type;
+            changeAccessor[idx] = value_type();
+        });
+    });
 
     // CarbuncleFlag computation (not included by default)
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
+    auto grid = fromSyclGrid(m_grid);
+    auto changeBuffer = fromSyclGrid(m_changeBuffer);
+    auto cflBuffer = std::vector<double>(m_sizeX * m_sizeY * m_sizeZ);
     for (unsigned x = padding; x < m_sizeX - padding + 1; ++x) {
         for (unsigned y = padding; y < m_sizeY - padding + 1; ++y) {
             for (unsigned z = padding; z < m_sizeZ - padding + 1; ++z) {
                 const auto idx = idx3d(x, y, z);
                 const auto item = cl::sycl::id<3>(x, y, z);
-                std::tie(changeBuffer[idx], m_cflBuffer[idx]) = computeChanges(item);
+                std::tie(changeBuffer[idx], cflBuffer[idx]) = computeChanges(grid, item);
             }
         }
     }
+    m_changeBuffer = toSyclGrid(changeBuffer);
+    m_cflBuffer = cl::sycl::buffer<double, 1>(cl::sycl::range<1>(cflBuffer.size()));
+    m_queue.submit([&](cl::sycl::handler& cgh) {
+        auto cflAccessor = cl::sycl::accessor(m_cflBuffer, cgh, cl::sycl::write_only, cl::sycl::no_init);
+        cgh.copy(cflBuffer.data(), cflAccessor);
+    });
+    m_queue.wait_and_throw();
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 std::pair<Changes<Fields>, double>
-RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(const cl::sycl::id<3>& id) const {
-    PerFaceValues reconstruction = ReconstructionSycl::reconstruct(m_grid, m_dims, id[0], id[1], id[2]);
+RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeChanges(const std::vector<Fields>& grid,
+                                                                   const cl::sycl::id<3>& id) const {
+    PerFaceValues reconstruction = ReconstructionSycl::reconstruct(grid, m_dims, id[0], id[1], id[2]);
 
     std::array<PhysValues, Faces::FaceMax> physicalValues;
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
@@ -210,39 +232,32 @@ double RungeKuttaSyclSolver<ProblemType, Fields, padding>::calcCFL(const std::pa
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-double RungeKuttaSyclSolver<ProblemType, Fields, padding>::reduceCFL(const double initialCFL,
-                                                                     const std::vector<double>& cflBuffer) {
-    auto cflSyclBuffer = cl::sycl::buffer<double, 1>(cflBuffer.data(), cl::sycl::range<1>(m_sizeX * m_sizeY * m_sizeZ));
+double RungeKuttaSyclSolver<ProblemType, Fields, padding>::reduceCFL(cl::sycl::queue& queue,
+                                                                     cl::sycl::buffer<double, 1>& cflBuffer,
+                                                                     const double initialCFL) const {
     const auto reducedCFL = utils::sycl::reduce(
-        m_queue, cflSyclBuffer, [](const auto& a, const auto& b) { return std::max(a, b); },
+        queue, cflBuffer, [](const auto& a, const auto& b) { return std::max(a, b); },
         std::numeric_limits<double>::lowest());
     return std::max(initialCFL, reducedCFL);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
-    auto syclGrid = toSyclGrid(m_grid);
+    checkErrors(m_queue, m_grid);
 
-    checkErrors(m_queue, syclGrid);
-
-    problem.applySourceSycl(m_queue, syclGrid);
+    problem.applySourceSycl(m_queue, m_grid);
     m_queue.wait_and_throw();
 
-    checkErrors(m_queue, syclGrid);
+    checkErrors(m_queue, m_grid);
 
-    TransformationSycl::primitiveToConservative(m_queue, syclGrid, problem.thermal, problem.gamma);
+    TransformationSycl::primitiveToConservative(m_queue, m_grid, problem.thermal, problem.gamma);
     m_queue.wait_and_throw();
-    auto syclGridSubstep = toSyclGrid(gridSubstepBuffer);
-    auto syclChanges = toSyclGrid(changeBuffer);
-    integrateTime(m_queue, syclGrid, syclGridSubstep, syclChanges, substep);
+    integrateTime(m_queue, m_grid, m_gridSubstepBuffer, m_changeBuffer, substep);
     m_queue.wait_and_throw();
-    gridSubstepBuffer = fromSyclGrid(syclGridSubstep);
-    TransformationSycl::conservativeToPrimitive(m_queue, syclGrid, problem.thermal, problem.gamma);
+    TransformationSycl::conservativeToPrimitive(m_queue, m_grid, problem.thermal, problem.gamma);
     m_queue.wait_and_throw();
 
-    BoundarySycl::applyAll(m_queue, syclGrid, problem);
-    m_queue.wait_and_throw();
-    m_grid = fromSyclGrid(syclGrid);
+    BoundarySycl::applyAll(m_queue, m_grid, problem);
 
     // Stop clock(s)
     // runtime estimation -- time measurement omitted for now
@@ -258,7 +273,9 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::integrateTime(cl::sycl:
                                                                        const unsigned substep) const {
     queue.submit([&](cl::sycl::handler& cgh) {
         auto gridAccessor = grid.template get_access<cl::sycl::access::mode::read_write>(cgh);
-        auto gridSubstepAccessor = gridSubstep.template get_access<cl::sycl::access::mode::read_write>(cgh);
+        auto gridSubstepAccessor = (substep == 0 && rungeKuttaSteps > 1)
+                                       ? cl::sycl::accessor(gridSubstep, cgh, cl::sycl::read_write, cl::sycl::no_init)
+                                       : cl::sycl::accessor(gridSubstep, cgh, cl::sycl::read_write);
         auto changeAccessor = changes.template get_access<cl::sycl::access::mode::read>(cgh);
 
         auto range = grid.get_range();

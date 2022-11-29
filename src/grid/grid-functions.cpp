@@ -55,12 +55,10 @@ bool checkNaN(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) {
     queue.submit([&](cl::sycl::handler& cgh) {
         auto gridAccessor = grid.template get_access<cl::sycl::access::mode::read>(cgh);
         auto isNanBufferAccessor = isNanBuffer.template get_access<cl::sycl::access::mode::discard_write>(cgh);
-        cgh.parallel_for(range, [=](const cl::sycl::id<3> id) {
-            const auto linIdx = cl::sycl::id<1>(id[0] * range[2] * range[3] + id[1] * range[3] + id[3]);
-            auto& isNaN = isNanBufferAccessor[linIdx];
-            isNaN = false;
+        cgh.parallel_for(range, [=](const cl::sycl::item<3> item) {
+            isNanBufferAccessor[item.get_linear_id()] = false;
             for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-                isNaN |= std::isnan(gridAccessor[id][field]);
+                isNanBufferAccessor[item.get_linear_id()] |= std::isnan(gridAccessor[item][field]);
             }
         });
     });
