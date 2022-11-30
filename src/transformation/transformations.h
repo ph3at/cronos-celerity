@@ -8,7 +8,6 @@
 #include "../data-types/face-values.h"
 #include "../data-types/phys-values.h"
 #include "../grid/padded-grid.h"
-#include "../grid/utils.h"
 
 namespace Transformation {
 

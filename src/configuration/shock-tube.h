@@ -6,8 +6,6 @@
 
 #include <CL/sycl.hpp>
 
-#include "../grid/utils.h"
-
 class ShockTube : public Problem<ShockTube, FieldStruct, GHOST_CELLS> {
   public:
     ShockTube(const double cflThreshold, const bool thermal, const double timeDelta, const double timeStart,

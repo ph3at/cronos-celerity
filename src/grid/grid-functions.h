@@ -9,7 +9,6 @@
 
 #include "padded-grid.h"
 #include "simple-grid.h"
-#include "utils.h"
 
 #include "../configuration/constants.h"
 #include "../data-types/phys-fields.h"

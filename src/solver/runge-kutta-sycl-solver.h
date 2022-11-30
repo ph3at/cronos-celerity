@@ -13,7 +13,6 @@
 #include "../data-types/faces.h"
 #include "../grid/grid-functions.h"
 #include "../grid/padded-grid.h"
-#include "../grid/utils.h"
 #include "../riemann/reconstruction.h"
 #include "../riemann/riemann-solver.h"
 #include "../sycl/reduction.h"
@@ -50,7 +49,6 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     const std::size_t m_sizeX;
     const std::size_t m_sizeY;
     const std::size_t m_sizeZ;
-    const grid::utils::dimensions m_dims; // TODO: Remove
 
     cl::sycl::buffer<Fields, 3> m_grid;
     cl::sycl::buffer<Changes<Fields>, 3> m_changeBuffer;
@@ -75,27 +73,6 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
                        cl::sycl::buffer<Fields, 3>& gridSubstep, cl::sycl::buffer<Changes<Fields>, 3>& changes,
                        const unsigned substep) const;
     void checkErrors(cl::sycl::queue& queue, cl::sycl::buffer<Fields, 3>& grid) const;
-
-    std::size_t idx3d(const std::size_t x, const std::size_t y, const std::size_t z) const noexcept {
-        return grid::utils::idx3d(x, y, z, m_dims);
-    }
-
-    template <typename T> cl::sycl::buffer<T, 3> toSyclGrid(const std::vector<T>& vecGrid) const {
-        return cl::sycl::buffer<T, 3>(vecGrid.data(), cl::sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ));
-    }
-
-    template <typename T> std::vector<T> fromSyclGrid(cl::sycl::buffer<T, 3>& syclGrid) const {
-        auto vecGrid = std::vector<T>(m_sizeX * m_sizeY * m_sizeZ);
-        const auto gridAccessor = syclGrid.template get_access<cl::sycl::access::mode::read>();
-        for (std::size_t x = 0; x < m_sizeX; ++x) {
-            for (std::size_t y = 0; y < m_sizeY; ++y) {
-                for (std::size_t z = 0; z < m_sizeZ; ++z) {
-                    vecGrid[idx3d(x, y, z)] = gridAccessor[cl::sycl::id<3>(x, y, z)];
-                }
-            }
-        }
-        return vecGrid;
-    }
 };
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -114,7 +91,6 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(const P
       m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
       m_sizeY(problem.numberCells[Direction::DirY] + 2 * padding),
       m_sizeZ(problem.numberCells[Direction::DirZ] + 2 * padding),
-      m_dims(grid::utils::dimensions{ m_sizeX, m_sizeY, m_sizeZ }),
       m_grid(cl::sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
       m_changeBuffer(cl::sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
       m_gridSubstepBuffer(cl::sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ)),

@@ -11,7 +11,6 @@
 #include "../data-types/faces.h"
 #include "../data-types/phys-fields.h"
 #include "../grid/padded-grid.h"
-#include "../grid/utils.h"
 #include "boundary-types.h"
 #include "extrapolate.h"
 #include "outflow.h"

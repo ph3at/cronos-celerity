@@ -11,7 +11,6 @@
 #include "../data-types/faces.h"
 #include "../data-types/phys-fields.h"
 #include "../grid/padded-grid.h"
-#include "../grid/utils.h"
 #include "../user-interface/value-parser.h"
 #include "constants.h"
 
@@ -42,12 +41,12 @@ template <class Specific, class Fields, unsigned padding> class Problem {
     std::array<BoundaryType, Faces::FaceMax> boundaryTypes;
 
     void initialiseGrid(PaddedGrid<Fields, padding>& grid) const;
-    void initialiseGridSycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims) const;
+    void initialiseGridSycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) const;
     void applyBoundary(PaddedGrid<Fields, padding>& grid, const unsigned field, const unsigned face) const;
     void applyBoundarySycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
                            const unsigned face) const;
     void applySource(PaddedGrid<Fields, padding>& grid) const;
-    void applySourceSycl(std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims) const;
+    void applySourceSycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) const;
 };
 
 template <class Specific, class Fields, unsigned padding>
@@ -119,9 +118,9 @@ void Problem<Specific, Fields, padding>::initialiseGrid(PaddedGrid<Fields, paddi
     static_cast<const Specific*>(this)->initialiseGrid(grid);
 }
 template <class Specific, class Fields, unsigned padding>
-void Problem<Specific, Fields, padding>::initialiseGridSycl(std::vector<FieldStruct>& grid,
-                                                            const grid::utils::dimensions& dims) const {
-    static_cast<const Specific*>(this)->initialiseGridSycl(grid, dims);
+void Problem<Specific, Fields, padding>::initialiseGridSycl(cl::sycl::queue& queue,
+                                                            cl::sycl::buffer<FieldStruct, 3>& grid) const {
+    static_cast<const Specific*>(this)->initialiseGridSycl(queue, grid);
 }
 
 template <class Specific, class Fields, unsigned padding>
@@ -141,7 +140,7 @@ void Problem<Specific, Fields, padding>::applySource(PaddedGrid<Fields, padding>
     static_cast<const Specific*>(this)->applySource(grid);
 }
 template <class Specific, class Fields, unsigned padding>
-void Problem<Specific, Fields, padding>::applySourceSycl(std::vector<FieldStruct>& grid,
-                                                         const grid::utils::dimensions& dims) const {
-    static_cast<const Specific*>(this)->applySourceSycl(grid, dims);
+void Problem<Specific, Fields, padding>::applySourceSycl(cl::sycl::queue& queue,
+                                                         cl::sycl::buffer<FieldStruct, 3>& grid) const {
+    static_cast<const Specific*>(this)->applySourceSycl(queue, grid);
 }
