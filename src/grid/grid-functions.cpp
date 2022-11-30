@@ -62,7 +62,6 @@ bool checkNaN(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) {
             }
         });
     });
-    queue.wait_and_throw();
     return utils::sycl::reduce(queue, isNanBuffer, std::bit_or<bool>{});
 }
 

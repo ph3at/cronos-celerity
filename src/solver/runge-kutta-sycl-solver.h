@@ -100,13 +100,11 @@ RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(const P
         auto cflAccessor = m_cflBuffer.template get_access<cl::sycl::access::mode::discard_write>(cgh);
         cgh.fill(cflAccessor, std::numeric_limits<double>::lowest());
     });
-    m_queue.wait_and_throw();
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::initialise() {
     problem.initialiseGridSycl(m_queue, m_grid);
-    m_queue.wait_and_throw();
     BoundarySycl::applyAll(m_queue, m_grid, problem);
 }
 
@@ -115,7 +113,6 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::step() {
     m_cfl = 0.0;
     for (unsigned substep = 0; substep < rungeKuttaSteps; substep++) {
         prepareSubstep(m_queue, m_changeBuffer);
-        m_queue.wait_and_throw();
         computeSubstep();
         m_cfl = reduceCFL(m_queue, m_cflBuffer, m_cfl);
         finaliseSubstep(substep);
@@ -138,7 +135,6 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::prepareSubstep(
         using value_type = typename buffer_type::value_type;
         cgh.fill(changeAccessor, value_type());
     });
-    queue.wait_and_throw();
 
     // CarbuncleFlag computation (not included by default)
 }
@@ -188,7 +184,6 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
             cflAccessor[linIdx] = localCFL;
         });
     });
-    m_queue.wait_and_throw();
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -214,16 +209,12 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const u
     checkErrors(m_queue, m_grid);
 
     problem.applySourceSycl(m_queue, m_grid);
-    m_queue.wait_and_throw();
 
     checkErrors(m_queue, m_grid);
 
     TransformationSycl::primitiveToConservative(m_queue, m_grid, problem.thermal, problem.gamma);
-    m_queue.wait_and_throw();
     integrateTime(m_queue, m_grid, m_gridSubstepBuffer, m_changeBuffer, substep);
-    m_queue.wait_and_throw();
     TransformationSycl::conservativeToPrimitive(m_queue, m_grid, problem.thermal, problem.gamma);
-    m_queue.wait_and_throw();
 
     BoundarySycl::applyAll(m_queue, m_grid, problem);
 
