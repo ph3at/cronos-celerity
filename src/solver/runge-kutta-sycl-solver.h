@@ -27,7 +27,8 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void initialise();
     void step();
     void adjust();
-    void finaliseResult(){};
+    void finalise(){};
+    bool isFinished() const;
 
     PaddedGrid<Fields, padding> grid() {
         auto paddedGrid =
@@ -283,6 +284,11 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::adjust() {
     if (problem.preciseEnd) {
         timeDelta = std::min(timeDelta, timeEnd - timeCurrent);
     }
+}
+
+template <class ProblemType, class Fields, unsigned padding>
+bool RungeKuttaSyclSolver<ProblemType, Fields, padding>::isFinished() const {
+    return timeCurrent >= timeEnd;
 }
 
 template <class ProblemType, class Fields, unsigned padding>

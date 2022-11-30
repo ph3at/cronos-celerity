@@ -71,18 +71,47 @@ TEST_CASE("Shock-Tube integration test comparison host v sycl", "[IntegrationTes
 
     double deviationPerStep = 1.0005;
     double deviationThreshold = deviationPerStep;
-    for (unsigned timeStep = 1; timeStep <= 16; timeStep++) {
+    while (!solver.isFinished() && !syclSolver.isFinished()) {
         solver.step();
         syclSolver.step();
         solver.adjust();
         syclSolver.adjust();
         const auto& baseline = solver.grid;
         double averageDeviation = GridFunctions::compare(baseline, syclSolver.grid(), false, false);
-        CAPTURE(timeStep);
         // CHECK(averageDeviation == 0);
         REQUIRE(averageDeviation < deviationThreshold - 1.0);
         deviationThreshold *= deviationPerStep;
     }
+    CHECK(solver.isFinished());
+    CHECK(syclSolver.isFinished());
+}
+
+TEST_CASE("Shock-Tube benchmark", "[Benchmark]") {
+    const toml::table config = toml::parse_file("configuration/shock-tube-benchmark.toml");
+    ShockTube shockTube(config);
+
+    RungeKuttaSolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube);
+    solver.initialise();
+
+    while (!solver.isFinished()) {
+        solver.step();
+        solver.adjust();
+    }
+    solver.finalise();
+}
+
+TEST_CASE("Shock-Tube sycl benchmark", "[Benchmark]") {
+    const toml::table config = toml::parse_file("configuration/shock-tube-benchmark.toml");
+    ShockTube shockTube(config);
+
+    RungeKuttaSyclSolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube);
+    solver.initialise();
+
+    while (!solver.isFinished()) {
+        solver.step();
+        solver.adjust();
+    }
+    solver.finalise();
 }
 
 TEST_CASE("Sycl", "[sycl]") {
