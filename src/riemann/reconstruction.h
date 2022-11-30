@@ -2,6 +2,8 @@
 
 #include <vector>
 
+#include <CL/sycl.hpp>
+
 #include "../configuration/constants.h"
 #include "../data-types/faces.h"
 #include "../data-types/fields.h"
@@ -29,54 +31,56 @@ static inline double limitMinmod(const double deltaLeft, const double deltaRight
     }
 }
 
-static inline double derivX(const std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned x,
-                            const unsigned y, const unsigned z, const unsigned field) {
-    using grid::utils::idx3d;
-
-    double deltaLeft = grid[idx3d(x, y, z, dims)][field] - grid[idx3d(x - 1, y, z, dims)][field];
-    double deltaRight = grid[idx3d(x + 1, y, z, dims)][field] - grid[idx3d(x, y, z, dims)][field];
-
-    return limitMinmod(deltaLeft, deltaRight);
-}
-
-static inline double derivY(const std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned x,
-                            const unsigned y, const unsigned z, const unsigned field) {
-    using grid::utils::idx3d;
-
-    double deltaLeft = grid[idx3d(x, y, z, dims)][field] - grid[idx3d(x, y - 1, z, dims)][field];
-    double deltaRight = grid[idx3d(x, y + 1, z, dims)][field] - grid[idx3d(x, y, z, dims)][field];
+static inline double derivX(const cl::sycl::accessor<FieldStruct, 3, cl::sycl::access::mode::read,
+                                                     cl::sycl::access::target::global_buffer>& gridAccessor,
+                            const cl::sycl::id<3>& idx, const unsigned field) {
+    const auto prevX = cl::sycl::id<3>(idx[0] - 1, idx[1], idx[2]);
+    const auto nextX = cl::sycl::id<3>(idx[0] + 1, idx[1], idx[2]);
+    double deltaLeft = gridAccessor[idx][field] - gridAccessor[prevX][field];
+    double deltaRight = gridAccessor[nextX][field] - gridAccessor[idx][field];
 
     return limitMinmod(deltaLeft, deltaRight);
 }
 
-static inline double derivZ(const std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims, const unsigned x,
-                            const unsigned y, const unsigned z, const unsigned field) {
-    using grid::utils::idx3d;
-
-    double deltaLeft = grid[idx3d(x, y, z, dims)][field] - grid[idx3d(x, y, z - 1, dims)][field];
-    double deltaRight = grid[idx3d(x, y, z + 1, dims)][field] - grid[idx3d(x, y, z, dims)][field];
+static inline double derivY(const cl::sycl::accessor<FieldStruct, 3, cl::sycl::access::mode::read,
+                                                     cl::sycl::access::target::global_buffer>& gridAccessor,
+                            const cl::sycl::id<3>& idx, const unsigned field) {
+    const auto prevY = cl::sycl::id<3>(idx[0], idx[1] - 1, idx[2]);
+    const auto nextY = cl::sycl::id<3>(idx[0], idx[1] + 1, idx[2]);
+    double deltaLeft = gridAccessor[idx][field] - gridAccessor[prevY][field];
+    double deltaRight = gridAccessor[nextY][field] - gridAccessor[idx][field];
 
     return limitMinmod(deltaLeft, deltaRight);
 }
 
-static inline PerFaceValues reconstruct(const std::vector<FieldStruct>& grid, const grid::utils::dimensions& dims,
-                                        const unsigned x, const unsigned y, const unsigned z) {
-    using grid::utils::idx3d;
+static inline double derivZ(const cl::sycl::accessor<FieldStruct, 3, cl::sycl::access::mode::read,
+                                                     cl::sycl::access::target::global_buffer>& gridAccessor,
+                            const cl::sycl::id<3>& idx, const unsigned field) {
+    const auto prevZ = cl::sycl::id<3>(idx[0], idx[1], idx[2] - 1);
+    const auto nextZ = cl::sycl::id<3>(idx[0], idx[1], idx[2] + 1);
+    double deltaLeft = gridAccessor[idx][field] - gridAccessor[prevZ][field];
+    double deltaRight = gridAccessor[nextZ][field] - gridAccessor[idx][field];
+
+    return limitMinmod(deltaLeft, deltaRight);
+}
+
+static inline PerFaceValues reconstruct(const cl::sycl::accessor<FieldStruct, 3, cl::sycl::access::mode::read,
+                                                                 cl::sycl::access::target::global_buffer>& gridAccessor,
+                                        const cl::sycl::id<3>& idx) {
+    const auto prevX = cl::sycl::id<3>(idx[0] - 1, idx[1], idx[2]);
+    const auto prevY = cl::sycl::id<3>(idx[0], idx[1] - 1, idx[2]);
+    const auto prevZ = cl::sycl::id<3>(idx[0], idx[1], idx[2] - 1);
 
     PerFaceValues reconst = {};
     for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-        reconst[Faces::FaceWest][field] = grid[idx3d(x, y, z, dims)][field] - 0.5 * derivX(grid, dims, x, y, z, field);
-        reconst[Faces::FaceEast][field] =
-            grid[idx3d(x - 1, y, z, dims)][field] + 0.5 * derivX(grid, dims, x - 1, y, z, field);
+        reconst[Faces::FaceWest][field] = gridAccessor[idx][field] - 0.5 * derivX(gridAccessor, idx, field);
+        reconst[Faces::FaceEast][field] = gridAccessor[prevX][field] + 0.5 * derivX(gridAccessor, prevX, field);
 
-        reconst[Faces::FaceSouth][field] = grid[idx3d(x, y, z, dims)][field] - 0.5 * derivY(grid, dims, x, y, z, field);
-        reconst[Faces::FaceNorth][field] =
-            grid[idx3d(x, y - 1, z, dims)][field] + 0.5 * derivY(grid, dims, x, y - 1, z, field);
+        reconst[Faces::FaceSouth][field] = gridAccessor[idx][field] - 0.5 * derivY(gridAccessor, idx, field);
+        reconst[Faces::FaceNorth][field] = gridAccessor[prevY][field] + 0.5 * derivY(gridAccessor, prevY, field);
 
-        reconst[Faces::FaceBottom][field] =
-            grid[idx3d(x, y, z, dims)][field] - 0.5 * derivZ(grid, dims, x, y, z, field);
-        reconst[Faces::FaceTop][field] =
-            grid[idx3d(x, y, z - 1, dims)][field] + 0.5 * derivZ(grid, dims, x, y, z - 1, field);
+        reconst[Faces::FaceBottom][field] = gridAccessor[idx][field] - 0.5 * derivZ(gridAccessor, idx, field);
+        reconst[Faces::FaceTop][field] = gridAccessor[prevZ][field] + 0.5 * derivZ(gridAccessor, prevZ, field);
     }
 
     return reconst;
