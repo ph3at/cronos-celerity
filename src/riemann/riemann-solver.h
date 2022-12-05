@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstdio>
 #include <tuple>
 
 #include "../data-types/direction.h"

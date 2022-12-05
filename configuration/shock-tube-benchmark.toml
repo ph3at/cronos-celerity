@@ -12,13 +12,13 @@ precise_end = true
 gamma = 1.4
 
 [grid]
-number_cells_x = 160
+number_cells_x = 4
 x_start = 0.45
 x_end = 0.55
-number_cells_y = 40
+number_cells_y = 1
 y_start = 0.45
 y_end = 0.55
-number_cells_z = 40
+number_cells_z = 1
 z_start = 0.45
 z_end = 0.55
 

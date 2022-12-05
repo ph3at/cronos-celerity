@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <bit>
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <numeric>
 #include <string>
@@ -19,6 +20,20 @@
 #include "../src/solver/runge-kutta-solver.h"
 #include "../src/solver/runge-kutta-sycl-solver.h"
 #include "../src/sycl/reduction.h"
+
+class ScopedTimer {
+  public:
+    ScopedTimer(const std::string_view name) : m_name(name), m_start(std::chrono::high_resolution_clock::now()) {}
+    ~ScopedTimer() {
+        const auto end = std::chrono::high_resolution_clock::now();
+        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - m_start).count() / 1000.0;
+        std::cout << m_name << " took " << elapsed << "ms" << std::endl;
+    }
+
+  private:
+    const std::string m_name;
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_start;
+};
 
 TEST_CASE("Shock-Tube integration test", "[IntegrationTest]") {
     const toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
@@ -86,32 +101,76 @@ TEST_CASE("Shock-Tube integration test comparison host v sycl", "[IntegrationTes
     CHECK(syclSolver.isFinished());
 }
 
-TEST_CASE("Shock-Tube benchmark", "[Benchmark]") {
-    const toml::table config = toml::parse_file("configuration/shock-tube-benchmark.toml");
-    ShockTube shockTube(config);
+template <typename Solver>
+auto benchmarkSolver(const int numSizes, const int numRuns, const std::string_view configPath) {
+    auto results = std::vector(numSizes, std::vector<std::chrono::milliseconds>(numRuns));
 
-    RungeKuttaSolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube);
-    solver.initialise();
+    toml::table config = toml::parse_file(configPath);
 
-    while (!solver.isFinished()) {
-        solver.step();
-        solver.adjust();
+    const auto baseNumCellsX = config["grid"]["number_cells_x"].value_or(std::size_t{ 4 });
+    const auto baseNumCellsY = config["grid"]["number_cells_y"].value_or(std::size_t{ 1 });
+    const auto baseNumCellsZ = config["grid"]["number_cells_z"].value_or(std::size_t{ 1 });
+
+    const auto scalingFactor = std::cbrt(2);
+
+    for (auto r = 0; r < numRuns; ++r) {
+        for (auto s = 0; s < numSizes; ++s) {
+            const auto numCellsX = static_cast<std::size_t>(std::round(baseNumCellsX * std::pow(scalingFactor, s)));
+            const auto numCellsY = static_cast<std::size_t>(std::round(baseNumCellsY * std::pow(scalingFactor, s)));
+            const auto numCellsZ = static_cast<std::size_t>(std::round(baseNumCellsZ * std::pow(scalingFactor, s)));
+
+            *(config["grid"]["number_cells_x"].as_integer()) = numCellsX;
+            *(config["grid"]["number_cells_y"].as_integer()) = numCellsY;
+            *(config["grid"]["number_cells_z"].as_integer()) = numCellsZ;
+
+            ShockTube shockTube(config);
+
+            const auto timeStart = std::chrono::high_resolution_clock::now();
+
+            Solver solver(shockTube);
+            solver.initialise();
+
+            int numTimesteps = 0;
+            while (!solver.isFinished()) {
+                solver.step();
+                solver.adjust();
+                ++numTimesteps;
+            }
+            solver.finalise();
+
+            std::cout << "Num Timesteps: " << numTimesteps << std::endl;
+
+            const auto timeEnd = std::chrono::high_resolution_clock::now();
+            const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(timeEnd - timeStart);
+            results[s][r] = elapsedMs;
+        }
     }
-    solver.finalise();
+
+    return results;
+}
+
+TEST_CASE("Shock-Tube benchmark", "[Benchmark]") {
+    const auto benchmarkResults = benchmarkSolver<RungeKuttaSolver<ShockTube, FieldStruct, GHOST_CELLS>>(
+        5, 3, "configuration/shock-tube-benchmark.toml");
+
+    for (std::size_t s = 0; s < benchmarkResults.size(); ++s) {
+        for (std::size_t r = 0; r < benchmarkResults[s].size(); ++r) {
+            std::cout << "CPU: Size " << s << " run #" << r << " took " << benchmarkResults[s][r].count() << "ms"
+                      << std::endl;
+        }
+    }
 }
 
 TEST_CASE("Shock-Tube sycl benchmark", "[Benchmark]") {
-    const toml::table config = toml::parse_file("configuration/shock-tube-benchmark.toml");
-    ShockTube shockTube(config);
+    const auto benchmarkResults = benchmarkSolver<RungeKuttaSyclSolver<ShockTube, FieldStruct, GHOST_CELLS>>(
+        5, 3, "configuration/shock-tube-benchmark.toml");
 
-    RungeKuttaSyclSolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube);
-    solver.initialise();
-
-    while (!solver.isFinished()) {
-        solver.step();
-        solver.adjust();
+    for (std::size_t s = 0; s < benchmarkResults.size(); ++s) {
+        for (std::size_t r = 0; r < benchmarkResults[s].size(); ++r) {
+            std::cout << "GPU: Size " << s << " run #" << r << " took " << benchmarkResults[s][r].count() << "ms"
+                      << std::endl;
+        }
     }
-    solver.finalise();
 }
 
 TEST_CASE("Sycl", "[sycl]") {
@@ -206,20 +265,6 @@ TEST_CASE("Sycl", "[sycl]") {
 template <typename T> cl::sycl::buffer<T, 1> uploadBuffer(const std::vector<T>& data) {
     return cl::sycl::buffer<T, 1>(data.data(), cl::sycl::range<1>(data.size()));
 }
-
-class ScopedTimer {
-  public:
-    ScopedTimer(const std::string_view name) : m_name(name), m_start(std::chrono::high_resolution_clock::now()) {}
-    ~ScopedTimer() {
-        const auto end = std::chrono::high_resolution_clock::now();
-        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - m_start).count() / 1000.0;
-        std::cout << m_name << " took " << elapsed << "ms" << std::endl;
-    }
-
-  private:
-    const std::string m_name;
-    std::chrono::time_point<std::chrono::high_resolution_clock> m_start;
-};
 
 TEST_CASE("Sycl reduction", "[sycl]") {
     constexpr auto timedCreateQueue = []() {
