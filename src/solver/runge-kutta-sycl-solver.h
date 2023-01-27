@@ -29,6 +29,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     void adjust();
     void finalise(){};
     bool isFinished() const;
+    void report(const int timeSteps) const;
 
     PaddedGrid<Fields, padding> grid() {
         auto paddedGrid =
@@ -291,6 +292,11 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::adjust() {
 template <class ProblemType, class Fields, unsigned padding>
 bool RungeKuttaSyclSolver<ProblemType, Fields, padding>::isFinished() const {
     return timeCurrent >= timeEnd;
+}
+
+template <class ProblemType, class Fields, unsigned padding>
+void RungeKuttaSyclSolver<ProblemType, Fields, padding>::report(const int timeSteps) const {
+    std::cout << "Stopped at time " << timeCurrent << ", after " << timeSteps << " steps." << std::endl;
 }
 
 template <class ProblemType, class Fields, unsigned padding>

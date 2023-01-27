@@ -64,12 +64,18 @@ unset(CMAKE_FOLDER)
 #########
 file(GLOB_RECURSE SRC src/*.cpp)
 list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main-sycl.cpp")
 file(GLOB_RECURSE HDR src/*.h)
 
-add_executable(cronos-amr-sycl src/main.cpp ${SRC} ${HDR})
-add_sycl_to_target(TARGET cronos-amr-sycl SOURCES ${SRC})
-set_compiler_parameters(cronos-amr-sycl)
-target_link_libraries(cronos-amr-sycl PRIVATE tomlplusplus::tomlplusplus)
+add_executable(cronos-amr src/main.cpp ${SRC} ${HDR})
+add_sycl_to_target(TARGET cronos-amr SOURCES ${SRC})
+set_compiler_parameters(cronos-amr)
+target_link_libraries(cronos-amr PRIVATE tomlplusplus::tomlplusplus)
+
+add_executable(cronos-sycl src/main-sycl.cpp ${SRC} ${HDR})
+add_sycl_to_target(TARGET cronos-sycl SOURCES ${SRC})
+set_compiler_parameters(cronos-sycl)
+target_link_libraries(cronos-sycl PRIVATE tomlplusplus::tomlplusplus)
 
 ###########
 # Testing #

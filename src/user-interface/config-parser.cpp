@@ -4,7 +4,7 @@
 #include "config-parser.h"
 #include "value-parser.h"
 
-void parseAndRun(const std::string& configFile) {
+void parseAndRun(const std::string& configFile, bool useSycl) {
     try {
         toml::table config = toml::parse_file(configFile);
         const std::optional<std::string> maybeProblemType = config["problem"].value<std::string>();
@@ -12,7 +12,7 @@ void parseAndRun(const std::string& configFile) {
             const std::string& problemType = maybeProblemType.value();
             if (problemType.compare("shock tube") == 0) {
                 std::cout << "--------------- Running shock tube ---------------" << std::endl;
-                parseAndRun<ShockTube>(config);
+                parseAndRun<ShockTube>(config, useSycl);
             } else {
                 std::cerr << "Unknown problem type: " << problemType << std::endl;
                 exit(4);
@@ -30,13 +30,12 @@ void parseAndRun(const std::string& configFile) {
 AMRParameters parseAMRConfig(const toml::table& config) {
     std::cout << std::endl << "AMR parameters:" << std::endl;
     const toml::node_view<const toml::node>& amr = config["amr"];
-    const AMRParameters amrConfig = {
-        .refinementFactor = parseValue<unsigned>(amr, "refinement_factor", 4),
-        .refinementInterval = parseValue<unsigned>(amr, "refinement_interval", 4),
-        .bufferSize = parseValue<unsigned>(amr, "buffer_size", 4),
-        .efficiencyThreshold = parseValue<double>(amr, "efficiency_threshold", 0.6),
-        .truncationErrorThreshold = parseValue<double>(amr, "truncation_error_threshold", 1e-4),
-        .maxRefinementDepth = parseValue<unsigned>(amr, "max_refinement_depth", 1)
-    };
+    const AMRParameters amrConfig = { .refinementFactor = parseValue<unsigned>(amr, "refinement_factor", 4),
+                                      .refinementInterval = parseValue<unsigned>(amr, "refinement_interval", 4),
+                                      .bufferSize = parseValue<unsigned>(amr, "buffer_size", 4),
+                                      .efficiencyThreshold = parseValue<double>(amr, "efficiency_threshold", 0.6),
+                                      .truncationErrorThreshold =
+                                          parseValue<double>(amr, "truncation_error_threshold", 1e-4),
+                                      .maxRefinementDepth = parseValue<unsigned>(amr, "max_refinement_depth", 1) };
     return amrConfig;
 }
