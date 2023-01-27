@@ -19,11 +19,9 @@
 template <class Fields> using Changes = std::array<Fields, Direction::DirMax>;
 
 template <class ProblemType, class Fields, unsigned padding>
-class RungeKuttaSolver
-    : public Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding> {
+class RungeKuttaSolver : public Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding> {
   public:
-    RungeKuttaSolver(const ProblemType& problem, const unsigned rungeKuttaSteps = 2,
-                     const bool doOutput = false);
+    RungeKuttaSolver(const ProblemType& problem, const unsigned rungeKuttaSteps = 2, const bool doOutput = false);
     RungeKuttaSolver(const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
                      const unsigned rungeKuttaSteps = 2, const bool doOutput = false);
 
@@ -54,10 +52,8 @@ class RungeKuttaSolver
 
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(const ProblemType& problem,
-                                                                 const unsigned rungeKuttaSteps,
-                                                                 const bool doOutput)
-    : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(
-          problem, doOutput),
+                                                                 const unsigned rungeKuttaSteps, const bool doOutput)
+    : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(problem, doOutput),
       changeBuffer({}, problem.numberCells[Direction::DirX] + 2 * padding,
                    problem.numberCells[Direction::DirY] + 2 * padding,
                    problem.numberCells[Direction::DirZ] + 2 * padding),
@@ -71,11 +67,10 @@ RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(const ProblemTy
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(
-    const PaddedGrid<Fields, padding>& grid, const ProblemType& problem,
-    const unsigned rungeKuttaSteps, const bool doOutput)
-    : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(
-          grid, problem, doOutput),
+RungeKuttaSolver<ProblemType, Fields, padding>::RungeKuttaSolver(const PaddedGrid<Fields, padding>& grid,
+                                                                 const ProblemType& problem,
+                                                                 const unsigned rungeKuttaSteps, const bool doOutput)
+    : Solver<RungeKuttaSolver<ProblemType, Fields, padding>, Fields, ProblemType, padding>(grid, problem, doOutput),
       changeBuffer({}, grid.xDim(), grid.yDim(), grid.zDim()),
       gridSubstepBuffer(grid.defaultValue, grid.xDim(), grid.yDim(), grid.zDim()),
 #ifdef PARALLEL
@@ -146,37 +141,35 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::computeSubstep() {
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-Changes<Fields> RungeKuttaSolver<ProblemType, Fields, padding>::computeChanges(const unsigned x,
-                                                                               const unsigned y,
+Changes<Fields> RungeKuttaSolver<ProblemType, Fields, padding>::computeChanges(const unsigned x, const unsigned y,
                                                                                const unsigned z) {
     PerFaceValues reconstruction = Reconstruction::reconstruct(this->grid, x, y, z);
 
     std::array<PhysValues, Faces::FaceMax> physicalValues;
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
-        Transformation::reconstToConservatives(physicalValues[face], reconstruction[face],
-                                               this->problem.thermal, this->problem.gamma);
-        physicalValues[face].thermalPressure = Transformation::computeThermalPressure(
-            reconstruction[face], this->problem.thermal, this->problem.gamma);
+        Transformation::reconstToConservatives(physicalValues[face], reconstruction[face], this->problem.thermal,
+                                               this->problem.gamma);
+        physicalValues[face].thermalPressure =
+            Transformation::computeThermalPressure(reconstruction[face], this->problem.thermal, this->problem.gamma);
         RiemannSolver::computeFluxes(physicalValues[face], reconstruction[face], face);
     }
 
     Changes<Fields> changes;
     for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
         unsigned face = dir * 2;
-        std::pair<double, double> characVelocities = RiemannSolver::characteristicVelocity(
-            physicalValues[face], physicalValues[face + 1], reconstruction[face],
-            reconstruction[face + 1], this->problem.gamma, dir);
+        std::pair<double, double> characVelocities =
+            RiemannSolver::characteristicVelocity(physicalValues[face], physicalValues[face + 1], reconstruction[face],
+                                                  reconstruction[face + 1], this->problem.gamma, dir);
         this->updateCFL(characVelocities, dir);
-        changes[dir] = RiemannSolver::numericalFlux(characVelocities, physicalValues[face],
-                                                    physicalValues[face + 1], reconstruction[face],
-                                                    reconstruction[face + 1], dir);
+        changes[dir] = RiemannSolver::numericalFlux(characVelocities, physicalValues[face], physicalValues[face + 1],
+                                                    reconstruction[face], reconstruction[face + 1], dir);
     }
     return changes;
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaSolver<ProblemType, Fields, padding>::updateCFL(
-    const std::pair<double, double> characVelocities, const unsigned direction) {
+void RungeKuttaSolver<ProblemType, Fields, padding>::updateCFL(const std::pair<double, double> characVelocities,
+                                                               const unsigned direction) {
     double maxVelocity = std::max(characVelocities.first, characVelocities.second);
     double localCFL = maxVelocity * this->problem.inverseCellSize[direction];
 #ifdef PARALLEL
@@ -192,6 +185,7 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsig
     this->checkErrors();
 
     this->problem.applySource(this->grid);
+
     this->checkErrors();
 
     Transformation::primitiveToConservative(this->grid, this->problem.thermal, this->problem.gamma);
@@ -218,25 +212,21 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::integrateTime(const unsigne
         for (unsigned y = this->grid.yStart(); y < this->grid.yEnd(); y++) {
             for (unsigned z = this->grid.zStart(); z < this->grid.zEnd(); z++) {
                 for (unsigned field = 0; field < Fields().size(); field++) {
-                    const double changeX =
-                        (this->changeBuffer(x + 1, y, z)[Direction::DirX][field] -
-                         this->changeBuffer(x, y, z)[Direction::DirX][field]) *
-                        this->problem.inverseCellSize[Direction::DirX];
-                    const double changeY =
-                        (this->changeBuffer(x, y + 1, z)[Direction::DirY][field] -
-                         this->changeBuffer(x, y, z)[Direction::DirY][field]) *
-                        this->problem.inverseCellSize[Direction::DirY];
-                    const double changeZ =
-                        (this->changeBuffer(x, y, z + 1)[Direction::DirZ][field] -
-                         this->changeBuffer(x, y, z)[Direction::DirZ][field]) *
-                        this->problem.inverseCellSize[Direction::DirZ];
+                    const double changeX = (this->changeBuffer(x + 1, y, z)[Direction::DirX][field] -
+                                            this->changeBuffer(x, y, z)[Direction::DirX][field]) *
+                                           this->problem.inverseCellSize[Direction::DirX];
+                    const double changeY = (this->changeBuffer(x, y + 1, z)[Direction::DirY][field] -
+                                            this->changeBuffer(x, y, z)[Direction::DirY][field]) *
+                                           this->problem.inverseCellSize[Direction::DirY];
+                    const double changeZ = (this->changeBuffer(x, y, z + 1)[Direction::DirZ][field] -
+                                            this->changeBuffer(x, y, z)[Direction::DirZ][field]) *
+                                           this->problem.inverseCellSize[Direction::DirZ];
                     const double change = changeX + changeY + changeZ;
                     if (substep == 0) { // if-statement should be pulled out by compiler
                         this->grid(x, y, z)[field] -= this->timeDelta * change;
                     } else {
                         this->grid(x, y, z)[field] = 0.5 * this->gridSubstepBuffer(x, y, z)[field] +
-                                                     0.5 * this->grid(x, y, z)[field] -
-                                                     0.5 * this->timeDelta * change;
+                                                     0.5 * this->grid(x, y, z)[field] - 0.5 * this->timeDelta * change;
                     }
                 }
             }
