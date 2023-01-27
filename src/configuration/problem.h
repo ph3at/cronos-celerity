@@ -4,7 +4,7 @@
 
 #include <toml++/toml.h>
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include "../boundary/boundary-types.h"
 #include "../data-types/direction.h"
@@ -41,12 +41,12 @@ template <class Specific, class Fields, unsigned padding> class Problem {
     std::array<BoundaryType, Faces::FaceMax> boundaryTypes;
 
     void initialiseGrid(PaddedGrid<Fields, padding>& grid) const;
-    void initialiseGridSycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) const;
+    void initialiseGridSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const;
     void applyBoundary(PaddedGrid<Fields, padding>& grid, const unsigned field, const unsigned face) const;
-    void applyBoundarySycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
+    void applyBoundarySycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
                            const unsigned face) const;
     void applySource(PaddedGrid<Fields, padding>& grid) const;
-    void applySourceSycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) const;
+    void applySourceSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const;
 };
 
 template <class Specific, class Fields, unsigned padding>
@@ -118,8 +118,8 @@ void Problem<Specific, Fields, padding>::initialiseGrid(PaddedGrid<Fields, paddi
     static_cast<const Specific*>(this)->initialiseGrid(grid);
 }
 template <class Specific, class Fields, unsigned padding>
-void Problem<Specific, Fields, padding>::initialiseGridSycl(cl::sycl::queue& queue,
-                                                            cl::sycl::buffer<FieldStruct, 3>& grid) const {
+void Problem<Specific, Fields, padding>::initialiseGridSycl(sycl::queue& queue,
+                                                            sycl::buffer<FieldStruct, 3>& grid) const {
     static_cast<const Specific*>(this)->initialiseGridSycl(queue, grid);
 }
 
@@ -129,9 +129,8 @@ void Problem<Specific, Fields, padding>::applyBoundary(PaddedGrid<Fields, paddin
     static_cast<const Specific*>(this)->applyBoundary(grid, field, face);
 }
 template <class Specific, class Fields, unsigned padding>
-void Problem<Specific, Fields, padding>::applyBoundarySycl(cl::sycl::queue& queue,
-                                                           cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
-                                                           const unsigned face) const {
+void Problem<Specific, Fields, padding>::applyBoundarySycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid,
+                                                           const unsigned field, const unsigned face) const {
     static_cast<const Specific*>(this)->applyBoundarySycl(queue, grid, field, face);
 }
 
@@ -140,7 +139,6 @@ void Problem<Specific, Fields, padding>::applySource(PaddedGrid<Fields, padding>
     static_cast<const Specific*>(this)->applySource(grid);
 }
 template <class Specific, class Fields, unsigned padding>
-void Problem<Specific, Fields, padding>::applySourceSycl(cl::sycl::queue& queue,
-                                                         cl::sycl::buffer<FieldStruct, 3>& grid) const {
+void Problem<Specific, Fields, padding>::applySourceSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const {
     static_cast<const Specific*>(this)->applySourceSycl(queue, grid);
 }

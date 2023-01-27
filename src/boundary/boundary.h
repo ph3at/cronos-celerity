@@ -3,7 +3,7 @@
 #include <iostream>
 #include <vector>
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include "../configuration/constants.h"
 #include "../configuration/problem.h"
@@ -55,8 +55,8 @@ void Boundary::applyField(PaddedGrid<FieldStruct, padding>& grid, const Problem<
 namespace BoundarySycl {
 
 template <class T, unsigned padding>
-void applyField(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid,
-                const Problem<T, FieldStruct, padding>& problem, const unsigned field) {
+void applyField(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const Problem<T, FieldStruct, padding>& problem,
+                const unsigned field) {
     for (unsigned face = 0; face < Faces::FaceMax; face++) {
         /* GPUs only support compile time polymorphism, so we are using this Frankenstein here.
          * Sorry. */
@@ -76,8 +76,7 @@ void applyField(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid,
 }
 
 template <class T, unsigned padding>
-void applyAll(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid,
-              const Problem<T, FieldStruct, padding>& problem) {
+void applyAll(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const Problem<T, FieldStruct, padding>& problem) {
     for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
         applyField<T, padding>(queue, grid, problem, field);
     }

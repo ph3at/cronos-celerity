@@ -5,7 +5,7 @@
 #include <fstream>
 #include <vector>
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include "padded-grid.h"
 #include "simple-grid.h"
@@ -121,6 +121,6 @@ void GridFunctions::writeToFile(const std::string fileName, const PaddedGrid<Fie
 
 namespace GridFunctionsSycl {
 
-bool checkNaN(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid);
+bool checkNaN(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid);
 
 } // namespace GridFunctionsSycl

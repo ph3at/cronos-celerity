@@ -2,7 +2,7 @@
 
 #include <array>
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include "../data-types/faces.h"
 #include "../data-types/phys-fields.h"
@@ -110,7 +110,7 @@ using Boundary::Axis;
 using Boundary::Dir;
 
 template <Axis axis, Dir dir, unsigned padding>
-void apply(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field) {
+void apply(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const unsigned field) {
     constexpr auto idxMap = []() {
         if constexpr (axis == Axis::X) {
             return std::array{ 0, 1, 2 };
@@ -137,14 +137,14 @@ void apply(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const
         direction = 1;
     }
 
-    queue.submit([&](cl::sycl::handler& cgh) {
-        auto gridAccessor = grid.template get_access<cl::sycl::access::mode::read_write>(cgh);
+    queue.submit([&](sycl::handler& cgh) {
+        auto gridAccessor = grid.template get_access<sycl::access::mode::read_write>(cgh);
 
-        const auto range = cl::sycl::range<2>(grid.get_range()[idxMap[1]], grid.get_range()[idxMap[2]]);
+        const auto range = sycl::range<2>(grid.get_range()[idxMap[1]], grid.get_range()[idxMap[2]]);
 
-        cgh.parallel_for(range, [=](const cl::sycl::id<2> id) {
+        cgh.parallel_for(range, [=](const sycl::id<2> id) {
             for (auto d = inner; d != outer; d += direction) {
-                auto dstIdx = cl::sycl::id<3>(0, 0, 0);
+                auto dstIdx = sycl::id<3>(0, 0, 0);
                 dstIdx[idxMap[0]] = d;
                 dstIdx[idxMap[1]] = id[0];
                 dstIdx[idxMap[2]] = id[1];
@@ -159,7 +159,7 @@ void apply(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const
 }
 
 template <unsigned padding>
-void apply(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field, const unsigned face) {
+void apply(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const unsigned field, const unsigned face) {
     if (face == Faces::FaceWest) {
         apply<Axis::X, Dir::LEFT, padding>(queue, grid, field);
     } else if (face == Faces::FaceEast) {

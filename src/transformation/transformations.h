@@ -2,7 +2,7 @@
 
 #include <array>
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include "../configuration/constants.h"
 #include "../data-types/face-values.h"
@@ -74,10 +74,10 @@ void conservativeToPrimitive(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const b
 
 namespace TransformationSycl {
 
-void primitiveToConservative(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const bool isThermal,
+void primitiveToConservative(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const bool isThermal,
                              const double gamma = Transformation::DEFAULT_GAMMA);
 
-void conservativeToPrimitive(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const bool isThermal,
+void conservativeToPrimitive(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const bool isThermal,
                              const double gamma = Transformation::DEFAULT_GAMMA);
 
 } // namespace TransformationSycl

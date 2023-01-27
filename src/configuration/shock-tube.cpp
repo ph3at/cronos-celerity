@@ -93,11 +93,11 @@ void ShockTube::initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const
     }
 }
 
-void ShockTube::initialiseGridSycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) const {
-    queue.submit([&](cl::sycl::handler& cgh) {
-        auto gridAccessor = grid.template get_access<cl::sycl::access::mode::discard_write>(cgh);
+void ShockTube::initialiseGridSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const {
+    queue.submit([&](sycl::handler& cgh) {
+        auto gridAccessor = grid.template get_access<sycl::access::mode::discard_write>(cgh);
 
-        cgh.parallel_for(grid.get_range(), [=, *this](const cl::sycl::id<3> id) {
+        cgh.parallel_for(grid.get_range(), [=, *this](const sycl::id<3> id) {
             double posParallel;
             if (shockDir == Direction::DirX) {
                 posParallel = posLeft[Direction::DirX] +
@@ -163,7 +163,7 @@ void ShockTube::applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const 
     }
 }
 
-void ShockTube::applyBoundarySycl(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
+void ShockTube::applyBoundarySycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
                                   const unsigned face) const {
     if (face == Faces::FaceEast) {
         double initValue;
@@ -181,15 +181,15 @@ void ShockTube::applyBoundarySycl(cl::sycl::queue& queue, cl::sycl::buffer<Field
             initValue = 0.0;
         }
 
-        queue.submit([&](cl::sycl::handler& cgh) {
-            auto gridAccessor = grid.template get_access<cl::sycl::access::mode::discard_write>(cgh);
+        queue.submit([&](sycl::handler& cgh) {
+            auto gridAccessor = grid.template get_access<sycl::access::mode::discard_write>(cgh);
 
-            const auto offset = cl::sycl::id<3>(grid.get_range()[0] - GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
+            const auto offset = sycl::id<3>(grid.get_range()[0] - GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
             const auto range =
-                cl::sycl::range<3>(grid.get_range()[0] - offset[0], grid.get_range()[1] - offset[1] - GHOST_CELLS,
-                                   grid.get_range()[2] - offset[2] - GHOST_CELLS);
+                sycl::range<3>(grid.get_range()[0] - offset[0], grid.get_range()[1] - offset[1] - GHOST_CELLS,
+                               grid.get_range()[2] - offset[2] - GHOST_CELLS);
 
-            cgh.parallel_for(range, [=](const cl::sycl::id<3> id) {
+            cgh.parallel_for(range, [=](const sycl::id<3> id) {
                 const auto idx = id + offset;
                 gridAccessor[idx][field] = initValue;
             });
@@ -201,7 +201,7 @@ void ShockTube::applySource([[maybe_unused]] PaddedGrid<FieldStruct, GHOST_CELLS
     // No source in shock tube
 }
 
-void ShockTube::applySourceSycl([[maybe_unused]] cl::sycl::queue& queue,
-                                [[maybe_unused]] cl::sycl::buffer<FieldStruct, 3>& grid) const {
+void ShockTube::applySourceSycl([[maybe_unused]] sycl::queue& queue,
+                                [[maybe_unused]] sycl::buffer<FieldStruct, 3>& grid) const {
     // No source in shock tube
 }

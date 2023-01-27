@@ -49,20 +49,20 @@ SimpleGrid<FieldStruct> readFromFile(const std::string filename) {
 
 namespace GridFunctionsSycl {
 
-bool checkNaN(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid) {
+bool checkNaN(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) {
     const auto range = grid.get_range();
-    auto isNanBuffer = cl::sycl::buffer<bool, 1>(range.size());
-    queue.submit([&](cl::sycl::handler& cgh) {
-        auto gridAccessor = grid.template get_access<cl::sycl::access::mode::read>(cgh);
-        auto isNanBufferAccessor = isNanBuffer.template get_access<cl::sycl::access::mode::discard_write>(cgh);
-        cgh.parallel_for(range, [=](const cl::sycl::item<3> item) {
+    auto isNanBuffer = sycl::buffer<bool, 1>(range.size());
+    queue.submit([&](sycl::handler& cgh) {
+        auto gridAccessor = grid.template get_access<sycl::access::mode::read>(cgh);
+        auto isNanBufferAccessor = isNanBuffer.template get_access<sycl::access::mode::discard_write>(cgh);
+        cgh.parallel_for(range, [=](const sycl::item<3> item) {
             isNanBufferAccessor[item.get_linear_id()] = false;
             for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
                 isNanBufferAccessor[item.get_linear_id()] |= std::isnan(gridAccessor[item][field]);
             }
         });
     });
-    return utils::sycl::reduce(queue, isNanBuffer, std::bit_or<bool>{});
+    return sycl_utils::reduce(queue, isNanBuffer, std::bit_or<bool>{});
 }
 
 } // namespace GridFunctionsSycl

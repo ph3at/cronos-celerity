@@ -3,7 +3,7 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <toml++/toml.h>
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <algorithm>
 #include <bit>
@@ -212,20 +212,20 @@ TEST_CASE("Sycl", "[sycl]") {
     }
 
     {
-        auto queue = cl::sycl::queue();
-        auto itemRange = cl::sycl::range<3>(NUM_ELEMENTS[0], NUM_ELEMENTS[1], NUM_ELEMENTS[2]);
-        auto totalRange = cl::sycl::range<3>(DATA_SIZE[0], DATA_SIZE[1], DATA_SIZE[2]);
-        auto bufferA = cl::sycl::buffer<int, 3>(dataA.data(), totalRange);
-        auto bufferB = cl::sycl::buffer<int, 3>(dataB.data(), totalRange);
-        auto bufferC = cl::sycl::buffer<int, 3>(dataC.data(), totalRange);
+        auto queue = sycl::queue();
+        auto itemRange = sycl::range<3>(NUM_ELEMENTS[0], NUM_ELEMENTS[1], NUM_ELEMENTS[2]);
+        auto totalRange = sycl::range<3>(DATA_SIZE[0], DATA_SIZE[1], DATA_SIZE[2]);
+        auto bufferA = sycl::buffer<int, 3>(dataA.data(), totalRange);
+        auto bufferB = sycl::buffer<int, 3>(dataB.data(), totalRange);
+        auto bufferC = sycl::buffer<int, 3>(dataC.data(), totalRange);
 
-        queue.submit([&](cl::sycl::handler& cgh) {
-            auto accA = bufferA.template get_access<cl::sycl::access::mode::read>(cgh);
-            auto accB = bufferB.template get_access<cl::sycl::access::mode::read>(cgh);
-            auto accC = bufferC.template get_access<cl::sycl::access::mode::discard_write>(cgh);
+        queue.submit([&](sycl::handler& cgh) {
+            auto accA = bufferA.template get_access<sycl::access::mode::read>(cgh);
+            auto accB = bufferB.template get_access<sycl::access::mode::read>(cgh);
+            auto accC = bufferC.template get_access<sycl::access::mode::discard_write>(cgh);
 
-            cgh.parallel_for(itemRange, [=](const cl::sycl::id<3> id) {
-                const auto offset = cl::sycl::id<3>(GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
+            cgh.parallel_for(itemRange, [=](const sycl::id<3> id) {
+                const auto offset = sycl::id<3>(GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
                 const auto i = id + offset;
 
                 auto& res = accC[i];
@@ -262,19 +262,19 @@ TEST_CASE("Sycl", "[sycl]") {
     }
 }
 
-template <typename T> cl::sycl::buffer<T, 1> uploadBuffer(const std::vector<T>& data) {
-    return cl::sycl::buffer<T, 1>(data.data(), cl::sycl::range<1>(data.size()));
+template <typename T> sycl::buffer<T, 1> uploadBuffer(const std::vector<T>& data) {
+    return sycl::buffer<T, 1>(data.data(), sycl::range<1>(data.size()));
 }
 
 TEST_CASE("Sycl reduction", "[sycl]") {
     constexpr auto timedCreateQueue = []() {
         const auto _ = ScopedTimer("Creating SYCL queue");
-        return cl::sycl::queue([](const cl::sycl::exception_list exceptions) {
+        return sycl::queue([](const sycl::exception_list exceptions) {
             try {
                 for (const auto& e : exceptions) {
                     std::rethrow_exception(e);
                 }
-            } catch (const cl::sycl::exception& e) {
+            } catch (const sycl::exception& e) {
                 std::cout << "Exception during reduction: " << e.what() << std::endl;
             }
         });
@@ -305,7 +305,7 @@ TEST_CASE("Sycl reduction", "[sycl]") {
 
         {
             const auto _ = ScopedTimer("Sycl reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
-            syclResult = utils::sycl::reduce(queue, buffer, reductionOp, std::numeric_limits<int>::lowest());
+            syclResult = sycl_utils::reduce(queue, buffer, reductionOp, std::numeric_limits<int>::lowest());
         }
     }
     {

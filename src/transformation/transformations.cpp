@@ -57,12 +57,12 @@ void conservativeToPrimitive(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const b
 
 namespace TransformationSycl {
 
-void primitiveToConservative(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const bool isThermal,
+void primitiveToConservative(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const bool isThermal,
                              const double gamma) {
-    queue.submit([&](cl::sycl::handler& cgh) {
-        auto gridAccessor = grid.template get_access<cl::sycl::access::mode::read_write>(cgh);
+    queue.submit([&](sycl::handler& cgh) {
+        auto gridAccessor = grid.template get_access<sycl::access::mode::read_write>(cgh);
 
-        cgh.parallel_for(grid.get_range(), [=](const cl::sycl::id<3> id) {
+        cgh.parallel_for(grid.get_range(), [=](const sycl::id<3> id) {
             Transformation::velocityToMomentum(gridAccessor[id]);
             if (isThermal) {
                 gridAccessor[id][FieldNames::THERMAL_ENERGY] = Transformation::thermalEnergyToEnergy(gridAccessor[id]);
@@ -74,12 +74,12 @@ void primitiveToConservative(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruc
     });
 }
 
-void conservativeToPrimitive(cl::sycl::queue& queue, cl::sycl::buffer<FieldStruct, 3>& grid, const bool isThermal,
+void conservativeToPrimitive(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const bool isThermal,
                              const double gamma) {
-    queue.submit([&](cl::sycl::handler& cgh) {
-        auto gridAccessor = grid.template get_access<cl::sycl::access::mode::read_write>(cgh);
+    queue.submit([&](sycl::handler& cgh) {
+        auto gridAccessor = grid.template get_access<sycl::access::mode::read_write>(cgh);
 
-        cgh.parallel_for(grid.get_range(), [=](const cl::sycl::id<3> id) {
+        cgh.parallel_for(grid.get_range(), [=](const sycl::id<3> id) {
             Transformation::momentumToVelocity(gridAccessor[id]);
             if (isThermal) {
                 gridAccessor[id][FieldNames::THERMAL_ENERGY] = Transformation::energyToThermalEnergy(gridAccessor[id]);
