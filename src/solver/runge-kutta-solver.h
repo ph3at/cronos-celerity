@@ -182,11 +182,15 @@ void RungeKuttaSolver<ProblemType, Fields, padding>::updateCFL(const std::pair<d
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
+#ifndef NDEBUG
     this->checkErrors();
+#endif
 
     this->problem.applySource(this->grid);
 
+#ifndef NDEBUG
     this->checkErrors();
+#endif
 
     Transformation::primitiveToConservative(this->grid, this->problem.thermal, this->problem.gamma);
     this->integrateTime(substep);

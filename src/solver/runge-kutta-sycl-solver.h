@@ -205,11 +205,15 @@ double RungeKuttaSyclSolver<ProblemType, Fields, padding>::reduceCFL(sycl::queue
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaSyclSolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
+#ifndef NDEBUG
     checkErrors(m_queue, m_grid);
+#endif
 
     problem.applySourceSycl(m_queue, m_grid);
 
+#ifndef NDEBUG
     checkErrors(m_queue, m_grid);
+#endif
 
     TransformationSycl::primitiveToConservative(m_queue, m_grid, problem.thermal, problem.gamma);
     integrateTime(m_queue, m_grid, m_gridSubstepBuffer, m_changeBuffer, substep);
