@@ -1,22 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
-project(cronos-amr-sycl)
+project(cronos-amr-celerity)
 
-###################
-# hipSYCL Options #
-###################
-find_package(hipSYCL CONFIG REQUIRED)
-
-if(NOT HIPSYCL_DEBUG_LEVEL)
-  if(CMAKE_BUILD_TYPE MATCHES "Debug")
-    set(HIPSYCL_DEBUG_LEVEL "3" CACHE STRING
-      "Choose the debug level, options are: 0 (no debug), 1 (print errors), 2 (also print warnings), 3 (also print general information)" FORCE)
-  else()
-    set(HIPSYCL_DEBUG_LEVEL "2" CACHE STRING
-      "Choose the debug level, options are: 0 (no debug), 1 (print errors), 2 (also print warnings), 3 (also print general information)" FORCE)
-  endif()
-endif()
-
-add_compile_definitions(HIPSYCL_DEBUG_LEVEL=${HIPSYCL_DEBUG_LEVEL})
+####################
+# Celerity Options #
+####################
+find_package(Celerity 0.3.2 REQUIRED)
 
 ####################
 # Compiler Options #
@@ -68,14 +56,14 @@ list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main-sycl.cpp")
 file(GLOB_RECURSE HDR src/*.h)
 
 add_executable(cronos-amr src/main.cpp ${SRC} ${HDR})
-add_sycl_to_target(TARGET cronos-amr SOURCES ${SRC})
+add_celerity_to_target(TARGET cronos-amr SOURCES ${SRC})
 set_compiler_parameters(cronos-amr)
 target_link_libraries(cronos-amr PRIVATE tomlplusplus::tomlplusplus)
 
-add_executable(cronos-sycl src/main-sycl.cpp ${SRC} ${HDR})
-add_sycl_to_target(TARGET cronos-sycl SOURCES ${SRC})
-set_compiler_parameters(cronos-sycl)
-target_link_libraries(cronos-sycl PRIVATE tomlplusplus::tomlplusplus)
+add_executable(cronos-celerity src/main-sycl.cpp ${SRC} ${HDR})
+add_celerity_to_target(TARGET cronos-celerity SOURCES ${SRC})
+set_compiler_parameters(cronos-celerity)
+target_link_libraries(cronos-celerity PRIVATE tomlplusplus::tomlplusplus)
 
 ###########
 # Testing #
@@ -85,7 +73,7 @@ set(CMAKE_FOLDER "vendor/Catch2")
     include("vendor/Catch2/extras/Catch.cmake")
 unset(CMAKE_FOLDER)
 add_executable(tests test/test.cpp ${SRC} ${HDR})
-add_sycl_to_target(TARGET tests SOURCES ${SRC})
+add_celerity_to_target(TARGET tests SOURCES ${SRC})
 set_compiler_parameters(tests)
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain tomlplusplus::tomlplusplus)
 

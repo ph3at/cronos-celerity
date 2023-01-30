@@ -1,27 +1,28 @@
-# Cronos SYCL
+# Cronos Celerity
 
-Port of magnetohydrodynamics simulation software `Cronos` using `SYCL`.
+Port of magnetohydrodynamics simulation software `Cronos` using `Celerity`.
 
 ## Usage
 
 ### Prerequisites
 
-- hipSYCL with C++20 capable backend compiler
+- Celerity
+- C++20 capable backend compiler
 - cmake
 
 ### Compiling
 
-1. `cmake -Bbuild -DCMAKE_PREFIX_PATH="/path/to/hipSYCL" -DHIPSYCL_TARGETS="cuda:sm_52" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++`
+1. `cmake -Bbuild -DCMAKE_PREFIX_PATH="/path/to/celerity" -DHIPSYCL_TARGETS="cuda:sm_52" -DCMAKE_BUILD_TYPE=Release`
 2. `cd build`
 3. `make -j`
 
 ### Run
 
-Execute `./cronos-sycl` in the build directory, with the full or relative path to
+Execute `./cronos-celerity` in the build directory, with the full or relative path to
 a configuration file as command line argument. Examples can be found in the
 folder `configuration/`.
 
-To run the CPU implementation, use `./cronos-amr`, which in the default configuration uses the same runge-kutta solver as the sycl version. The CPU version additionally also supports an adaptive mesh refinement implementation which can be enabled through the config with `enable_amr`.
+To run the CPU implementation, use `./cronos-amr`, which in the default configuration uses the same runge-kutta solver as the celerity version. The CPU version additionally also supports an adaptive mesh refinement implementation which can be enabled through the config with `enable_amr`.
 
 ### Configure
 
