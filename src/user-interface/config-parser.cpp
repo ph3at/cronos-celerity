@@ -30,12 +30,11 @@ void parseAndRun(const std::string& configFile, bool useSycl) {
 AMRParameters parseAMRConfig(const toml::table& config) {
     std::cout << std::endl << "AMR parameters:" << std::endl;
     const toml::node_view<const toml::node>& amr = config["amr"];
-    const AMRParameters amrConfig = { .refinementFactor = parseValue<unsigned>(amr, "refinement_factor", 4),
-                                      .refinementInterval = parseValue<unsigned>(amr, "refinement_interval", 4),
-                                      .bufferSize = parseValue<unsigned>(amr, "buffer_size", 4),
-                                      .efficiencyThreshold = parseValue<double>(amr, "efficiency_threshold", 0.6),
-                                      .truncationErrorThreshold =
-                                          parseValue<double>(amr, "truncation_error_threshold", 1e-4),
-                                      .maxRefinementDepth = parseValue<unsigned>(amr, "max_refinement_depth", 1) };
+    const AMRParameters amrConfig = { parseValue<unsigned>(amr, "refinement_factor", 4),
+                                      parseValue<unsigned>(amr, "refinement_interval", 4),
+                                      parseValue<unsigned>(amr, "buffer_size", 4),
+                                      parseValue<double>(amr, "efficiency_threshold", 0.6),
+                                      parseValue<double>(amr, "truncation_error_threshold", 1e-4),
+                                      parseValue<unsigned>(amr, "max_refinement_depth", 1) };
     return amrConfig;
 }

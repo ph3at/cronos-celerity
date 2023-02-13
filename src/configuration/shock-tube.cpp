@@ -20,15 +20,6 @@ ShockTube::ShockTube(const double cflThreshold, const bool thermal, const double
       velocityZRightInit(shockDir == Direction::DirZ ? velocityRightInit : 0.0), pressureLeftInit(pressureLeftInit),
       pressureRightInit(pressureRightInit) {}
 
-ShockTube::ShockTube(const ShockTube& blueprint)
-    : Problem<ShockTube, FieldStruct, GHOST_CELLS>(blueprint), shockDir(blueprint.shockDir),
-      shockPos(blueprint.shockPos), densityLeftInit(blueprint.densityLeftInit),
-      densityRightInit(blueprint.densityRightInit), velocityXLeftInit(blueprint.velocityXLeftInit),
-      velocityXRightInit(blueprint.velocityXRightInit), velocityYLeftInit(blueprint.velocityYLeftInit),
-      velocityYRightInit(blueprint.velocityYRightInit), velocityZLeftInit(blueprint.velocityZLeftInit),
-      velocityZRightInit(blueprint.velocityZRightInit), pressureLeftInit(blueprint.pressureLeftInit),
-      pressureRightInit(blueprint.pressureRightInit) {}
-
 ShockTube::ShockTube(const toml::table& config) : Problem<ShockTube, FieldStruct, GHOST_CELLS>(config) {
     std::cout << std::endl << "Shock tube specific parameters:" << std::endl;
     const toml::node_view<const toml::node>& specific = config["specific"];

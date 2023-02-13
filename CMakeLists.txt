@@ -13,7 +13,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 function(set_compiler_parameters TARGET)
   set_target_properties(${TARGET} PROPERTIES
-    CXX_STANDARD 20
+    CXX_STANDARD 17
     CXX_EXTENSIONS OFF
   )
   target_compile_options(${TARGET} PRIVATE
@@ -55,27 +55,36 @@ list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 list(REMOVE_ITEM SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/main-sycl.cpp")
 file(GLOB_RECURSE HDR src/*.h)
 
-add_executable(cronos-amr src/main.cpp ${SRC} ${HDR})
-add_celerity_to_target(TARGET cronos-amr SOURCES ${SRC})
+set(CRONOS_AMR_SRC ${SRC})
+list(APPEND CRONOS_AMR_SRC "src/main.cpp")
+add_executable(cronos-amr ${CRONOS_AMR_SRC} ${HDR})
 set_compiler_parameters(cronos-amr)
 target_link_libraries(cronos-amr PRIVATE tomlplusplus::tomlplusplus)
+add_celerity_to_target(TARGET cronos-amr SOURCES ${CRONOS_AMR_SRC})
 
-add_executable(cronos-celerity src/main-sycl.cpp ${SRC} ${HDR})
-add_celerity_to_target(TARGET cronos-celerity SOURCES ${SRC})
+set(CRONOS_CELERITY_SRC ${SRC})
+list(APPEND CRONOS_CELERITY_SRC "src/main-sycl.cpp")
+add_executable(cronos-celerity ${CRONOS_CELERITY_SRC} ${HDR})
 set_compiler_parameters(cronos-celerity)
 target_link_libraries(cronos-celerity PRIVATE tomlplusplus::tomlplusplus)
+add_celerity_to_target(TARGET cronos-celerity SOURCES ${CRONOS_CELERITY_SRC})
 
 ###########
 # Testing #
 ###########
-set(CMAKE_FOLDER "vendor/Catch2")
-    add_subdirectory(vendor/Catch2)
-    include("vendor/Catch2/extras/Catch.cmake")
-unset(CMAKE_FOLDER)
-add_executable(tests test/test.cpp ${SRC} ${HDR})
-add_celerity_to_target(TARGET tests SOURCES ${SRC})
+include(FetchContent)
+FetchContent_Declare(Catch2
+  URL ${PROJECT_SOURCE_DIR}/vendor/Catch2
+)
+FetchContent_MakeAvailable(Catch2)
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+
+set(TESTS_SRC ${SRC})
+list(APPEND TESTS_SRC "test/test.cpp")
+add_executable(tests ${TESTS_SRC} ${HDR})
 set_compiler_parameters(tests)
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain tomlplusplus::tomlplusplus)
+add_celerity_to_target(TARGET tests SOURCES ${TESTS_SRC})
 
 # Automatically register tests
 include(CTest)

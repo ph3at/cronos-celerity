@@ -16,7 +16,7 @@ class ShockTube : public Problem<ShockTube, FieldStruct, GHOST_CELLS> {
               const double shockPos, const double densityLeftInit, const double densityRightInit,
               const double velocityLeftInit, const double velocityRightInit, const double pressureLeftInit,
               const double pressureRightInit);
-    ShockTube(const ShockTube& blueprint);
+    ShockTube(const ShockTube&) = default;
     ShockTube(const toml::table& config);
 
     void initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const;

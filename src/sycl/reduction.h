@@ -1,19 +1,36 @@
 #pragma once
 
 #include <algorithm>
-#include <bit>
+#include <climits>
+#include <cstddef>
 #include <functional>
 
 #include <sycl/sycl.hpp>
 
 namespace sycl_utils {
 
+template <typename T> constexpr T bit_ceil(const T num) {
+    static_assert(std::is_unsigned_v<T> && std::is_integral_v<T>,
+                  "bit_ceil is only defined for unsigned integral types");
+
+    if (num == 0) {
+        return 1;
+    }
+
+    auto ceiled = num - 1;
+    for (std::size_t i = 1; i < sizeof(T) * CHAR_BIT; i *= 2) {
+        ceiled |= ceiled >> i;
+    }
+    ++ceiled;
+    return ceiled;
+}
+
 template <typename T, typename BinOp = std::plus<T>>
 T reduce(sycl::queue& queue, sycl::buffer<T, 1>& data, BinOp op = std::plus<T>{}, const T neutralElement = T()) {
     auto device = queue.get_device();
 
     const auto actualSize = data.get_count();
-    const auto ceiledSize = std::bit_ceil(actualSize);
+    const auto ceiledSize = bit_ceil(actualSize);
     const size_t workgroupSize = std::min(ceiledSize, device.get_info<sycl::info::device::max_work_group_size>());
     size_t remainingSize = ceiledSize;
 

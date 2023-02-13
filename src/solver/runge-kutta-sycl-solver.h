@@ -68,7 +68,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
 
     void prepareSubstep(sycl::queue& queue, sycl::buffer<Changes<Fields>, 3>& changeBuffer) const;
     void computeSubstep();
-    double calcCFL(std::pair<double, double> characVelocities, const double inverseCellSize) const;
+    static double calcCFL(std::pair<double, double> characVelocities, const double inverseCellSize);
     double reduceCFL(sycl::queue& queue, sycl::buffer<double, 1>& cflBuffer, const double initialCFL) const;
     void finaliseSubstep(const unsigned substep);
     void integrateTime(sycl::queue& queue, sycl::buffer<Fields, 3>& grid, sycl::buffer<Fields, 3>& gridSubstep,
@@ -188,7 +188,7 @@ void RungeKuttaSyclSolver<ProblemType, Fields, padding>::computeSubstep() {
 
 template <class ProblemType, class Fields, unsigned padding>
 double RungeKuttaSyclSolver<ProblemType, Fields, padding>::calcCFL(const std::pair<double, double> characVelocities,
-                                                                   const double inverseCellSize) const {
+                                                                   const double inverseCellSize) {
     const auto maxVelocity = std::max(characVelocities.first, characVelocities.second);
     const auto localCFL = maxVelocity * inverseCellSize;
     return localCFL;

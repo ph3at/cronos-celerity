@@ -21,7 +21,7 @@ template <class Specific, class Fields, unsigned padding> class Problem {
             const std::array<double, Direction::DirMax> posLeft, const std::array<double, Direction::DirMax> posRight,
             const std::array<std::size_t, Direction::DirMax> numberCells,
             const std::array<BoundaryType, Faces::FaceMax> boundaryTypes);
-    Problem(const Problem<Specific, Fields, padding>& blueprint);
+    Problem(const Problem&) = default;
     Problem(const toml::table& config);
 
     double cflThreshold;
@@ -66,14 +66,6 @@ Problem<Specific, Fields, padding>::Problem(const double cflThreshold, const boo
       inverseCellSize(
           { 1.0 / cellSize[Direction::DirX], 1.0 / cellSize[Direction::DirY], 1.0 / cellSize[Direction::DirZ] }),
       boundaryTypes(boundaryTypes) {}
-
-template <class Specific, class Fields, unsigned padding>
-Problem<Specific, Fields, padding>::Problem(const Problem<Specific, Fields, padding>& blueprint)
-    : cflThreshold(blueprint.cflThreshold), thermal(blueprint.thermal), timeDelta(blueprint.timeDelta),
-      timeStart(blueprint.timeStart), timeEnd(blueprint.timeEnd), preciseEnd(blueprint.preciseEnd),
-      gamma(blueprint.gamma), posLeft(blueprint.posLeft), posRight(blueprint.posRight),
-      numberCells(blueprint.numberCells), cellSize(blueprint.cellSize), inverseCellSize(blueprint.inverseCellSize),
-      boundaryTypes(blueprint.boundaryTypes) {}
 
 template <class Specific, class Fields, unsigned padding>
 Problem<Specific, Fields, padding>::Problem(const toml::table& config) {
