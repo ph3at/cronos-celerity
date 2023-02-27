@@ -3,6 +3,7 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <toml++/toml.h>
 
+#include <celerity.h>
 #include <sycl/sycl.hpp>
 
 #include <algorithm>
@@ -20,6 +21,11 @@
 #include "../src/solver/runge-kutta-solver.h"
 #include "../src/solver/runge-kutta-sycl-solver.h"
 #include "../src/sycl/reduction.h"
+
+static celerity::distr_queue& get_celerity_queue() {
+    static celerity::distr_queue queue;
+    return queue;
+}
 
 class ScopedTimer {
   public:
@@ -315,4 +321,68 @@ TEST_CASE("Sycl reduction", "[sycl]") {
 
     CHECK(syclResult == stlResult);
     std::cout << std::endl;
+}
+
+template <typename T> celerity::buffer<T, 1> uploadCelerityBuffer(const std::vector<T>& data) {
+    return celerity::buffer<T, 1>(data.data(), celerity::range<1>(data.size()));
+}
+
+TEST_CASE("Celerity reduction", "[celerity]") {
+    constexpr auto timedCreateQueue = []() {
+        const auto _ = ScopedTimer("Creating celerity queue");
+        return get_celerity_queue();
+    };
+
+    auto queue = timedCreateQueue();
+
+    const auto NUM_ELEMENTS = GENERATE(1, 2, 3, 4, 128, 2048, 4096, 7757 /*, 512 * 1024 * 1024*/);
+    auto data = std::vector<int>(NUM_ELEMENTS);
+
+    {
+        const auto _ = ScopedTimer("Generating " + std::to_string(NUM_ELEMENTS) + " random elements");
+        std::iota(data.begin(), data.end(), -static_cast<int>(data.size()));
+    }
+
+    auto celerityResult = 0;
+    auto stlResult = 0;
+
+    constexpr auto reductionOp = [](const int a, const int b) { return std::max(a, b); };
+
+    {
+        constexpr auto timedBufferUpload = [](const auto& data) {
+            const auto _ = ScopedTimer("Uploading buffer to GPU");
+            return uploadCelerityBuffer(data);
+        };
+
+        auto buffer = timedBufferUpload(data);
+
+        auto maxBuffer = celerity::buffer<int, 1>{ { 1 } };
+
+        {
+            const auto _ = ScopedTimer("Celerity reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
+            queue.submit([=](celerity::handler& cgh) {
+                auto bufferAccessor =
+                    celerity::accessor{ buffer, cgh, celerity::access::one_to_one{}, celerity::read_only };
+
+                auto maxReduction = celerity::reduction(maxBuffer, cgh, sycl::maximum<>());
+
+                cgh.parallel_for(buffer.get_range(), maxReduction,
+                                 [=](celerity::item<1> idx, auto& max) { max.combine(bufferAccessor[idx]); });
+            });
+        }
+
+        queue.submit(celerity::allow_by_ref, [=, &celerityResult](celerity::handler& cgh) {
+            celerity::accessor bufferAccessor{ maxBuffer, cgh, celerity::access::all{}, celerity::read_only_host_task };
+            cgh.host_task(celerity::on_master_node, [=, &celerityResult] {
+                celerityResult = bufferAccessor[0];
+                CHECK(celerityResult == stlResult);
+            });
+        });
+
+        queue.slow_full_sync();
+    }
+    {
+        const auto _ = ScopedTimer("STL reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
+        stlResult = std::accumulate(data.begin(), data.end(), std::numeric_limits<int>::lowest(), reductionOp);
+    }
 }
