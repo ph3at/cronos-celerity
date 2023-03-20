@@ -344,6 +344,69 @@ TEST_CASE("Sycl reduction", "[sycl]") {
     std::cout << std::endl;
 }
 
+TEST_CASE("Sycl native reduction", "[sycl_reduction]") {
+    constexpr auto timedCreateQueue = []() {
+        const auto _ = ScopedTimer("Creating SYCL queue");
+        return sycl::queue([](const sycl::exception_list exceptions) {
+            try {
+                for (const auto& e : exceptions) {
+                    std::rethrow_exception(e);
+                }
+            } catch (const sycl::exception& e) {
+                std::cout << "Exception during reduction: " << e.what() << std::endl;
+            }
+        });
+    };
+
+    auto queue = timedCreateQueue();
+
+    const auto NUM_ELEMENTS = GENERATE(1, 2, 3, 4, 128, 2048, 4096, 7757 /*, 512 * 1024 * 1024*/);
+    CAPTURE(NUM_ELEMENTS);
+    auto data = std::vector<int>(NUM_ELEMENTS);
+
+    {
+        const auto _ = ScopedTimer("Generating " + std::to_string(NUM_ELEMENTS) + " random elements");
+        std::iota(data.begin(), data.end(), -static_cast<int>(data.size()));
+    }
+
+    auto syclResult = 0;
+    auto stlResult = 0;
+
+    constexpr auto reductionOp = [](const int a, const int b) { return std::max(a, b); };
+    {
+        const auto _ = ScopedTimer("STL reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
+        stlResult = std::accumulate(data.begin(), data.end(), std::numeric_limits<int>::lowest(), reductionOp);
+    }
+    {
+        constexpr auto timedBufferUpload = [](const auto& data) {
+            const auto _ = ScopedTimer("Uploading buffer to GPU");
+            return uploadBuffer(data);
+        };
+
+        auto buffer = timedBufferUpload(data);
+
+        auto maxBuffer = sycl::buffer<int, 1>{ { 1 } };
+
+        {
+            const auto _ = ScopedTimer("Celerity reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
+            queue.submit([&](sycl::handler& cgh) {
+                auto bufferAccessor = sycl::accessor{ buffer, cgh, sycl::read_only };
+
+                auto maxReduction = sycl::reduction(maxBuffer, cgh, sycl::maximum<>(),
+                                                    sycl::property::reduction::initialize_to_identity{});
+
+                cgh.parallel_for(buffer.get_range(), maxReduction,
+                                 [=](sycl::item<1> idx, auto& max) { max.combine(bufferAccessor[idx]); });
+            });
+        }
+
+        auto resultAccessor = sycl::host_accessor{ maxBuffer, sycl::read_only };
+        syclResult = resultAccessor[0];
+    }
+
+    CHECK(syclResult == stlResult);
+}
+
 template <typename T> celerity::buffer<T, 1> uploadCelerityBuffer(const std::vector<T>& data) {
     return celerity::buffer<T, 1>(data.data(), celerity::range<1>(data.size()));
 }
@@ -368,7 +431,10 @@ TEST_CASE("Celerity reduction", "[celerity]") {
     auto stlResult = 0;
 
     constexpr auto reductionOp = [](const int a, const int b) { return std::max(a, b); };
-
+    {
+        const auto _ = ScopedTimer("STL reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
+        stlResult = std::accumulate(data.begin(), data.end(), std::numeric_limits<int>::lowest(), reductionOp);
+    }
     {
         constexpr auto timedBufferUpload = [](const auto& data) {
             const auto _ = ScopedTimer("Uploading buffer to GPU");
@@ -385,7 +451,8 @@ TEST_CASE("Celerity reduction", "[celerity]") {
                 auto bufferAccessor =
                     celerity::accessor{ buffer, cgh, celerity::access::one_to_one{}, celerity::read_only };
 
-                auto maxReduction = celerity::reduction(maxBuffer, cgh, sycl::maximum<>());
+                auto maxReduction = celerity::reduction(maxBuffer, cgh, sycl::maximum<>(),
+                                                        celerity::property::reduction::initialize_to_identity{});
 
                 cgh.parallel_for(buffer.get_range(), maxReduction,
                                  [=](celerity::item<1> idx, auto& max) { max.combine(bufferAccessor[idx]); });
@@ -401,9 +468,5 @@ TEST_CASE("Celerity reduction", "[celerity]") {
         });
 
         queue.slow_full_sync();
-    }
-    {
-        const auto _ = ScopedTimer("STL reduction of " + std::to_string(NUM_ELEMENTS) + " elements");
-        stlResult = std::accumulate(data.begin(), data.end(), std::numeric_limits<int>::lowest(), reductionOp);
     }
 }
