@@ -69,10 +69,21 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
     double timeCurrent;
     const double timeEnd;
 
+    template <typename T, int Dims>
+    celerity::buffer<T, Dims> convertSyclToCelerityBuffer(sycl::buffer<T, Dims>& buffer) const {
+        auto data = std::vector<T>(buffer.size());
+        auto hostAccessor = buffer.get_host_access();
+        for (std::size_t i = 0; i < buffer.size(); ++i) {
+            data[i] = hostAccessor[i];
+        }
+        auto celerityBuffer = celerity::buffer<T, Dims>(data.data(), data.size());
+        return celerityBuffer;
+    }
+
     void prepareSubstep(sycl::queue& queue, sycl::buffer<Changes<Fields>, 3>& changeBuffer) const;
     void computeSubstep();
     static double calcCFL(std::pair<double, double> characVelocities, const double inverseCellSize);
-    double reduceCFL(sycl::queue& queue, sycl::buffer<double, 1>& cflBuffer, const double initialCFL) const;
+    double reduceCFL(celerity::distr_queue& queue, sycl::buffer<double, 1>& cflBuffer, const double initialCFL);
     void finaliseSubstep(const unsigned substep);
     void integrateTime(sycl::queue& queue, sycl::buffer<Fields, 3>& grid, sycl::buffer<Fields, 3>& gridSubstep,
                        sycl::buffer<Changes<Fields>, 3>& changes, const unsigned substep) const;
@@ -118,7 +129,7 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::step() {
     for (unsigned substep = 0; substep < rungeKuttaSteps; substep++) {
         prepareSubstep(m_queue, m_changeBuffer);
         computeSubstep();
-        m_cfl = reduceCFL(m_queue, m_cflBuffer, m_cfl);
+        m_cfl = reduceCFL(m_celerity_queue, m_cflBuffer, m_cfl);
         finaliseSubstep(substep);
     }
     timeCurrent += timeDelta;
@@ -199,13 +210,35 @@ double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::calcCFL(const std
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::reduceCFL(sycl::queue& queue,
+double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::reduceCFL(celerity::distr_queue& queue,
                                                                          sycl::buffer<double, 1>& cflBuffer,
-                                                                         const double initialCFL) const {
-    const auto reducedCFL = sycl_utils::reduce(
-        queue, cflBuffer, [](const auto& a, const auto& b) { return std::max(a, b); },
-        std::numeric_limits<double>::lowest());
-    return std::max(initialCFL, reducedCFL);
+                                                                         const double initialCFL) {
+    auto resultBuffer = celerity::buffer<double, 1>{ celerity::range<1>{ 1 } };
+
+    auto celerityCflBuffer = convertSyclToCelerityBuffer(cflBuffer);
+
+    queue.submit([=](celerity::handler& cgh) {
+        auto bufferAccessor =
+            celerity::accessor{ celerityCflBuffer, cgh, celerity::access::one_to_one{}, celerity::read_only };
+        auto maxReduction = celerity::reduction(resultBuffer, cgh, sycl::maximum<>(),
+                                                celerity::property::reduction::initialize_to_identity{});
+
+        cgh.parallel_for(celerityCflBuffer.get_range(), maxReduction,
+                         [=](celerity::item<1> idx, auto& max) { max.combine(bufferAccessor[idx]); });
+    });
+
+    double reducedCFL = 0;
+
+    queue.submit(celerity::allow_by_ref, [=, &reducedCFL](celerity::handler& cgh) {
+        celerity::accessor bufferAccessor{ resultBuffer, cgh, celerity::access::all{}, celerity::read_only_host_task };
+        cgh.host_task(
+            celerity::experimental::collective,
+            [=, &reducedCFL](celerity::experimental::collective_partition) { reducedCFL = bufferAccessor[0]; });
+    });
+
+    queue.slow_full_sync();
+    const auto maxCFL = std::max(initialCFL, reducedCFL);
+    return maxCFL;
 }
 
 template <class ProblemType, class Fields, unsigned padding>
