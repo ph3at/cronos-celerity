@@ -83,7 +83,7 @@ set(TESTS_SRC ${SRC})
 list(APPEND TESTS_SRC "test/test.cpp")
 add_executable(tests ${TESTS_SRC} ${HDR})
 set_compiler_parameters(tests)
-target_link_libraries(tests PRIVATE Catch2::Catch2WithMain tomlplusplus::tomlplusplus)
+target_link_libraries(tests PRIVATE Catch2::Catch2 tomlplusplus::tomlplusplus)
 add_celerity_to_target(TARGET tests SOURCES ${TESTS_SRC})
 
 # Automatically register tests

@@ -214,7 +214,6 @@ double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::reduceCFL(celerit
                                                                          sycl::buffer<double, 1>& cflBuffer,
                                                                          const double initialCFL) {
     auto resultBuffer = celerity::buffer<double, 1>{ celerity::range<1>{ 1 } };
-
     auto celerityCflBuffer = convertSyclToCelerityBuffer(cflBuffer);
 
     queue.submit([=](celerity::handler& cgh) {

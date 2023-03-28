@@ -1,4 +1,5 @@
 #define CATCH_CONFIG_MAIN
+#include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <toml++/toml.h>
@@ -23,10 +24,30 @@
 #include "../src/solver/runge-kutta-sycl-solver.h"
 #include "../src/sycl/reduction.h"
 
-static celerity::distr_queue& get_celerity_queue() {
-    static celerity::distr_queue queue;
-    return queue;
-}
+// This fixture (or a subclass) must be used by all tests that transitively use MPI.
+class mpi_fixture {
+  public:
+    mpi_fixture() { celerity::detail::runtime::test_require_mpi(); }
+
+    mpi_fixture(const mpi_fixture&) = delete;
+    mpi_fixture& operator=(const mpi_fixture&) = delete;
+};
+
+// This fixture (or a subclass) must be used by all tests that transitively instantiate the runtime.
+class runtime_fixture : public mpi_fixture {
+  public:
+    runtime_fixture() { celerity::detail::runtime::test_case_enter(); }
+
+    runtime_fixture(const runtime_fixture&) = delete;
+    runtime_fixture& operator=(const runtime_fixture&) = delete;
+
+    ~runtime_fixture() {
+        if (!celerity::detail::runtime::test_runtime_was_instantiated()) {
+            WARN("Test specified a runtime_fixture, but did not end up instantiating the runtime");
+        }
+        celerity::detail::runtime::test_case_exit();
+    }
+};
 
 class ScopedTimer {
   public:
@@ -82,11 +103,12 @@ TEST_CASE("Shock-Tube integration test with sycl", "[IntegrationTest][sycl]") {
     }
 }
 
-TEST_CASE("Shock-Tube integration test with celerity", "[IntegrationTest][celerity]") {
+TEST_CASE_METHOD(runtime_fixture, "Shock-Tube integration test with celerity", "[IntegrationTest][celerity]") {
     const toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
     ShockTube shockTube(config);
 
-    RungeKuttaCeleritySolver<ShockTube, FieldStruct, GHOST_CELLS> solver(get_celerity_queue(), shockTube);
+    auto queue = celerity::distr_queue();
+    RungeKuttaCeleritySolver<ShockTube, FieldStruct, GHOST_CELLS> solver(queue, shockTube);
     solver.initialise();
 
     double deviationPerStep = 1.0005;
@@ -411,10 +433,10 @@ template <typename T> celerity::buffer<T, 1> uploadCelerityBuffer(const std::vec
     return celerity::buffer<T, 1>(data.data(), celerity::range<1>(data.size()));
 }
 
-TEST_CASE("Celerity reduction", "[celerity]") {
+TEST_CASE_METHOD(runtime_fixture, "Celerity reduction", "[celerity]") {
     constexpr auto timedCreateQueue = []() {
         const auto _ = ScopedTimer("Creating celerity queue");
-        return get_celerity_queue();
+        return celerity::distr_queue();
     };
 
     auto queue = timedCreateQueue();
@@ -469,4 +491,18 @@ TEST_CASE("Celerity reduction", "[celerity]") {
 
         queue.slow_full_sync();
     }
+}
+
+int main(int argc, char* argv[]) {
+    Catch::Session session;
+
+    int return_code = session.applyCommandLine(argc, argv);
+    if (return_code != 0) {
+        return return_code;
+    }
+
+    celerity::detail::runtime::test_mode_enter();
+    return_code = session.run();
+    celerity::detail::runtime::test_mode_exit();
+    return return_code;
 }
