@@ -160,7 +160,9 @@ RungeKuttaCeleritySolver<ProblemType, Fields, padding>::RungeKuttaCeleritySolver
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::initialise() {
-    problem.initialiseGridSycl(m_queue, m_grid);
+    auto celerityGrid = convertSyclToCelerityBuffer(m_grid);
+    problem.initialiseGridCelerity(m_celerity_queue, celerityGrid);
+    m_grid = convertCelerityToSyclBuffer(celerityGrid);
     BoundarySycl::applyAll(m_queue, m_grid, problem);
 }
 

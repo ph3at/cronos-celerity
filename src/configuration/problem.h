@@ -4,6 +4,7 @@
 
 #include <toml++/toml.h>
 
+#include <celerity.h>
 #include <sycl/sycl.hpp>
 
 #include "../boundary/boundary-types.h"
@@ -42,6 +43,7 @@ template <class Specific, class Fields, unsigned padding> class Problem {
 
     void initialiseGrid(PaddedGrid<Fields, padding>& grid) const;
     void initialiseGridSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const;
+    void initialiseGridCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) const;
     void applyBoundary(PaddedGrid<Fields, padding>& grid, const unsigned field, const unsigned face) const;
     void applyBoundarySycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
                            const unsigned face) const;
@@ -113,6 +115,11 @@ template <class Specific, class Fields, unsigned padding>
 void Problem<Specific, Fields, padding>::initialiseGridSycl(sycl::queue& queue,
                                                             sycl::buffer<FieldStruct, 3>& grid) const {
     static_cast<const Specific*>(this)->initialiseGridSycl(queue, grid);
+}
+template <class Specific, class Fields, unsigned padding>
+void Problem<Specific, Fields, padding>::initialiseGridCelerity(celerity::distr_queue& queue,
+                                                                celerity::buffer<FieldStruct, 3>& grid) const {
+    static_cast<const Specific*>(this)->initialiseGridCelerity(queue, grid);
 }
 
 template <class Specific, class Fields, unsigned padding>

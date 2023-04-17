@@ -125,6 +125,55 @@ void ShockTube::initialiseGridSycl(sycl::queue& queue, sycl::buffer<FieldStruct,
     });
 }
 
+void ShockTube::initialiseGridCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) const {
+    queue.submit([grid, shockDir = shockDir, posLeft = posLeft, cellSize = cellSize, shockPos = shockPos,
+                  densityLeftInit = densityLeftInit, velocityXLeftInit = velocityXLeftInit,
+                  velocityYLeftInit = velocityYLeftInit, velocityZLeftInit = velocityZLeftInit, thermal = thermal,
+                  pressureLeftInit = pressureLeftInit, gamma = gamma, densityRightInit = densityRightInit,
+                  velocityXRightInit = velocityXRightInit, velocityYRightInit = velocityYRightInit,
+                  velocityZRightInit = velocityZRightInit,
+                  pressureRightInit = pressureRightInit](celerity::handler& cgh) {
+        auto gridAccessor =
+            celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only, celerity::no_init };
+
+        cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
+            double posParallel;
+            if (shockDir == Direction::DirX) {
+                posParallel = posLeft[Direction::DirX] +
+                              (static_cast<double>(id[0]) - GHOST_CELLS + 0.5) * cellSize[Direction::DirX];
+            } else if (shockDir == Direction::DirY) {
+                posParallel = posLeft[Direction::DirY] +
+                              (static_cast<double>(id[1]) - GHOST_CELLS + 0.5) * cellSize[Direction::DirY];
+            } else {
+                posParallel = posLeft[Direction::DirZ] +
+                              (static_cast<double>(id[2]) - GHOST_CELLS + 0.5) * cellSize[Direction::DirZ];
+            }
+            if (posParallel < shockPos) {
+                gridAccessor[id][FieldNames::DENSITY] = densityLeftInit;
+                gridAccessor[id][FieldNames::VELOCITY_X] = velocityXLeftInit;
+                gridAccessor[id][FieldNames::VELOCITY_Y] = velocityYLeftInit;
+                gridAccessor[id][FieldNames::VELOCITY_Z] = velocityZLeftInit;
+                if (thermal) {
+                    gridAccessor[id][FieldNames::THERMAL_ENERGY] = pressureLeftInit / (gamma - 1.0);
+                } else {
+                    gridAccessor[id][FieldNames::THERMAL_ENERGY] = pressureLeftInit / (densityLeftInit);
+                }
+            } else {
+                gridAccessor[id][FieldNames::DENSITY] = densityRightInit;
+                gridAccessor[id][FieldNames::VELOCITY_X] = velocityXRightInit;
+                gridAccessor[id][FieldNames::VELOCITY_Y] = velocityYRightInit;
+                gridAccessor[id][FieldNames::VELOCITY_Z] = velocityZRightInit;
+                if (thermal) {
+                    gridAccessor[id][FieldNames::THERMAL_ENERGY] = pressureRightInit / (gamma - 1.0);
+                } else {
+                    gridAccessor[id][FieldNames::THERMAL_ENERGY] = pressureRightInit / (densityRightInit);
+                }
+            }
+        });
+    });
+    queue.slow_full_sync();
+}
+
 void ShockTube::applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned field,
                               const unsigned face) const {
     if (face == Faces::FaceEast) {

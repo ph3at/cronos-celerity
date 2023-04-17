@@ -4,6 +4,7 @@
 
 #include <vector>
 
+#include <celerity.h>
 #include <sycl/sycl.hpp>
 
 class ShockTube : public Problem<ShockTube, FieldStruct, GHOST_CELLS> {
@@ -21,6 +22,7 @@ class ShockTube : public Problem<ShockTube, FieldStruct, GHOST_CELLS> {
 
     void initialiseGrid(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const;
     void initialiseGridSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const;
+    void initialiseGridCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) const;
     void applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned field, const unsigned face) const;
     void applyBoundarySycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
                            const unsigned face) const;
