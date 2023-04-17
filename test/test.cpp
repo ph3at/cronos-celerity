@@ -222,6 +222,62 @@ TEST_CASE("Shock-Tube sycl benchmark", "[Benchmark]") {
     }
 }
 
+TEST_CASE("Index mapping", "[sycl]") {
+    SECTION("1D") {
+        constexpr auto NUM_ELEMENTS = 1000;
+        auto range = sycl::range<1>(NUM_ELEMENTS);
+        auto data = std::vector<std::size_t>(range.size());
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            data[i] = i;
+        }
+        auto buffer = sycl::buffer<std::size_t, 1>(data.data(), range);
+        auto hostAccessor = buffer.get_host_access();
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            const auto idx = sycl::id<1>(i);
+            const auto dataElem = data[i];
+            const auto bufferElem = hostAccessor[idx];
+            CHECK(dataElem == bufferElem);
+        }
+    }
+    SECTION("2D") {
+        constexpr auto NUM_ELEMENTS = std::array<std::size_t, 2>{ 100, 300 };
+        auto range = sycl::range<2>(NUM_ELEMENTS[0], NUM_ELEMENTS[1]);
+        auto data = std::vector<std::size_t>(range.size());
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            data[i] = i;
+        }
+        auto buffer = sycl::buffer<std::size_t, 2>(data.data(), range);
+        auto hostAccessor = buffer.get_host_access();
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            const auto idx1 = i % range[1];
+            const auto idx0 = i / range[1];
+            const auto idx = sycl::id<2>(idx0, idx1);
+            const auto dataElem = data[i];
+            const auto bufferElem = hostAccessor[idx];
+            CHECK(dataElem == bufferElem);
+        }
+    }
+    SECTION("3D") {
+        constexpr auto NUM_ELEMENTS = std::array<std::size_t, 3>{ 500, 30, 100 };
+        auto range = sycl::range<3>(NUM_ELEMENTS[0], NUM_ELEMENTS[1], NUM_ELEMENTS[2]);
+        auto data = std::vector<std::size_t>(range.size());
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            data[i] = i;
+        }
+        auto buffer = sycl::buffer<std::size_t, 3>(data.data(), range);
+        auto hostAccessor = buffer.get_host_access();
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            const auto idx2 = i % range[2];
+            const auto idx1 = (i / range[2]) % range[1];
+            const auto idx0 = i / range[2] / range[1];
+            const auto idx = sycl::id<3>(idx0, idx1, idx2);
+            const auto dataElem = data[i];
+            const auto bufferElem = hostAccessor[idx];
+            CHECK(dataElem == bufferElem);
+        }
+    }
+}
+
 TEST_CASE("Sycl", "[sycl]") {
     constexpr auto GHOST_CELLS = 2;
     constexpr int NUM_ELEMENTS[] = { 2, 3, 4 };
