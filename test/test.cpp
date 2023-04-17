@@ -150,6 +150,34 @@ TEST_CASE("Shock-Tube integration test comparison host v sycl", "[IntegrationTes
     CHECK(syclSolver.isFinished());
 }
 
+TEST_CASE_METHOD(runtime_fixture, "Shock-Tube integration test comparison host v celerity",
+                 "[IntegrationTest][celerity]") {
+    const toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
+    const ShockTube shockTube(config);
+
+    RungeKuttaSolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube);
+    auto queue = celerity::distr_queue();
+    RungeKuttaCeleritySolver<ShockTube, FieldStruct, GHOST_CELLS> celeritySolver(queue, shockTube);
+    solver.initialise();
+    celeritySolver.initialise();
+
+    double deviationPerStep = 1.0005;
+    double deviationThreshold = deviationPerStep;
+    while (!solver.isFinished() && !celeritySolver.isFinished()) {
+        solver.step();
+        celeritySolver.step();
+        solver.adjust();
+        celeritySolver.adjust();
+        const auto& baseline = solver.grid;
+        double averageDeviation = GridFunctions::compare(baseline, celeritySolver.grid(), false, false);
+        // CHECK(averageDeviation == 0);
+        REQUIRE(averageDeviation < deviationThreshold - 1.0);
+        deviationThreshold *= deviationPerStep;
+    }
+    CHECK(solver.isFinished());
+    CHECK(celeritySolver.isFinished());
+}
+
 template <typename Solver>
 auto benchmarkSolver(const int numSizes, const int numRuns, const std::string_view configPath) {
     auto results = std::vector(numSizes, std::vector<std::chrono::milliseconds>(numRuns));
