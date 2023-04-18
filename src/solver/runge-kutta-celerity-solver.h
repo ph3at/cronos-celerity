@@ -128,7 +128,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
     void finaliseSubstep(const unsigned substep);
     void integrateTime(sycl::queue& queue, sycl::buffer<Fields, 3>& grid, sycl::buffer<Fields, 3>& gridSubstep,
                        sycl::buffer<Changes<Fields>, 3>& changes, const unsigned substep) const;
-    void checkErrors(sycl::queue& queue, sycl::buffer<Fields, 3>& grid) const;
+    void checkErrors(celerity::distr_queue& queue, celerity::buffer<Fields, 3>& grid) const;
 };
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -290,13 +290,15 @@ double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::reduceCFL(celerit
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
 #ifndef NDEBUG
-    checkErrors(m_queue, m_grid);
+    auto celerityGrid = convertSyclToCelerityBuffer(m_grid);
+    checkErrors(m_celerity_queue, celerityGrid);
 #endif
 
     problem.applySourceSycl(m_queue, m_grid);
 
 #ifndef NDEBUG
-    checkErrors(m_queue, m_grid);
+    celerityGrid = convertSyclToCelerityBuffer(m_grid);
+    checkErrors(m_celerity_queue, celerityGrid);
 #endif
 
     TransformationSycl::primitiveToConservative(m_queue, m_grid, problem.thermal, problem.gamma);
@@ -383,9 +385,9 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::report(const int ti
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::checkErrors(sycl::queue& queue,
-                                                                         sycl::buffer<Fields, 3>& grid) const {
-    if (GridFunctionsSycl::checkNaN(queue, grid)) {
+void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::checkErrors(celerity::distr_queue& queue,
+                                                                         celerity::buffer<Fields, 3>& grid) const {
+    if (GridFunctionsCelerity::checkNaN(queue, grid)) {
         std::cerr << "Encountered NaN" << std::endl;
     }
 }

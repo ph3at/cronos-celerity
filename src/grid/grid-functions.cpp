@@ -66,3 +66,38 @@ bool checkNaN(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) {
 }
 
 } // namespace GridFunctionsSycl
+
+namespace GridFunctionsCelerity {
+
+bool checkNaN(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) {
+    const auto range = grid.get_range();
+    auto resultBuffer = celerity::buffer<bool, 1>{ celerity::range<1>{ 1 } };
+
+    queue.submit([=](celerity::handler& cgh) {
+        auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::read_only };
+        auto reduction = celerity::reduction(resultBuffer, cgh, false, std::bit_or<bool>{},
+                                             celerity::property::reduction::initialize_to_identity{});
+        cgh.parallel_for(range, reduction, [=](const celerity::item<3> item, auto& val) {
+            auto hasNan = false;
+            for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; ++field) {
+                hasNan |= std::isnan(gridAccessor[item][field]);
+            }
+            val.combine(hasNan);
+        });
+    });
+
+    auto nanOccurred = false;
+
+    queue.submit(celerity::allow_by_ref, [=, &nanOccurred](celerity::handler& cgh) {
+        celerity::accessor bufferAccessor{ resultBuffer, cgh, celerity::access::all{}, celerity::read_only_host_task };
+        cgh.host_task(
+            celerity::experimental::collective,
+            [=, &nanOccurred](celerity::experimental::collective_partition) { nanOccurred |= bufferAccessor[0]; });
+    });
+
+    queue.slow_full_sync();
+
+    return nanOccurred;
+}
+
+} // namespace GridFunctionsCelerity

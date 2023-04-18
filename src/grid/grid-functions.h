@@ -5,6 +5,7 @@
 #include <fstream>
 #include <vector>
 
+#include <celerity.h>
 #include <sycl/sycl.hpp>
 
 #include "padded-grid.h"
@@ -124,3 +125,9 @@ namespace GridFunctionsSycl {
 bool checkNaN(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid);
 
 } // namespace GridFunctionsSycl
+
+namespace GridFunctionsCelerity {
+
+bool checkNaN(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid);
+
+} // namespace GridFunctionsCelerity
