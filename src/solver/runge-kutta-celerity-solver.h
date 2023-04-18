@@ -121,7 +121,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
         return syclBuffer;
     }
 
-    void prepareSubstep(sycl::queue& queue, sycl::buffer<Changes<Fields>, 3>& changeBuffer) const;
+    void prepareSubstep(celerity::distr_queue& queue, celerity::buffer<Changes<Fields>, 3>& changeBuffer) const;
     void computeSubstep();
     static double calcCFL(std::pair<double, double> characVelocities, const double inverseCellSize);
     double reduceCFL(celerity::distr_queue& queue, sycl::buffer<double, 1>& cflBuffer, const double initialCFL);
@@ -170,7 +170,9 @@ template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::step() {
     m_cfl = 0.0;
     for (unsigned substep = 0; substep < rungeKuttaSteps; substep++) {
-        prepareSubstep(m_queue, m_changeBuffer);
+        auto celerityChangeBuffer = convertSyclToCelerityBuffer(m_changeBuffer);
+        prepareSubstep(m_celerity_queue, celerityChangeBuffer);
+        m_changeBuffer = convertCelerityToSyclBuffer(celerityChangeBuffer);
         computeSubstep();
         m_cfl = reduceCFL(m_celerity_queue, m_cflBuffer, m_cfl);
         finaliseSubstep(substep);
@@ -180,19 +182,21 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::step() {
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::prepareSubstep(
-    sycl::queue& queue, sycl::buffer<Changes<Fields>, 3>& changeBuffer) const {
+    celerity::distr_queue& queue, celerity::buffer<Changes<Fields>, 3>& changeBuffer) const {
     // Number of negative temperatures is printed here, seems unnecessary
 
     // Start clock(s) -- time measurement omitted for now
 
     // TODO: Clearing the buffer is not necessary -> get rid of it
 
-    queue.submit([&](sycl::handler& cgh) {
-        auto changeAccessor = changeBuffer.template get_access<sycl::access::mode::discard_write>(cgh);
-        using buffer_type = std::remove_cv_t<std::remove_reference_t<decltype(changeBuffer)>>;
-        using value_type = typename buffer_type::value_type;
-        cgh.fill(changeAccessor, value_type());
+    queue.submit([=](celerity::handler& cgh) {
+        auto changeAccessor = celerity::accessor{ changeBuffer, cgh, celerity::access::one_to_one{},
+                                                  celerity::write_only, celerity::no_init };
+
+        cgh.parallel_for(changeBuffer.get_range(),
+                         [=](const celerity::id<3> id) { changeAccessor[id] = Changes<Fields>(); });
     });
+    queue.slow_full_sync();
 
     // CarbuncleFlag computation (not included by default)
 }
