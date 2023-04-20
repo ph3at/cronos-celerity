@@ -293,7 +293,9 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::finaliseSubstep(con
     checkErrors(m_celerity_queue, celerityGrid);
 #endif
 
-    problem.applySourceSycl(m_queue, m_grid);
+    auto grid = convertSyclToCelerityBuffer(m_grid);
+    problem.applySourceCelerity(m_celerity_queue, grid);
+    m_grid = convertCelerityToSyclBuffer(grid);
 
 #ifndef NDEBUG
     celerityGrid = convertSyclToCelerityBuffer(m_grid);

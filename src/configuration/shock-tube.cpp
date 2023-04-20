@@ -245,3 +245,8 @@ void ShockTube::applySourceSycl([[maybe_unused]] sycl::queue& queue,
                                 [[maybe_unused]] sycl::buffer<FieldStruct, 3>& grid) const {
     // No source in shock tube
 }
+
+void ShockTube::applySourceCelerity([[maybe_unused]] celerity::distr_queue& queue,
+                                    [[maybe_unused]] celerity::buffer<FieldStruct, 3>& grid) const {
+    // No source in shock tube
+}

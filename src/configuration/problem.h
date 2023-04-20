@@ -49,6 +49,7 @@ template <class Specific, class Fields, unsigned padding> class Problem {
                            const unsigned face) const;
     void applySource(PaddedGrid<Fields, padding>& grid) const;
     void applySourceSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const;
+    void applySourceCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) const;
 };
 
 template <class Specific, class Fields, unsigned padding>
@@ -140,4 +141,9 @@ void Problem<Specific, Fields, padding>::applySource(PaddedGrid<Fields, padding>
 template <class Specific, class Fields, unsigned padding>
 void Problem<Specific, Fields, padding>::applySourceSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const {
     static_cast<const Specific*>(this)->applySourceSycl(queue, grid);
+}
+template <class Specific, class Fields, unsigned padding>
+void Problem<Specific, Fields, padding>::applySourceCelerity(celerity::distr_queue& queue,
+                                                             celerity::buffer<FieldStruct, 3>& grid) const {
+    static_cast<const Specific*>(this)->applySourceCelerity(queue, grid);
 }
