@@ -2,6 +2,7 @@
 
 #include <array>
 
+#include <celerity.h>
 #include <sycl/sycl.hpp>
 
 #include "../configuration/constants.h"
@@ -81,3 +82,13 @@ void conservativeToPrimitive(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& g
                              const double gamma = Transformation::DEFAULT_GAMMA);
 
 } // namespace TransformationSycl
+
+namespace TransformationCelerity {
+
+void primitiveToConservative(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const bool isThermal,
+                             const double gamma = Transformation::DEFAULT_GAMMA);
+
+void conservativeToPrimitive(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const bool isThermal,
+                             const double gamma = Transformation::DEFAULT_GAMMA);
+
+} // namespace TransformationCelerity

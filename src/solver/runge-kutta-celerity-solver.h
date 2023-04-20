@@ -302,9 +302,13 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::finaliseSubstep(con
     checkErrors(m_celerity_queue, celerityGrid);
 #endif
 
-    TransformationSycl::primitiveToConservative(m_queue, m_grid, problem.thermal, problem.gamma);
+    grid = convertSyclToCelerityBuffer(m_grid);
+    TransformationCelerity::primitiveToConservative(m_celerity_queue, grid, problem.thermal, problem.gamma);
+    m_grid = convertCelerityToSyclBuffer(grid);
     integrateTime(m_queue, m_grid, m_gridSubstepBuffer, m_changeBuffer, substep);
-    TransformationSycl::conservativeToPrimitive(m_queue, m_grid, problem.thermal, problem.gamma);
+    grid = convertSyclToCelerityBuffer(m_grid);
+    TransformationCelerity::conservativeToPrimitive(m_celerity_queue, grid, problem.thermal, problem.gamma);
+    m_grid = convertCelerityToSyclBuffer(grid);
 
     BoundarySycl::applyAll(m_queue, m_grid, problem);
 

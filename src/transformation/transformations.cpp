@@ -92,3 +92,43 @@ void conservativeToPrimitive(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& g
 }
 
 } // namespace TransformationSycl
+
+namespace TransformationCelerity {
+
+void primitiveToConservative(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const bool isThermal,
+                             const double gamma) {
+    queue.submit([=](celerity::handler& cgh) {
+        auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::read_write };
+
+        cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
+            Transformation::velocityToMomentum(gridAccessor[id]);
+            if (isThermal) {
+                gridAccessor[id][FieldNames::THERMAL_ENERGY] = Transformation::thermalEnergyToEnergy(gridAccessor[id]);
+            } else {
+                gridAccessor[id][FieldNames::THERMAL_ENERGY] =
+                    Transformation::temperatureToEnergy(gridAccessor[id], gamma);
+            }
+        });
+    });
+    queue.slow_full_sync();
+}
+
+void conservativeToPrimitive(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const bool isThermal,
+                             const double gamma) {
+    queue.submit([=](celerity::handler& cgh) {
+        auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::read_write };
+
+        cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
+            Transformation::momentumToVelocity(gridAccessor[id]);
+            if (isThermal) {
+                gridAccessor[id][FieldNames::THERMAL_ENERGY] = Transformation::energyToThermalEnergy(gridAccessor[id]);
+            } else {
+                gridAccessor[id][FieldNames::THERMAL_ENERGY] =
+                    Transformation::energyToTemperature(gridAccessor[id], gamma);
+            }
+        });
+    });
+    queue.slow_full_sync();
+}
+
+} // namespace TransformationCelerity
