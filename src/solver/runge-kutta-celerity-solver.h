@@ -126,8 +126,9 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
     static double calcCFL(std::pair<double, double> characVelocities, const double inverseCellSize);
     double reduceCFL(celerity::distr_queue& queue, celerity::buffer<double, 1>& cflBuffer, const double initialCFL);
     void finaliseSubstep(const unsigned substep);
-    void integrateTime(sycl::queue& queue, sycl::buffer<Fields, 3>& grid, sycl::buffer<Fields, 3>& gridSubstep,
-                       sycl::buffer<Changes<Fields>, 3>& changes, const unsigned substep) const;
+    void integrateTime(celerity::distr_queue& queue, celerity::buffer<Fields, 3>& grid,
+                       celerity::buffer<Fields, 3>& gridSubstep, celerity::buffer<Changes<Fields>, 3>& changes,
+                       const unsigned substep) const;
     void checkErrors(celerity::distr_queue& queue, celerity::buffer<Fields, 3>& grid) const;
 };
 
@@ -304,9 +305,10 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::finaliseSubstep(con
 
     grid = convertSyclToCelerityBuffer(m_grid);
     TransformationCelerity::primitiveToConservative(m_celerity_queue, grid, problem.thermal, problem.gamma);
-    m_grid = convertCelerityToSyclBuffer(grid);
-    integrateTime(m_queue, m_grid, m_gridSubstepBuffer, m_changeBuffer, substep);
-    grid = convertSyclToCelerityBuffer(m_grid);
+    auto gridSubstepBuffer = convertSyclToCelerityBuffer(m_gridSubstepBuffer);
+    auto changeBuffer = convertSyclToCelerityBuffer(m_changeBuffer);
+    integrateTime(m_celerity_queue, grid, gridSubstepBuffer, changeBuffer, substep);
+    m_gridSubstepBuffer = convertCelerityToSyclBuffer(gridSubstepBuffer);
     TransformationCelerity::conservativeToPrimitive(m_celerity_queue, grid, problem.thermal, problem.gamma);
     m_grid = convertCelerityToSyclBuffer(grid);
 
@@ -319,56 +321,56 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::finaliseSubstep(con
 }
 
 template <class ProblemType, class Fields, unsigned padding>
-void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::integrateTime(sycl::queue& queue,
-                                                                           sycl::buffer<Fields, 3>& grid,
-                                                                           sycl::buffer<Fields, 3>& gridSubstep,
-                                                                           sycl::buffer<Changes<Fields>, 3>& changes,
-                                                                           const unsigned substep) const {
-    queue.submit([&](sycl::handler& cgh) {
-        auto gridAccessor = grid.template get_access<sycl::access::mode::read_write>(cgh);
-        auto gridSubstepAccessor = (substep == 0 && rungeKuttaSteps > 1)
-                                       ? sycl::accessor(gridSubstep, cgh, sycl::read_write, sycl::no_init)
-                                       : sycl::accessor(gridSubstep, cgh, sycl::read_write);
-        auto changeAccessor = changes.template get_access<sycl::access::mode::read>(cgh);
+void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::integrateTime(
+    celerity::distr_queue& queue, celerity::buffer<Fields, 3>& grid, celerity::buffer<Fields, 3>& gridSubstep,
+    celerity::buffer<Changes<Fields>, 3>& changes, const unsigned substep) const {
+    queue.submit([=](celerity::handler& cgh) {
+        auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::read_write };
+        auto gridSubstepAccessor =
+            celerity::accessor{ gridSubstep, cgh, celerity::access::one_to_one{}, celerity::read_write };
+        auto changeAccessor =
+            celerity::accessor{ changes, cgh, celerity::access::neighborhood{ 1, 1, 1 }, celerity::read_only };
 
         auto range = grid.get_range();
         range[0] -= 2 * padding;
         range[1] -= 2 * padding;
         range[2] -= 2 * padding;
 
-        cgh.parallel_for(range, [=, timeDelta = timeDelta, rungeKuttaSteps = rungeKuttaSteps,
-                                 inverseCellSize = problem.inverseCellSize](const sycl::id<3> id) {
-            const auto offset = sycl::id<3>(padding, padding, padding);
-            const auto idx = id + offset;
+        const auto offset = celerity::id<3>(padding, padding, padding);
 
-            if (substep == 0 && rungeKuttaSteps > 1) {
-                gridSubstepAccessor[idx] = gridAccessor[idx];
-            }
+        cgh.parallel_for(range, offset,
+                         [=, timeDelta = timeDelta, rungeKuttaSteps = rungeKuttaSteps,
+                          inverseCellSize = problem.inverseCellSize](const celerity::id<3> idx) {
+                             if (substep == 0 && rungeKuttaSteps > 1) {
+                                 gridSubstepAccessor[idx] = gridAccessor[idx];
+                             }
 
-            for (unsigned field = 0; field < std::tuple_size<Fields>{}; ++field) {
-                const auto nextXIdx = sycl::id<3>(idx[0] + 1, idx[1], idx[2]);
-                const auto nextYIdx = sycl::id<3>(idx[0], idx[1] + 1, idx[2]);
-                const auto nextZIdx = sycl::id<3>(idx[0], idx[1], idx[2] + 1);
+                             for (unsigned field = 0; field < std::tuple_size<Fields>{}; ++field) {
+                                 const auto nextXIdx = celerity::id<3>(idx[0] + 1, idx[1], idx[2]);
+                                 const auto nextYIdx = celerity::id<3>(idx[0], idx[1] + 1, idx[2]);
+                                 const auto nextZIdx = celerity::id<3>(idx[0], idx[1], idx[2] + 1);
 
-                const auto calcDirChanges = [&](const auto& nextIdx, const auto& dir) {
-                    return (changeAccessor[nextIdx][dir][field] - changeAccessor[idx][dir][field]) *
-                           inverseCellSize[dir];
-                };
+                                 const auto calcDirChanges = [&](const auto& nextIdx, const auto& dir) {
+                                     return (changeAccessor[nextIdx][dir][field] - changeAccessor[idx][dir][field]) *
+                                            inverseCellSize[dir];
+                                 };
 
-                const auto changeX = calcDirChanges(nextXIdx, Direction::DirX);
-                const auto changeY = calcDirChanges(nextYIdx, Direction::DirY);
-                const auto changeZ = calcDirChanges(nextZIdx, Direction::DirZ);
-                const auto change = changeX + changeY + changeZ;
+                                 const auto changeX = calcDirChanges(nextXIdx, Direction::DirX);
+                                 const auto changeY = calcDirChanges(nextYIdx, Direction::DirY);
+                                 const auto changeZ = calcDirChanges(nextZIdx, Direction::DirZ);
+                                 const auto change = changeX + changeY + changeZ;
 
-                if (substep == 0) {
-                    gridAccessor[idx][field] -= timeDelta * change;
-                } else {
-                    gridAccessor[idx][field] = 0.5 * gridSubstepAccessor[idx][field] + 0.5 * gridAccessor[idx][field] -
-                                               0.5 * timeDelta * change;
-                }
-            }
-        });
+                                 if (substep == 0) {
+                                     gridAccessor[idx][field] -= timeDelta * change;
+                                 } else {
+                                     gridAccessor[idx][field] = 0.5 * gridSubstepAccessor[idx][field] +
+                                                                0.5 * gridAccessor[idx][field] -
+                                                                0.5 * timeDelta * change;
+                                 }
+                             }
+                         });
     });
+    queue.slow_full_sync();
 }
 
 template <class ProblemType, class Fields, unsigned padding>
