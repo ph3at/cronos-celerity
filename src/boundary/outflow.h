@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 
+#include <celerity.h>
 #include <sycl/sycl.hpp>
 
 #include "../data-types/faces.h"
@@ -209,3 +210,98 @@ void apply(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const unsigne
 }
 
 } // namespace OutflowSycl
+
+namespace OutflowCelerity {
+
+using Boundary::Axis;
+using Boundary::Dir;
+
+template <Axis axis, Dir dir, unsigned padding>
+void apply(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const unsigned field) {
+    constexpr auto idxMap = []() {
+        if constexpr (axis == Axis::X) {
+            return std::array{ 0, 1, 2 };
+        }
+        if constexpr (axis == Axis::Y) {
+            return std::array{ 1, 0, 2 };
+        }
+        if constexpr (axis == Axis::Z) {
+            return std::array{ 2, 0, 1 };
+        }
+    }();
+
+    auto inner = 0;
+    auto outer = 0;
+    auto direction = 0;
+
+    if constexpr (dir == Dir::LEFT) {
+        inner = padding - 1;
+        outer = -1;
+        direction = -1;
+    } else {
+        inner = grid.get_range()[idxMap[0]] - padding;
+        outer = grid.get_range()[idxMap[0]];
+        direction = 1;
+    }
+
+    constexpr auto velocityAxis = FieldNames::VELOCITY_X + idxMap[0];
+    const bool isParallelVelocity = field == velocityAxis;
+
+    queue.submit([=](celerity::handler& cgh) {
+        const auto boundaryMapper = [=](const celerity::chunk<2> chunk) {
+            auto offset = celerity::id<3>{ 0, 0, 0 };
+            offset[idxMap[0]] = inner - (dir == Dir::LEFT ? 1 : 2);
+            offset[idxMap[1]] = chunk.offset[0];
+            offset[idxMap[2]] = chunk.offset[1];
+            auto range = celerity::range<3>{ 0, 0, 0 };
+            range[idxMap[0]] = padding + 2;
+            range[idxMap[1]] = chunk.range[0];
+            range[idxMap[2]] = chunk.range[1];
+            const auto subrange = celerity::subrange<3>{ offset, range };
+            return subrange;
+        };
+        auto gridAccessor = celerity::accessor{ grid, cgh, boundaryMapper, celerity::read_write };
+
+        const auto range = celerity::range<2>{ grid.get_range()[idxMap[1]], grid.get_range()[idxMap[2]] };
+
+        cgh.parallel_for(range, [=](const celerity::id<2> id) {
+            for (auto d = inner; d != outer; d += direction) {
+                auto dstIdx = celerity::id<3>{ 0, 0, 0 };
+                dstIdx[idxMap[0]] = d;
+                dstIdx[idxMap[1]] = id[0];
+                dstIdx[idxMap[2]] = id[1];
+
+                auto srcIdx = dstIdx;
+                srcIdx[idxMap[0]] -= direction;
+
+                if (gridAccessor[srcIdx][velocityAxis] * direction > 0.0) {
+                    gridAccessor[dstIdx][field] = gridAccessor[srcIdx][field];
+                } else {
+                    srcIdx[idxMap[0]] = 2 * inner - dstIdx[idxMap[0]] - direction;
+                    const auto value = gridAccessor[srcIdx][field];
+                    gridAccessor[dstIdx][field] = isParallelVelocity ? -value : value;
+                }
+            }
+        });
+    });
+}
+
+template <unsigned padding>
+void apply(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const unsigned field,
+           const unsigned face) {
+    if (face == Faces::FaceWest) {
+        apply<Axis::X, Dir::LEFT, padding>(queue, grid, field);
+    } else if (face == Faces::FaceEast) {
+        apply<Axis::X, Dir::RIGHT, padding>(queue, grid, field);
+    } else if (face == Faces::FaceSouth) {
+        apply<Axis::Y, Dir::LEFT, padding>(queue, grid, field);
+    } else if (face == Faces::FaceNorth) {
+        apply<Axis::Y, Dir::RIGHT, padding>(queue, grid, field);
+    } else if (face == Faces::FaceBottom) {
+        apply<Axis::Z, Dir::LEFT, padding>(queue, grid, field);
+    } else {
+        apply<Axis::Z, Dir::RIGHT, padding>(queue, grid, field);
+    }
+}
+
+} // namespace OutflowCelerity

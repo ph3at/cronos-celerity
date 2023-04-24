@@ -237,6 +237,39 @@ void ShockTube::applyBoundarySycl(sycl::queue& queue, sycl::buffer<FieldStruct, 
     }
 }
 
+void ShockTube::applyBoundaryCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
+                                      const unsigned field, const unsigned face) const {
+    if (face == Faces::FaceEast) {
+        double initValue;
+        if (field == FieldNames::DENSITY) {
+            initValue = densityRightInit;
+        } else if (field == FieldNames::VELOCITY_X) {
+            initValue = velocityXRightInit;
+        } else if (field == FieldNames::VELOCITY_Y) {
+            initValue = velocityYRightInit;
+        } else if (field == FieldNames::VELOCITY_Z) {
+            initValue = velocityZRightInit;
+        } else if (field == FieldNames::THERMAL_ENERGY) {
+            initValue = pressureRightInit / densityRightInit / (gamma - 1.0);
+        } else {
+            initValue = 0.0;
+        }
+
+        queue.submit([=](celerity::handler& cgh) {
+            auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only,
+                                                    celerity::no_init };
+
+            const auto offset = celerity::id<3>(grid.get_range()[0] - GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
+            const auto range =
+                celerity::range<3>(grid.get_range()[0] - offset[0], grid.get_range()[1] - offset[1] - GHOST_CELLS,
+                                   grid.get_range()[2] - offset[2] - GHOST_CELLS);
+
+            cgh.parallel_for(range, offset, [=](const celerity::id<3> idx) { gridAccessor[idx][field] = initValue; });
+        });
+        queue.slow_full_sync();
+    }
+}
+
 void ShockTube::applySource([[maybe_unused]] PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {
     // No source in shock tube
 }

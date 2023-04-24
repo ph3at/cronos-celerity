@@ -47,6 +47,8 @@ template <class Specific, class Fields, unsigned padding> class Problem {
     void applyBoundary(PaddedGrid<Fields, padding>& grid, const unsigned field, const unsigned face) const;
     void applyBoundarySycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const unsigned field,
                            const unsigned face) const;
+    void applyBoundaryCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
+                               const unsigned field, const unsigned face) const;
     void applySource(PaddedGrid<Fields, padding>& grid) const;
     void applySourceSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const;
     void applySourceCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) const;
@@ -132,6 +134,12 @@ template <class Specific, class Fields, unsigned padding>
 void Problem<Specific, Fields, padding>::applyBoundarySycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid,
                                                            const unsigned field, const unsigned face) const {
     static_cast<const Specific*>(this)->applyBoundarySycl(queue, grid, field, face);
+}
+template <class Specific, class Fields, unsigned padding>
+void Problem<Specific, Fields, padding>::applyBoundaryCelerity(celerity::distr_queue& queue,
+                                                               celerity::buffer<FieldStruct, 3>& grid,
+                                                               const unsigned field, const unsigned face) const {
+    static_cast<const Specific*>(this)->applyBoundaryCelerity(queue, grid, field, face);
 }
 
 template <class Specific, class Fields, unsigned padding>
