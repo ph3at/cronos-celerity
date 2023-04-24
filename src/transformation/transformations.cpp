@@ -110,7 +110,6 @@ void primitiveToConservative(celerity::distr_queue& queue, celerity::buffer<Fiel
             }
         });
     });
-    queue.slow_full_sync();
 }
 
 void conservativeToPrimitive(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const bool isThermal,
@@ -128,7 +127,6 @@ void conservativeToPrimitive(celerity::distr_queue& queue, celerity::buffer<Fiel
             }
         });
     });
-    queue.slow_full_sync();
 }
 
 } // namespace TransformationCelerity

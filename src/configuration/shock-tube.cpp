@@ -171,7 +171,6 @@ void ShockTube::initialiseGridCelerity(celerity::distr_queue& queue, celerity::b
             }
         });
     });
-    queue.slow_full_sync();
 }
 
 void ShockTube::applyBoundary(PaddedGrid<FieldStruct, GHOST_CELLS>& grid, const unsigned field,
@@ -266,7 +265,6 @@ void ShockTube::applyBoundaryCelerity(celerity::distr_queue& queue, celerity::bu
 
             cgh.parallel_for(range, offset, [=](const celerity::id<3> idx) { gridAccessor[idx][field] = initValue; });
         });
-        queue.slow_full_sync();
     }
 }
 

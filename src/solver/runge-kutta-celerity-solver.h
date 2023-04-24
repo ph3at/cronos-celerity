@@ -76,58 +76,6 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
     double timeCurrent;
     const double timeEnd;
 
-    template <typename T, int Dims>
-    celerity::buffer<T, Dims> convertSyclToCelerityBuffer(sycl::buffer<T, Dims>& buffer) const {
-        auto data = std::vector<T>(buffer.size());
-        auto hostAccessor = buffer.get_host_access();
-        for (std::size_t i = 0; i < buffer.size(); ++i) {
-            const auto id = idFromIdx(buffer.get_range(), i);
-            data[i] = hostAccessor[id];
-        }
-        auto celerityBuffer = celerity::buffer<T, Dims>(data.data(), buffer.get_range());
-        return celerityBuffer;
-    }
-
-    template <int Dims> celerity::id<Dims> idFromIdx(const celerity::range<Dims>& range, const std::size_t idx) const {
-        if constexpr (Dims == 1) {
-            return celerity::id<Dims>(idx);
-        }
-        if constexpr (Dims == 2) {
-            const auto idx1 = idx % range[1];
-            const auto idx0 = idx / range[1];
-            return celerity::id<Dims>(idx0, idx1);
-        }
-        if constexpr (Dims == 3) {
-            const auto idx2 = idx % range[2];
-            const auto idx1 = (idx / range[2]) % range[1];
-            const auto idx0 = idx / range[2] / range[1];
-            return celerity::id<Dims>(idx0, idx1, idx2);
-        }
-    }
-
-    template <typename T, int Dims>
-    sycl::buffer<T, Dims> convertCelerityToSyclBuffer(celerity::buffer<T, Dims>& buffer) const {
-        auto data = std::vector<T>(buffer.get_range().size());
-        m_celerity_queue.submit(celerity::allow_by_ref, [=, &data](celerity::handler& cgh) {
-            celerity::accessor bufferAccessor{ buffer, cgh, celerity::access::all{}, celerity::read_only_host_task };
-            cgh.host_task(celerity::experimental::collective, [=, &data](celerity::experimental::collective_partition) {
-                for (std::size_t i = 0; i < data.size(); ++i) {
-                    const auto id = idFromIdx(buffer.get_range(), i);
-                    data[i] = bufferAccessor[id];
-                }
-            });
-        });
-        m_celerity_queue.slow_full_sync();
-
-        auto syclBuffer = sycl::buffer<T, Dims>(buffer.get_range());
-        auto hostAccessor = syclBuffer.get_host_access();
-        for (std::size_t i = 0; i < syclBuffer.size(); ++i) {
-            const auto id = idFromIdx(buffer.get_range(), i);
-            hostAccessor[id] = data[i];
-        }
-        return syclBuffer;
-    }
-
     void prepareSubstep(celerity::distr_queue& queue, celerity::buffer<Changes<Fields>, 3>& changeBuffer) const;
     void computeSubstep();
     static double calcCFL(std::pair<double, double> characVelocities, const double inverseCellSize);
@@ -168,7 +116,6 @@ RungeKuttaCeleritySolver<ProblemType, Fields, padding>::RungeKuttaCeleritySolver
         cgh.parallel_for(m_cflBuffer.get_range(),
                          [=](const celerity::id<3> id) { cflAccessor[id] = std::numeric_limits<double>::lowest(); });
     });
-    m_celerity_queue.slow_full_sync();
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -205,7 +152,6 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::prepareSubstep(
         cgh.parallel_for(changeBuffer.get_range(),
                          [=](const celerity::id<3> id) { changeAccessor[id] = Changes<Fields>(); });
     });
-    queue.slow_full_sync();
 
     // CarbuncleFlag computation (not included by default)
 }
@@ -258,7 +204,6 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::computeSubstep() {
                 cflAccessor[idx] = localCFL;
             });
     });
-    m_celerity_queue.slow_full_sync();
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -372,7 +317,6 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::integrateTime(
                              }
                          });
     });
-    queue.slow_full_sync();
 }
 
 template <class ProblemType, class Fields, unsigned padding>
