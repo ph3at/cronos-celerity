@@ -208,52 +208,56 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::prepareSubstep(
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::computeSubstep() {
-    auto cflBuffer = convertCelerityToSyclBuffer(m_cflBuffer);
+    auto grid = convertSyclToCelerityBuffer(m_grid);
+    auto changeBuffer = convertSyclToCelerityBuffer(m_changeBuffer);
 
-    m_queue.submit([&](sycl::handler& cgh) {
-        auto gridAccessor = m_grid.template get_access<sycl::access::mode::read>(cgh);
-        auto changeAccessor = m_changeBuffer.template get_access<sycl::access::mode::write>(cgh);
-        auto cflAccessor = cflBuffer.template get_access<sycl::access::mode::write>(cgh);
+    m_celerity_queue.submit([=](celerity::handler& cgh) {
+        auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::neighborhood{ padding, padding, padding },
+                                                celerity::read_only };
+        auto changeAccessor =
+            celerity::accessor{ changeBuffer, cgh, celerity::access::one_to_one{}, celerity::write_only };
+        auto cflAccessor = celerity::accessor{ m_cflBuffer, cgh, celerity::access::one_to_one{}, celerity::write_only };
 
         auto range = m_grid.get_range();
         range[0] = range[0] - 2 * padding + 1;
         range[1] = range[1] - 2 * padding + 1;
         range[2] = range[2] - 2 * padding + 1;
 
-        cgh.parallel_for(range, [=, thermal = problem.thermal, gamma = problem.gamma,
-                                 inverseCellSize = problem.inverseCellSize](const sycl::id<3> id) {
-            const auto offset = sycl::id<3>(padding, padding, padding);
-            const auto idx = id + offset;
+        const auto offset = sycl::id<3>(padding, padding, padding);
 
-            PerFaceValues reconstruction = ReconstructionSycl::reconstruct(gridAccessor, idx);
+        cgh.parallel_for(
+            range, offset,
+            [=, thermal = problem.thermal, gamma = problem.gamma,
+             inverseCellSize = problem.inverseCellSize](const sycl::id<3> idx) {
+                PerFaceValues reconstruction = ReconstructionCelerity::reconstruct(gridAccessor, idx);
 
-            std::array<PhysValues, Faces::FaceMax> physicalValues;
-            for (unsigned face = 0; face < Faces::FaceMax; face++) {
-                Transformation::reconstToConservatives(physicalValues[face], reconstruction[face], thermal, gamma);
-                physicalValues[face].thermalPressure =
-                    Transformation::computeThermalPressure(reconstruction[face], thermal, gamma);
-                RiemannSolver::computeFluxes(physicalValues[face], reconstruction[face], face);
-            }
+                std::array<PhysValues, Faces::FaceMax> physicalValues;
+                for (unsigned face = 0; face < Faces::FaceMax; face++) {
+                    Transformation::reconstToConservatives(physicalValues[face], reconstruction[face], thermal, gamma);
+                    physicalValues[face].thermalPressure =
+                        Transformation::computeThermalPressure(reconstruction[face], thermal, gamma);
+                    RiemannSolver::computeFluxes(physicalValues[face], reconstruction[face], face);
+                }
 
-            Changes<Fields> changes;
-            auto localCFL = 0.0;
-            for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
-                unsigned face = dir * 2;
-                std::pair<double, double> characVelocities =
-                    RiemannSolver::characteristicVelocity(physicalValues[face], physicalValues[face + 1],
-                                                          reconstruction[face], reconstruction[face + 1], gamma, dir);
-                localCFL = std::max(localCFL, calcCFL(characVelocities, inverseCellSize[dir]));
-                changes[dir] =
-                    RiemannSolver::numericalFlux(characVelocities, physicalValues[face], physicalValues[face + 1],
-                                                 reconstruction[face], reconstruction[face + 1], dir);
-            }
+                Changes<Fields> changes;
+                auto localCFL = 0.0;
+                for (unsigned dir = 0; dir < Direction::DirMax; dir++) {
+                    unsigned face = dir * 2;
+                    std::pair<double, double> characVelocities = RiemannSolver::characteristicVelocity(
+                        physicalValues[face], physicalValues[face + 1], reconstruction[face], reconstruction[face + 1],
+                        gamma, dir);
+                    localCFL = std::max(localCFL, calcCFL(characVelocities, inverseCellSize[dir]));
+                    changes[dir] =
+                        RiemannSolver::numericalFlux(characVelocities, physicalValues[face], physicalValues[face + 1],
+                                                     reconstruction[face], reconstruction[face + 1], dir);
+                }
 
-            changeAccessor[idx] = changes;
-            cflAccessor[idx] = localCFL;
-        });
+                changeAccessor[idx] = changes;
+                cflAccessor[idx] = localCFL;
+            });
     });
-    m_queue.wait_and_throw();
-    m_cflBuffer = convertSyclToCelerityBuffer(cflBuffer);
+    m_celerity_queue.slow_full_sync();
+    m_changeBuffer = convertCelerityToSyclBuffer(changeBuffer);
 }
 
 template <class ProblemType, class Fields, unsigned padding>

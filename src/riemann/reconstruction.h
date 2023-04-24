@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include <celerity.h>
 #include <sycl/sycl.hpp>
 
 #include "../configuration/constants.h"
@@ -86,3 +87,62 @@ static inline PerFaceValues reconstruct(
 }
 
 } // namespace ReconstructionSycl
+
+namespace ReconstructionCelerity {
+
+static inline double
+derivX(const celerity::accessor<FieldStruct, 3, celerity::access_mode::read, celerity::target::device>& gridAccessor,
+       const celerity::id<3>& idx, const unsigned field) {
+    const auto prevX = celerity::id<3>(idx[0] - 1, idx[1], idx[2]);
+    const auto nextX = celerity::id<3>(idx[0] + 1, idx[1], idx[2]);
+    double deltaLeft = gridAccessor[idx][field] - gridAccessor[prevX][field];
+    double deltaRight = gridAccessor[nextX][field] - gridAccessor[idx][field];
+
+    return ReconstructionSycl::limitMinmod(deltaLeft, deltaRight);
+}
+
+static inline double
+derivY(const celerity::accessor<FieldStruct, 3, celerity::access_mode::read, celerity::target::device>& gridAccessor,
+       const celerity::id<3>& idx, const unsigned field) {
+    const auto prevY = celerity::id<3>(idx[0], idx[1] - 1, idx[2]);
+    const auto nextY = celerity::id<3>(idx[0], idx[1] + 1, idx[2]);
+    double deltaLeft = gridAccessor[idx][field] - gridAccessor[prevY][field];
+    double deltaRight = gridAccessor[nextY][field] - gridAccessor[idx][field];
+
+    return ReconstructionSycl::limitMinmod(deltaLeft, deltaRight);
+}
+
+static inline double
+derivZ(const celerity::accessor<FieldStruct, 3, celerity::access_mode::read, celerity::target::device>& gridAccessor,
+       const celerity::id<3>& idx, const unsigned field) {
+    const auto prevZ = celerity::id<3>(idx[0], idx[1], idx[2] - 1);
+    const auto nextZ = celerity::id<3>(idx[0], idx[1], idx[2] + 1);
+    double deltaLeft = gridAccessor[idx][field] - gridAccessor[prevZ][field];
+    double deltaRight = gridAccessor[nextZ][field] - gridAccessor[idx][field];
+
+    return ReconstructionSycl::limitMinmod(deltaLeft, deltaRight);
+}
+
+static inline PerFaceValues reconstruct(
+    const celerity::accessor<FieldStruct, 3, celerity::access_mode::read, celerity::target::device>& gridAccessor,
+    const celerity::id<3>& idx) {
+    const auto prevX = celerity::id<3>(idx[0] - 1, idx[1], idx[2]);
+    const auto prevY = celerity::id<3>(idx[0], idx[1] - 1, idx[2]);
+    const auto prevZ = celerity::id<3>(idx[0], idx[1], idx[2] - 1);
+
+    PerFaceValues reconst = {};
+    for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+        reconst[Faces::FaceWest][field] = gridAccessor[idx][field] - 0.5 * derivX(gridAccessor, idx, field);
+        reconst[Faces::FaceEast][field] = gridAccessor[prevX][field] + 0.5 * derivX(gridAccessor, prevX, field);
+
+        reconst[Faces::FaceSouth][field] = gridAccessor[idx][field] - 0.5 * derivY(gridAccessor, idx, field);
+        reconst[Faces::FaceNorth][field] = gridAccessor[prevY][field] + 0.5 * derivY(gridAccessor, prevY, field);
+
+        reconst[Faces::FaceBottom][field] = gridAccessor[idx][field] - 0.5 * derivZ(gridAccessor, idx, field);
+        reconst[Faces::FaceTop][field] = gridAccessor[prevZ][field] + 0.5 * derivZ(gridAccessor, prevZ, field);
+    }
+
+    return reconst;
+}
+
+} // namespace ReconstructionCelerity
