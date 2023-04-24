@@ -36,14 +36,21 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
     PaddedGrid<Fields, padding> grid() {
         auto paddedGrid =
             PaddedGrid<Fields, padding>({}, m_sizeX - 2 * padding, m_sizeY - 2 * padding, m_sizeZ - 2 * padding);
-        const auto gridAccessor = m_grid.template get_access<sycl::access::mode::read>();
-        for (std::size_t x = 0; x < m_sizeX; ++x) {
-            for (std::size_t y = 0; y < m_sizeY; ++y) {
-                for (std::size_t z = 0; z < m_sizeZ; ++z) {
-                    paddedGrid(x, y, z) = gridAccessor[sycl::id<3>(x, y, z)];
-                }
-            }
-        }
+        m_celerity_queue.submit(celerity::allow_by_ref, [=, &paddedGrid](celerity::handler& cgh) {
+            auto gridAccessor =
+                celerity::accessor{ m_grid, cgh, celerity::access::all{}, celerity::read_only_host_task };
+            cgh.host_task(celerity::experimental::collective,
+                          [=, &paddedGrid](celerity::experimental::collective_partition) {
+                              for (std::size_t x = 0; x < m_sizeX; ++x) {
+                                  for (std::size_t y = 0; y < m_sizeY; ++y) {
+                                      for (std::size_t z = 0; z < m_sizeZ; ++z) {
+                                          paddedGrid(x, y, z) = gridAccessor[celerity::id<3>(x, y, z)];
+                                      }
+                                  }
+                              }
+                          });
+        });
+        m_celerity_queue.slow_full_sync();
         return paddedGrid;
     }
 
@@ -55,9 +62,9 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
     const std::size_t m_sizeY;
     const std::size_t m_sizeZ;
 
-    sycl::buffer<Fields, 3> m_grid;
-    sycl::buffer<Changes<Fields>, 3> m_changeBuffer;
-    sycl::buffer<Fields, 3> m_gridSubstepBuffer;
+    celerity::buffer<Fields, 3> m_grid;
+    celerity::buffer<Changes<Fields>, 3> m_changeBuffer;
+    celerity::buffer<Fields, 3> m_gridSubstepBuffer;
     celerity::buffer<double, 3> m_cflBuffer;
 
     double m_cfl;
@@ -148,9 +155,10 @@ RungeKuttaCeleritySolver<ProblemType, Fields, padding>::RungeKuttaCeleritySolver
               }),
       m_celerity_queue(celerity_queue), m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
       m_sizeY(problem.numberCells[Direction::DirY] + 2 * padding),
-      m_sizeZ(problem.numberCells[Direction::DirZ] + 2 * padding), m_grid(sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
-      m_changeBuffer(sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
-      m_gridSubstepBuffer(sycl::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
+      m_sizeZ(problem.numberCells[Direction::DirZ] + 2 * padding),
+      m_grid(celerity::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
+      m_changeBuffer(celerity::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
+      m_gridSubstepBuffer(celerity::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
       m_cflBuffer(celerity::range<3>(m_sizeX, m_sizeY, m_sizeZ)), rungeKuttaSteps(rungeKuttaSteps), problem(problem),
       timeDelta(problem.timeDelta), timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {
     m_celerity_queue.submit([=](celerity::handler& cgh) {
@@ -165,19 +173,17 @@ RungeKuttaCeleritySolver<ProblemType, Fields, padding>::RungeKuttaCeleritySolver
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::initialise() {
-    auto celerityGrid = convertSyclToCelerityBuffer(m_grid);
-    problem.initialiseGridCelerity(m_celerity_queue, celerityGrid);
-    m_grid = convertCelerityToSyclBuffer(celerityGrid);
-    BoundarySycl::applyAll(m_queue, m_grid, problem);
+    problem.initialiseGridCelerity(m_celerity_queue, m_grid);
+    auto grid = convertCelerityToSyclBuffer(m_grid);
+    BoundarySycl::applyAll(m_queue, grid, problem);
+    m_grid = convertSyclToCelerityBuffer(grid);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::step() {
     m_cfl = 0.0;
     for (unsigned substep = 0; substep < rungeKuttaSteps; substep++) {
-        auto celerityChangeBuffer = convertSyclToCelerityBuffer(m_changeBuffer);
-        prepareSubstep(m_celerity_queue, celerityChangeBuffer);
-        m_changeBuffer = convertCelerityToSyclBuffer(celerityChangeBuffer);
+        prepareSubstep(m_celerity_queue, m_changeBuffer);
         computeSubstep();
         m_cfl = reduceCFL(m_celerity_queue, m_cflBuffer, m_cfl);
         finaliseSubstep(substep);
@@ -208,14 +214,12 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::prepareSubstep(
 
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::computeSubstep() {
-    auto grid = convertSyclToCelerityBuffer(m_grid);
-    auto changeBuffer = convertSyclToCelerityBuffer(m_changeBuffer);
-
     m_celerity_queue.submit([=](celerity::handler& cgh) {
-        auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::neighborhood{ padding, padding, padding },
-                                                celerity::read_only };
+        auto gridAccessor =
+            celerity::accessor{ m_grid, cgh, celerity::access::neighborhood{ padding, padding, padding },
+                                celerity::read_only };
         auto changeAccessor =
-            celerity::accessor{ changeBuffer, cgh, celerity::access::one_to_one{}, celerity::write_only };
+            celerity::accessor{ m_changeBuffer, cgh, celerity::access::one_to_one{}, celerity::write_only };
         auto cflAccessor = celerity::accessor{ m_cflBuffer, cgh, celerity::access::one_to_one{}, celerity::write_only };
 
         auto range = m_grid.get_range();
@@ -257,7 +261,6 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::computeSubstep() {
             });
     });
     m_celerity_queue.slow_full_sync();
-    m_changeBuffer = convertCelerityToSyclBuffer(changeBuffer);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -300,29 +303,22 @@ double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::reduceCFL(celerit
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::finaliseSubstep(const unsigned substep) {
 #ifndef NDEBUG
-    auto celerityGrid = convertSyclToCelerityBuffer(m_grid);
-    checkErrors(m_celerity_queue, celerityGrid);
+    checkErrors(m_celerity_queue, m_grid);
 #endif
 
-    auto grid = convertSyclToCelerityBuffer(m_grid);
-    problem.applySourceCelerity(m_celerity_queue, grid);
-    m_grid = convertCelerityToSyclBuffer(grid);
+    problem.applySourceCelerity(m_celerity_queue, m_grid);
 
 #ifndef NDEBUG
-    celerityGrid = convertSyclToCelerityBuffer(m_grid);
-    checkErrors(m_celerity_queue, celerityGrid);
+    checkErrors(m_celerity_queue, m_grid);
 #endif
 
-    grid = convertSyclToCelerityBuffer(m_grid);
-    TransformationCelerity::primitiveToConservative(m_celerity_queue, grid, problem.thermal, problem.gamma);
-    auto gridSubstepBuffer = convertSyclToCelerityBuffer(m_gridSubstepBuffer);
-    auto changeBuffer = convertSyclToCelerityBuffer(m_changeBuffer);
-    integrateTime(m_celerity_queue, grid, gridSubstepBuffer, changeBuffer, substep);
-    m_gridSubstepBuffer = convertCelerityToSyclBuffer(gridSubstepBuffer);
-    TransformationCelerity::conservativeToPrimitive(m_celerity_queue, grid, problem.thermal, problem.gamma);
-    m_grid = convertCelerityToSyclBuffer(grid);
+    TransformationCelerity::primitiveToConservative(m_celerity_queue, m_grid, problem.thermal, problem.gamma);
+    integrateTime(m_celerity_queue, m_grid, m_gridSubstepBuffer, m_changeBuffer, substep);
+    TransformationCelerity::conservativeToPrimitive(m_celerity_queue, m_grid, problem.thermal, problem.gamma);
 
-    BoundarySycl::applyAll(m_queue, m_grid, problem);
+    auto grid = convertCelerityToSyclBuffer(m_grid);
+    BoundarySycl::applyAll(m_queue, grid, problem);
+    m_grid = convertSyclToCelerityBuffer(grid);
 
     // Stop clock(s)
     // runtime estimation -- time measurement omitted for now
