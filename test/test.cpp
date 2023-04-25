@@ -108,7 +108,7 @@ TEST_CASE_METHOD(runtime_fixture, "Shock-Tube integration test with celerity", "
     ShockTube shockTube(config);
 
     auto queue = celerity::distr_queue();
-    RungeKuttaCeleritySolver<ShockTube, FieldStruct, GHOST_CELLS> solver(queue, shockTube);
+    RungeKuttaCeleritySolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube, queue);
     solver.initialise();
 
     double deviationPerStep = 1.0005;
@@ -157,7 +157,7 @@ TEST_CASE_METHOD(runtime_fixture, "Shock-Tube integration test comparison host v
 
     RungeKuttaSolver<ShockTube, FieldStruct, GHOST_CELLS> solver(shockTube);
     auto queue = celerity::distr_queue();
-    RungeKuttaCeleritySolver<ShockTube, FieldStruct, GHOST_CELLS> celeritySolver(queue, shockTube);
+    RungeKuttaCeleritySolver<ShockTube, FieldStruct, GHOST_CELLS> celeritySolver(shockTube, queue);
     solver.initialise();
     celeritySolver.initialise();
 

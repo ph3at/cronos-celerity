@@ -23,7 +23,7 @@ template <class Fields> using Changes = std::array<Fields, Direction::DirMax>;
 
 template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCeleritySolver {
   public:
-    RungeKuttaCeleritySolver(celerity::distr_queue& celerity_queue, const ProblemType& problem,
+    RungeKuttaCeleritySolver(const ProblemType& problem, celerity::distr_queue& celerity_queue,
                              const unsigned rungeKuttaSteps = 2);
 
     void initialise();
@@ -55,7 +55,6 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
     }
 
   private:
-    sycl::queue m_queue;
     celerity::distr_queue& m_celerity_queue;
 
     const std::size_t m_sizeX;
@@ -88,20 +87,10 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
 };
 
 template <class ProblemType, class Fields, unsigned padding>
-RungeKuttaCeleritySolver<ProblemType, Fields, padding>::RungeKuttaCeleritySolver(celerity::distr_queue& celerity_queue,
-                                                                                 const ProblemType& problem,
+RungeKuttaCeleritySolver<ProblemType, Fields, padding>::RungeKuttaCeleritySolver(const ProblemType& problem,
+                                                                                 celerity::distr_queue& celerity_queue,
                                                                                  const unsigned rungeKuttaSteps)
-    : m_queue(sycl::gpu_selector{},
-              [](const sycl::exception_list exceptions) {
-                  try {
-                      for (const auto& e : exceptions) {
-                          std::rethrow_exception(e);
-                      }
-                  } catch (const sycl::exception& e) {
-                      std::cout << "Exception during reduction: " << e.what() << std::endl;
-                  }
-              }),
-      m_celerity_queue(celerity_queue), m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
+    : m_celerity_queue(celerity_queue), m_sizeX(problem.numberCells[Direction::DirX] + 2 * padding),
       m_sizeY(problem.numberCells[Direction::DirY] + 2 * padding),
       m_sizeZ(problem.numberCells[Direction::DirZ] + 2 * padding),
       m_grid(celerity::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
