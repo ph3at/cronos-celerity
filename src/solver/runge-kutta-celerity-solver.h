@@ -16,7 +16,6 @@
 #include "../grid/padded-grid.h"
 #include "../riemann/reconstruction.h"
 #include "../riemann/riemann-solver.h"
-#include "../sycl/reduction.h"
 #include "../transformation/transformations.h"
 
 template <class Fields> using Changes = std::array<Fields, Direction::DirMax>;
@@ -160,12 +159,12 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::computeSubstep() {
         range[1] = range[1] - 2 * padding + 1;
         range[2] = range[2] - 2 * padding + 1;
 
-        const auto offset = sycl::id<3>(padding, padding, padding);
+        const auto offset = celerity::id<3>(padding, padding, padding);
 
         cgh.parallel_for(
             range, offset,
             [=, thermal = problem.thermal, gamma = problem.gamma,
-             inverseCellSize = problem.inverseCellSize](const sycl::id<3> idx) {
+             inverseCellSize = problem.inverseCellSize](const celerity::id<3> idx) {
                 PerFaceValues reconstruction = ReconstructionCelerity::reconstruct(gridAccessor, idx);
 
                 std::array<PhysValues, Faces::FaceMax> physicalValues;
