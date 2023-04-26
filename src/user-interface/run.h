@@ -6,6 +6,7 @@
 #include "../configuration/shock-tube.h"
 #include "../grid/grid-functions.h"
 #include "../grid/padded-grid.h"
+#include "../solver/runge-kutta-celerity-solver.h"
 #include "../solver/runge-kutta-solver.h"
 #include "../solver/runge-kutta-sycl-solver.h"
 
@@ -45,6 +46,27 @@ template <class ProblemType> void runSyclRKS(const ProblemType& problem) {
 
     const unsigned rungeKuttaSteps = 2;
     RungeKuttaSyclSolver<ProblemType, FieldStruct, GHOST_CELLS> solver(problem, rungeKuttaSteps);
+    solver.initialise();
+
+    int timeSteps = 0;
+    while (!solver.isFinished()) {
+        std::cout << "--- Starting time step " << timeSteps << " ---" << std::endl;
+        solver.step();
+        solver.adjust();
+        ++timeSteps;
+    }
+    solver.finalise();
+    solver.report(timeSteps);
+}
+
+template <class ProblemType> void runCelerityRKS(const ProblemType& problem) {
+    std::cout << std::endl
+              << "----------------- Solving Grid using Runge-Kutta-Celerity-Solver -----------------" << std::endl
+              << std::endl;
+
+    const unsigned rungeKuttaSteps = 2;
+    auto queue = celerity::distr_queue{};
+    RungeKuttaCeleritySolver<ProblemType, FieldStruct, GHOST_CELLS> solver(problem, queue, rungeKuttaSteps);
     solver.initialise();
 
     int timeSteps = 0;

@@ -8,7 +8,7 @@ int main(int argc, char** argv) {
         std::cerr << "Missing configuration file." << std::endl;
         return EXIT_FAILURE;
     } else {
-        parseAndRun(argv[1]);
+        parseAndRun(argv[1], Backend::CPU);
     }
 
     return EXIT_SUCCESS;

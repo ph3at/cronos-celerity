@@ -4,7 +4,7 @@
 #include "config-parser.h"
 #include "value-parser.h"
 
-void parseAndRun(const std::string& configFile, bool useSycl) {
+void parseAndRun(const std::string& configFile, const Backend backend) {
     try {
         toml::table config = toml::parse_file(configFile);
         const std::optional<std::string> maybeProblemType = config["problem"].value<std::string>();
@@ -12,7 +12,7 @@ void parseAndRun(const std::string& configFile, bool useSycl) {
             const std::string& problemType = maybeProblemType.value();
             if (problemType.compare("shock tube") == 0) {
                 std::cout << "--------------- Running shock tube ---------------" << std::endl;
-                parseAndRun<ShockTube>(config, useSycl);
+                parseAndRun<ShockTube>(config, backend);
             } else {
                 std::cerr << "Unknown problem type: " << problemType << std::endl;
                 exit(4);
