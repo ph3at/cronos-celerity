@@ -77,6 +77,16 @@ set_compiler_parameters(cronos-celerity)
 target_link_libraries(cronos-celerity PRIVATE tomlplusplus::tomlplusplus)
 add_celerity_to_target(TARGET cronos-celerity SOURCES ${CRONOS_CELERITY_SRC})
 
+#############
+# Benchmark #
+#############
+set(CRONOS_BENCHMARK_SRC ${SRC})
+list(APPEND CRONOS_BENCHMARK_SRC "benchmark/benchmark.cpp")
+add_executable(cronos-benchmark ${CRONOS_BENCHMARK_SRC} ${HDR})
+set_compiler_parameters(cronos-benchmark)
+target_link_libraries(cronos-benchmark PRIVATE tomlplusplus::tomlplusplus)
+add_celerity_to_target(TARGET cronos-benchmark SOURCES ${CRONOS_BENCHMARK_SRC})
+
 ###########
 # Testing #
 ###########
