@@ -75,7 +75,7 @@ bool checkNaN(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& gr
 
     queue.submit([=](celerity::handler& cgh) {
         auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::read_only };
-        auto reduction = celerity::reduction(resultBuffer, cgh, false, std::bit_or<bool>{},
+        auto reduction = celerity::reduction(resultBuffer, cgh, std::bit_or<bool>{},
                                              celerity::property::reduction::initialize_to_identity{});
         cgh.parallel_for(range, reduction, [=](const celerity::item<3> item, auto& val) {
             auto hasNan = false;
