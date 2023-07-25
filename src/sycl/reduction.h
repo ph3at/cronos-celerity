@@ -29,7 +29,7 @@ template <typename T, typename BinOp = std::plus<T>>
 T reduce(sycl::queue& queue, sycl::buffer<T, 1>& data, BinOp op = std::plus<T>{}, const T neutralElement = T()) {
     auto device = queue.get_device();
 
-    const auto actualSize = data.get_count();
+    const auto actualSize = data.size();
     const auto ceiledSize = bit_ceil(actualSize);
     const size_t workgroupSize = std::min(ceiledSize, device.get_info<sycl::info::device::max_work_group_size>());
     size_t remainingSize = ceiledSize;
@@ -44,8 +44,7 @@ T reduce(sycl::queue& queue, sycl::buffer<T, 1>& data, BinOp op = std::plus<T>{}
                                                       sycl::range<1>{ std::min(remainingSize, workgroupSize) } };
 
                 auto dataAccessor = data.template get_access<sycl::access::mode::read_write>(cgh);
-                auto scratchBuffer = sycl::accessor<T, 1, sycl::access::mode::read_write, sycl::access::target::local>(
-                    sycl::range<1>(workgroupSize), cgh);
+                auto scratchBuffer = sycl::local_accessor<T, 1>(sycl::range<1>(workgroupSize), cgh);
 
                 cgh.parallel_for(range, [dataAccessor, scratchBuffer, actualSize, workgroupSize, remainingSize, op,
                                          neutralElement](sycl::nd_item<1> id) {
@@ -80,7 +79,7 @@ T reduce(sycl::queue& queue, sycl::buffer<T, 1>& data, BinOp op = std::plus<T>{}
         } while (remainingSize > 1);
     }
 
-    const auto dataAccessor = data.template get_access<sycl::access::mode::read>();
+    const auto dataAccessor = data.get_host_access();
     return dataAccessor[0];
 }
 

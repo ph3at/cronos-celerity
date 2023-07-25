@@ -31,9 +31,9 @@ static inline double limitMinmod(const double deltaLeft, const double deltaRight
     }
 }
 
-static inline double derivX(
-    const sycl::accessor<FieldStruct, 3, sycl::access::mode::read, sycl::access::target::global_buffer>& gridAccessor,
-    const sycl::id<3>& idx, const unsigned field) {
+static inline double
+derivX(const sycl::accessor<FieldStruct, 3, sycl::access::mode::read, sycl::access::target::device>& gridAccessor,
+       const sycl::id<3>& idx, const unsigned field) {
     const auto prevX = sycl::id<3>(idx[0] - 1, idx[1], idx[2]);
     const auto nextX = sycl::id<3>(idx[0] + 1, idx[1], idx[2]);
     double deltaLeft = gridAccessor[idx][field] - gridAccessor[prevX][field];
@@ -42,9 +42,9 @@ static inline double derivX(
     return limitMinmod(deltaLeft, deltaRight);
 }
 
-static inline double derivY(
-    const sycl::accessor<FieldStruct, 3, sycl::access::mode::read, sycl::access::target::global_buffer>& gridAccessor,
-    const sycl::id<3>& idx, const unsigned field) {
+static inline double
+derivY(const sycl::accessor<FieldStruct, 3, sycl::access::mode::read, sycl::access::target::device>& gridAccessor,
+       const sycl::id<3>& idx, const unsigned field) {
     const auto prevY = sycl::id<3>(idx[0], idx[1] - 1, idx[2]);
     const auto nextY = sycl::id<3>(idx[0], idx[1] + 1, idx[2]);
     double deltaLeft = gridAccessor[idx][field] - gridAccessor[prevY][field];
@@ -53,9 +53,9 @@ static inline double derivY(
     return limitMinmod(deltaLeft, deltaRight);
 }
 
-static inline double derivZ(
-    const sycl::accessor<FieldStruct, 3, sycl::access::mode::read, sycl::access::target::global_buffer>& gridAccessor,
-    const sycl::id<3>& idx, const unsigned field) {
+static inline double
+derivZ(const sycl::accessor<FieldStruct, 3, sycl::access::mode::read, sycl::access::target::device>& gridAccessor,
+       const sycl::id<3>& idx, const unsigned field) {
     const auto prevZ = sycl::id<3>(idx[0], idx[1], idx[2] - 1);
     const auto nextZ = sycl::id<3>(idx[0], idx[1], idx[2] + 1);
     double deltaLeft = gridAccessor[idx][field] - gridAccessor[prevZ][field];
@@ -64,9 +64,9 @@ static inline double derivZ(
     return limitMinmod(deltaLeft, deltaRight);
 }
 
-static inline PerFaceValues reconstruct(
-    const sycl::accessor<FieldStruct, 3, sycl::access::mode::read, sycl::access::target::global_buffer>& gridAccessor,
-    const sycl::id<3>& idx) {
+static inline PerFaceValues
+reconstruct(const sycl::accessor<FieldStruct, 3, sycl::access::mode::read, sycl::access::target::device>& gridAccessor,
+            const sycl::id<3>& idx) {
     const auto prevX = sycl::id<3>(idx[0] - 1, idx[1], idx[2]);
     const auto prevY = sycl::id<3>(idx[0], idx[1] - 1, idx[2]);
     const auto prevZ = sycl::id<3>(idx[0], idx[1], idx[2] - 1);

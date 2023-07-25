@@ -34,7 +34,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
     PaddedGrid<Fields, padding> grid() {
         auto paddedGrid =
             PaddedGrid<Fields, padding>({}, m_sizeX - 2 * padding, m_sizeY - 2 * padding, m_sizeZ - 2 * padding);
-        const auto gridAccessor = m_grid.template get_access<sycl::access::mode::read>();
+        const auto gridAccessor = m_grid.get_host_access();
         for (std::size_t x = 0; x < m_sizeX; ++x) {
             for (std::size_t y = 0; y < m_sizeY; ++y) {
                 for (std::size_t z = 0; z < m_sizeZ; ++z) {
@@ -79,7 +79,7 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaSyc
 template <class ProblemType, class Fields, unsigned padding>
 RungeKuttaSyclSolver<ProblemType, Fields, padding>::RungeKuttaSyclSolver(const ProblemType& problem,
                                                                          const unsigned rungeKuttaSteps)
-    : m_queue(sycl::gpu_selector{},
+    : m_queue(sycl::gpu_selector_v,
               [](const sycl::exception_list exceptions) {
                   try {
                       for (const auto& e : exceptions) {

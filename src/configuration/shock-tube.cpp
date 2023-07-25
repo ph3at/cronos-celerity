@@ -126,13 +126,13 @@ void ShockTube::initialiseGridSycl(sycl::queue& queue, sycl::buffer<FieldStruct,
 }
 
 void ShockTube::initialiseGridCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) const {
-    queue.submit([grid, shockDir = shockDir, posLeft = posLeft, cellSize = cellSize, shockPos = shockPos,
-                  densityLeftInit = densityLeftInit, velocityXLeftInit = velocityXLeftInit,
-                  velocityYLeftInit = velocityYLeftInit, velocityZLeftInit = velocityZLeftInit, thermal = thermal,
-                  pressureLeftInit = pressureLeftInit, gamma = gamma, densityRightInit = densityRightInit,
-                  velocityXRightInit = velocityXRightInit, velocityYRightInit = velocityYRightInit,
-                  velocityZRightInit = velocityZRightInit,
-                  pressureRightInit = pressureRightInit](celerity::handler& cgh) {
+    queue.submit([&grid, &shockDir = shockDir, &posLeft = posLeft, &cellSize = cellSize, &shockPos = shockPos,
+                  &densityLeftInit = densityLeftInit, &velocityXLeftInit = velocityXLeftInit,
+                  &velocityYLeftInit = velocityYLeftInit, &velocityZLeftInit = velocityZLeftInit, &thermal = thermal,
+                  &pressureLeftInit = pressureLeftInit, &gamma = gamma, &densityRightInit = densityRightInit,
+                  &velocityXRightInit = velocityXRightInit, &velocityYRightInit = velocityYRightInit,
+                  &velocityZRightInit = velocityZRightInit,
+                  &pressureRightInit = pressureRightInit](celerity::handler& cgh) {
         auto gridAccessor =
             celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only, celerity::no_init };
 
@@ -254,7 +254,7 @@ void ShockTube::applyBoundaryCelerity(celerity::distr_queue& queue, celerity::bu
             initValue = 0.0;
         }
 
-        queue.submit([=](celerity::handler& cgh) {
+        queue.submit([&grid, &initValue, &field](celerity::handler& cgh) {
             auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only,
                                                     celerity::no_init };
 

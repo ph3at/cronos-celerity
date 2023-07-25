@@ -211,7 +211,7 @@ void apply(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
         direction = 1;
     }
 
-    queue.submit([=](celerity::handler& cgh) {
+    queue.submit([&grid, &field, &inner, &outer, &direction, &idxMap](celerity::handler& cgh) {
         const auto boundaryMapper = [=](const celerity::chunk<2> chunk) {
             auto offset = celerity::id<3>{ 0, 0, 0 };
             offset[idxMap[0]] = inner - 1;

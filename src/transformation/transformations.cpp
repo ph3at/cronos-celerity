@@ -97,7 +97,7 @@ namespace TransformationCelerity {
 
 void primitiveToConservative(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const bool isThermal,
                              const double gamma) {
-    queue.submit([=](celerity::handler& cgh) {
+    queue.submit([&grid, &isThermal, &gamma](celerity::handler& cgh) {
         auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::read_write };
 
         cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
@@ -114,7 +114,7 @@ void primitiveToConservative(celerity::distr_queue& queue, celerity::buffer<Fiel
 
 void conservativeToPrimitive(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const bool isThermal,
                              const double gamma) {
-    queue.submit([=](celerity::handler& cgh) {
+    queue.submit([&grid, &isThermal, &gamma](celerity::handler& cgh) {
         auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::read_write };
 
         cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {

@@ -35,19 +35,19 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
     PaddedGrid<Fields, padding> grid() {
         auto paddedGrid =
             PaddedGrid<Fields, padding>({}, m_sizeX - 2 * padding, m_sizeY - 2 * padding, m_sizeZ - 2 * padding);
-        m_celerity_queue.submit(celerity::allow_by_ref, [=, &paddedGrid](celerity::handler& cgh) {
+        m_celerity_queue.submit([&paddedGrid, &m_grid = m_grid, &m_sizeX = m_sizeX, &m_sizeY = m_sizeY,
+                                 &m_sizeZ = m_sizeZ](celerity::handler& cgh) {
             auto gridAccessor =
                 celerity::accessor{ m_grid, cgh, celerity::access::all{}, celerity::read_only_host_task };
-            cgh.host_task(celerity::experimental::collective,
-                          [=, &paddedGrid](celerity::experimental::collective_partition) {
-                              for (std::size_t x = 0; x < m_sizeX; ++x) {
-                                  for (std::size_t y = 0; y < m_sizeY; ++y) {
-                                      for (std::size_t z = 0; z < m_sizeZ; ++z) {
-                                          paddedGrid(x, y, z) = gridAccessor[celerity::id<3>(x, y, z)];
-                                      }
-                                  }
-                              }
-                          });
+            cgh.host_task(celerity::experimental::collective, [=](celerity::experimental::collective_partition) {
+                for (std::size_t x = 0; x < m_sizeX; ++x) {
+                    for (std::size_t y = 0; y < m_sizeY; ++y) {
+                        for (std::size_t z = 0; z < m_sizeZ; ++z) {
+                            paddedGrid(x, y, z) = gridAccessor[celerity::id<3>(x, y, z)];
+                        }
+                    }
+                }
+            });
         });
         m_celerity_queue.slow_full_sync();
         return paddedGrid;
@@ -133,7 +133,7 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::prepareSubstep(
 
     // TODO: Clearing the buffer is not necessary -> get rid of it
 
-    queue.submit([=](celerity::handler& cgh) {
+    queue.submit([&changeBuffer](celerity::handler& cgh) {
         auto changeAccessor = celerity::accessor{ changeBuffer, cgh, celerity::access::one_to_one{},
                                                   celerity::write_only, celerity::no_init };
 
@@ -208,7 +208,7 @@ double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::reduceCFL(celerit
                                                                          const double initialCFL) {
     auto resultBuffer = celerity::buffer<double, 1>{ celerity::range<1>{ 1 } };
 
-    queue.submit([=](celerity::handler& cgh) {
+    queue.submit([&cflBuffer, &resultBuffer](celerity::handler& cgh) {
         auto bufferAccessor = celerity::accessor{ cflBuffer, cgh, celerity::access::one_to_one{}, celerity::read_only };
         auto maxReduction = celerity::reduction(resultBuffer, cgh, sycl::maximum<>(),
                                                 celerity::property::reduction::initialize_to_identity{});
@@ -219,7 +219,7 @@ double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::reduceCFL(celerit
 
     double reducedCFL = 0;
 
-    queue.submit(celerity::allow_by_ref, [=, &reducedCFL](celerity::handler& cgh) {
+    queue.submit([&resultBuffer, &reducedCFL](celerity::handler& cgh) {
         celerity::accessor bufferAccessor{ resultBuffer, cgh, celerity::access::all{}, celerity::read_only_host_task };
         cgh.host_task(
             celerity::experimental::collective,
@@ -259,7 +259,8 @@ template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::integrateTime(
     celerity::distr_queue& queue, celerity::buffer<Fields, 3>& grid, celerity::buffer<Fields, 3>& gridSubstep,
     celerity::buffer<Changes<Fields>, 3>& changes, const unsigned substep) const {
-    queue.submit([=](celerity::handler& cgh) {
+    queue.submit([&grid, &gridSubstep, &changes, &substep, &timeDelta = timeDelta, &rungeKuttaSteps = rungeKuttaSteps,
+                  &inverseCellSize = problem.inverseCellSize](celerity::handler& cgh) {
         auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::read_write };
         auto gridSubstepAccessor =
             celerity::accessor{ gridSubstep, cgh, celerity::access::one_to_one{}, celerity::read_write };
@@ -273,37 +274,34 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::integrateTime(
 
         const auto offset = celerity::id<3>(padding, padding, padding);
 
-        cgh.parallel_for(range, offset,
-                         [=, timeDelta = timeDelta, rungeKuttaSteps = rungeKuttaSteps,
-                          inverseCellSize = problem.inverseCellSize](const celerity::id<3> idx) {
-                             if (substep == 0 && rungeKuttaSteps > 1) {
-                                 gridSubstepAccessor[idx] = gridAccessor[idx];
-                             }
+        cgh.parallel_for(range, offset, [=](const celerity::id<3> idx) {
+            if (substep == 0 && rungeKuttaSteps > 1) {
+                gridSubstepAccessor[idx] = gridAccessor[idx];
+            }
 
-                             for (unsigned field = 0; field < std::tuple_size<Fields>{}; ++field) {
-                                 const auto nextXIdx = celerity::id<3>(idx[0] + 1, idx[1], idx[2]);
-                                 const auto nextYIdx = celerity::id<3>(idx[0], idx[1] + 1, idx[2]);
-                                 const auto nextZIdx = celerity::id<3>(idx[0], idx[1], idx[2] + 1);
+            for (unsigned field = 0; field < std::tuple_size<Fields>{}; ++field) {
+                const auto nextXIdx = celerity::id<3>(idx[0] + 1, idx[1], idx[2]);
+                const auto nextYIdx = celerity::id<3>(idx[0], idx[1] + 1, idx[2]);
+                const auto nextZIdx = celerity::id<3>(idx[0], idx[1], idx[2] + 1);
 
-                                 const auto calcDirChanges = [&](const auto& nextIdx, const auto& dir) {
-                                     return (changeAccessor[nextIdx][dir][field] - changeAccessor[idx][dir][field]) *
-                                            inverseCellSize[dir];
-                                 };
+                const auto calcDirChanges = [&](const auto& nextIdx, const auto& dir) {
+                    return (changeAccessor[nextIdx][dir][field] - changeAccessor[idx][dir][field]) *
+                           inverseCellSize[dir];
+                };
 
-                                 const auto changeX = calcDirChanges(nextXIdx, Direction::DirX);
-                                 const auto changeY = calcDirChanges(nextYIdx, Direction::DirY);
-                                 const auto changeZ = calcDirChanges(nextZIdx, Direction::DirZ);
-                                 const auto change = changeX + changeY + changeZ;
+                const auto changeX = calcDirChanges(nextXIdx, Direction::DirX);
+                const auto changeY = calcDirChanges(nextYIdx, Direction::DirY);
+                const auto changeZ = calcDirChanges(nextZIdx, Direction::DirZ);
+                const auto change = changeX + changeY + changeZ;
 
-                                 if (substep == 0) {
-                                     gridAccessor[idx][field] -= timeDelta * change;
-                                 } else {
-                                     gridAccessor[idx][field] = 0.5 * gridSubstepAccessor[idx][field] +
-                                                                0.5 * gridAccessor[idx][field] -
-                                                                0.5 * timeDelta * change;
-                                 }
-                             }
-                         });
+                if (substep == 0) {
+                    gridAccessor[idx][field] -= timeDelta * change;
+                } else {
+                    gridAccessor[idx][field] = 0.5 * gridSubstepAccessor[idx][field] + 0.5 * gridAccessor[idx][field] -
+                                               0.5 * timeDelta * change;
+                }
+            }
+        });
     });
 }
 

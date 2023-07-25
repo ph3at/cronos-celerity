@@ -247,7 +247,7 @@ void apply(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
     constexpr auto velocityAxis = FieldNames::VELOCITY_X + idxMap[0];
     const bool isParallelVelocity = field == velocityAxis;
 
-    queue.submit([=](celerity::handler& cgh) {
+    queue.submit([&grid, &field, &inner, &outer, &direction, &isParallelVelocity, &idxMap](celerity::handler& cgh) {
         const auto boundaryMapper = [=](const celerity::chunk<2> chunk) {
             auto offset = celerity::id<3>{ 0, 0, 0 };
             offset[idxMap[0]] = inner - (dir == Dir::LEFT ? 1 : 2);

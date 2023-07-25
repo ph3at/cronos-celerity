@@ -79,8 +79,8 @@ void celerityBenchmark(const int size) {
     const auto benchmarkTimeMs = benchmarkSolver<RungeKuttaCeleritySolver<ShockTube, FieldStruct, GHOST_CELLS>>(
         size, "configuration/shock-tube-benchmark.toml", queue);
 
-    queue.submit(celerity::allow_by_ref, [=, &benchmarkTimeMs](celerity::handler& cgh) {
-        cgh.host_task(celerity::on_master_node, [=, &benchmarkTimeMs] {
+    queue.submit([&size, &benchmarkTimeMs](celerity::handler& cgh) {
+        cgh.host_task(celerity::on_master_node, [&size, &benchmarkTimeMs] {
             std::cerr << "arch,size,time" << std::endl;
             std::cerr << "celerity," << size << "," << benchmarkTimeMs.count() << std::endl;
         });
