@@ -39,15 +39,16 @@ template <class ProblemType, class Fields, unsigned padding> class RungeKuttaCel
                                  &m_sizeZ = m_sizeZ](celerity::handler& cgh) {
             auto gridAccessor =
                 celerity::accessor{ m_grid, cgh, celerity::access::all{}, celerity::read_only_host_task };
-            cgh.host_task(celerity::experimental::collective, [=](celerity::experimental::collective_partition) {
-                for (std::size_t x = 0; x < m_sizeX; ++x) {
-                    for (std::size_t y = 0; y < m_sizeY; ++y) {
-                        for (std::size_t z = 0; z < m_sizeZ; ++z) {
-                            paddedGrid(x, y, z) = gridAccessor[celerity::id<3>(x, y, z)];
-                        }
-                    }
-                }
-            });
+            cgh.host_task(celerity::experimental::collective,
+                          [=, &paddedGrid](celerity::experimental::collective_partition) {
+                              for (std::size_t x = 0; x < m_sizeX; ++x) {
+                                  for (std::size_t y = 0; y < m_sizeY; ++y) {
+                                      for (std::size_t z = 0; z < m_sizeZ; ++z) {
+                                          paddedGrid(x, y, z) = gridAccessor[celerity::id<3>(x, y, z)];
+                                      }
+                                  }
+                              }
+                          });
         });
         m_celerity_queue.slow_full_sync();
         return paddedGrid;

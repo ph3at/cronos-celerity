@@ -495,7 +495,7 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity reduction", "[celerity]") {
 
         queue.submit([&maxBuffer, &celerityResult, &stlResult](celerity::handler& cgh) {
             celerity::accessor bufferAccessor{ maxBuffer, cgh, celerity::access::all{}, celerity::read_only_host_task };
-            cgh.host_task(celerity::on_master_node, [&bufferAccessor, &celerityResult, &stlResult] {
+            cgh.host_task(celerity::on_master_node, [bufferAccessor, &celerityResult, &stlResult] {
                 celerityResult = bufferAccessor[0];
                 CHECK(celerityResult == stlResult);
             });
