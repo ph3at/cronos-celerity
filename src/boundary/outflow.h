@@ -180,7 +180,10 @@ void apply(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid, const unsigne
                 auto srcIdx = dstIdx;
                 srcIdx[idxMap[0]] -= direction;
 
-                if (gridAccessor[srcIdx][velocityAxis] * direction > 0.0) {
+                auto dirIdx = dstIdx;
+                dirIdx[idxMap[0]] = inner - direction;
+
+                if (gridAccessor[dirIdx][velocityAxis] * direction > 0.0) {
                     gridAccessor[dstIdx][field] = gridAccessor[srcIdx][field];
                 } else {
                     srcIdx[idxMap[0]] = 2 * inner - dstIdx[idxMap[0]] - direction;
@@ -274,7 +277,10 @@ void apply(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
                 auto srcIdx = dstIdx;
                 srcIdx[idxMap[0]] -= direction;
 
-                if (gridAccessor[srcIdx][velocityAxis] * direction > 0.0) {
+                auto dirIdx = dstIdx;
+                dirIdx[idxMap[0]] = inner - direction;
+
+                if (gridAccessor[dirIdx][velocityAxis] * direction > 0.0) {
                     gridAccessor[dstIdx][field] = gridAccessor[srcIdx][field];
                 } else {
                     srcIdx[idxMap[0]] = 2 * inner - dstIdx[idxMap[0]] - direction;

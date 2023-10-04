@@ -505,6 +505,221 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity reduction", "[celerity]") {
     }
 }
 
+PaddedGrid<FieldStruct, GHOST_CELLS> syclGridToPaddedGrid(sycl::buffer<FieldStruct, 3>& grid) {
+    const auto sizeX = grid.get_range()[0];
+    const auto sizeY = grid.get_range()[1];
+    const auto sizeZ = grid.get_range()[2];
+    auto paddedGrid = PaddedGrid<FieldStruct, GHOST_CELLS>({}, sizeX - 2 * GHOST_CELLS, sizeY - 2 * GHOST_CELLS,
+                                                           sizeZ - 2 * GHOST_CELLS);
+    auto gridAccessor = sycl::host_accessor{ grid };
+    for (std::size_t x = 0; x < sizeX; ++x) {
+        for (std::size_t y = 0; y < sizeY; ++y) {
+            for (std::size_t z = 0; z < sizeZ; ++z) {
+                paddedGrid(x, y, z) = gridAccessor[sycl::id<3>(x, y, z)];
+            }
+        }
+    }
+    return paddedGrid;
+}
+
+PaddedGrid<FieldStruct, GHOST_CELLS> celerityGridToPaddedGrid(celerity::distr_queue& queue,
+                                                              celerity::buffer<FieldStruct, 3>& grid) {
+    const auto sizeX = grid.get_range()[0];
+    const auto sizeY = grid.get_range()[1];
+    const auto sizeZ = grid.get_range()[2];
+
+    auto paddedGrid = PaddedGrid<FieldStruct, GHOST_CELLS>({}, sizeX - 2 * GHOST_CELLS, sizeY - 2 * GHOST_CELLS,
+                                                           sizeZ - 2 * GHOST_CELLS);
+    queue.submit([&paddedGrid, &grid, &sizeX, &sizeY, &sizeZ](celerity::handler& cgh) {
+        auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::all{}, celerity::read_only_host_task };
+        cgh.host_task(celerity::experimental::collective,
+                      [=, &paddedGrid](celerity::experimental::collective_partition) {
+                          for (std::size_t x = 0; x < sizeX; ++x) {
+                              for (std::size_t y = 0; y < sizeY; ++y) {
+                                  for (std::size_t z = 0; z < sizeZ; ++z) {
+                                      paddedGrid(x, y, z) = gridAccessor[celerity::id<3>(x, y, z)];
+                                  }
+                              }
+                          }
+                      });
+    });
+    queue.slow_full_sync();
+    return paddedGrid;
+}
+
+void compareGrids(const PaddedGrid<FieldStruct, GHOST_CELLS>& first,
+                  const PaddedGrid<FieldStruct, GHOST_CELLS>& second) {
+    REQUIRE(first.xDim() == second.xDim());
+    REQUIRE(first.yDim() == second.yDim());
+    REQUIRE(first.zDim() == second.zDim());
+    REQUIRE(first.xStart() == second.xStart());
+    REQUIRE(first.yStart() == second.yStart());
+    REQUIRE(first.zStart() == second.zStart());
+    REQUIRE(first.xEnd() == second.xEnd());
+    REQUIRE(first.yEnd() == second.yEnd());
+    REQUIRE(first.zEnd() == second.zEnd());
+
+    for (std::size_t x = 0; x < first.xDim(); ++x) {
+        for (std::size_t y = 0; y < first.yDim(); ++y) {
+            for (std::size_t z = 0; z < first.zDim(); ++z) {
+                // std::cout << "(";
+                for (auto field = 0u; field < NUM_PHYSICAL_FIELDS; ++field) {
+                    CAPTURE(x);
+                    CAPTURE(y);
+                    CAPTURE(z);
+                    CAPTURE(field);
+                    CHECK(first(x, y, z)[field] == second(x, y, z)[field]);
+                    // const auto firstVal = first(x, y, z)[field];
+                    // const auto secondVal = second(x, y, z)[field];
+                    // const auto diff = firstVal - secondVal;
+                    // std::printf("%3.0f ", diff);
+                    // const auto* const res = firstVal < secondVal ? "<" : (firstVal > secondVal ? ">" : " ");
+                    // std::cout << res;
+                }
+                // std::cout << ")";
+            }
+            // std::cout << std::endl;
+        }
+        // std::cout << std::endl;
+    }
+}
+
+TEST_CASE("Sycl boundary v host", "[sycl][boundary]") {
+    auto queue = sycl::queue();
+
+    toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
+
+    *(config["grid"]["number_cells_x"].as_integer()) = 5;
+    *(config["grid"]["number_cells_y"].as_integer()) = 5;
+    *(config["grid"]["number_cells_z"].as_integer()) = 5;
+
+    const ShockTube shockTube(config);
+
+    const auto sizeX = shockTube.numberCells[Direction::DirX];
+    const auto sizeY = shockTube.numberCells[Direction::DirY];
+    const auto sizeZ = shockTube.numberCells[Direction::DirZ];
+
+    auto grid = sycl::buffer<FieldStruct, 3>(sycl::range<3>(sizeX, sizeY, sizeZ));
+
+    queue.submit([&](sycl::handler& cgh) {
+        auto gridAcc = sycl::accessor{ grid, cgh, sycl::write_only, sycl::no_init };
+
+        cgh.parallel_for(grid.get_range(), [=](const sycl::id<3> id) {
+            const auto linId = id[0] * sizeY * sizeZ + id[1] * sizeZ + id[2] + 1;
+            auto val = FieldStruct{};
+            for (auto i = 0u; i < NUM_PHYSICAL_FIELDS; ++i) {
+                val[i] = linId * NUM_PHYSICAL_FIELDS + i;
+            }
+            gridAcc[id] = val;
+        });
+    });
+
+    auto paddedGrid = syclGridToPaddedGrid(grid);
+
+    BoundarySycl::applyAll(queue, grid, shockTube);
+    Boundary::applyAll(paddedGrid, shockTube);
+
+    const auto syclBoundary = syclGridToPaddedGrid(grid);
+    compareGrids(syclBoundary, paddedGrid);
+}
+
+TEST_CASE_METHOD(runtime_fixture, "Celerity boundary v host", "[celerity][boundary]") {
+    auto queue = celerity::distr_queue();
+
+    toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
+
+    *(config["grid"]["number_cells_x"].as_integer()) = 5;
+    *(config["grid"]["number_cells_y"].as_integer()) = 5;
+    *(config["grid"]["number_cells_z"].as_integer()) = 5;
+
+    const ShockTube shockTube(config);
+
+    const auto sizeX = shockTube.numberCells[Direction::DirX];
+    const auto sizeY = shockTube.numberCells[Direction::DirY];
+    const auto sizeZ = shockTube.numberCells[Direction::DirZ];
+
+    auto grid = celerity::buffer<FieldStruct, 3>(celerity::range<3>(sizeX, sizeY, sizeZ));
+
+    queue.submit([&](celerity::handler& cgh) {
+        auto gridAcc =
+            celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only, celerity::no_init };
+
+        cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
+            const auto linId = id[0] * sizeY * sizeZ + id[1] * sizeZ + id[2] + 1;
+            auto val = FieldStruct{};
+            for (auto i = 0u; i < NUM_PHYSICAL_FIELDS; ++i) {
+                val[i] = linId * NUM_PHYSICAL_FIELDS + i;
+            }
+            gridAcc[id] = val;
+        });
+    });
+
+    auto paddedGrid = celerityGridToPaddedGrid(queue, grid);
+
+    BoundaryCelerity::applyAll(queue, grid, shockTube);
+    Boundary::applyAll(paddedGrid, shockTube);
+
+    const auto celerityBoundary = celerityGridToPaddedGrid(queue, grid);
+    compareGrids(celerityBoundary, paddedGrid);
+}
+
+TEST_CASE_METHOD(runtime_fixture, "Celerity boundary v sycl", "[celerity][sycl][boundary]") {
+
+    toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
+
+    *(config["grid"]["number_cells_x"].as_integer()) = 5;
+    *(config["grid"]["number_cells_y"].as_integer()) = 5;
+    *(config["grid"]["number_cells_z"].as_integer()) = 5;
+
+    const ShockTube shockTube(config);
+
+    const auto sizeX = shockTube.numberCells[Direction::DirX];
+    const auto sizeY = shockTube.numberCells[Direction::DirY];
+    const auto sizeZ = shockTube.numberCells[Direction::DirZ];
+
+    const auto celerityBoundary = [&]() {
+        auto celerityGrid = celerity::buffer<FieldStruct, 3>(celerity::range<3>(sizeX, sizeY, sizeZ));
+        auto distrQueue = celerity::distr_queue();
+        distrQueue.submit([&](celerity::handler& cgh) {
+            auto gridAcc = celerity::accessor{ celerityGrid, cgh, celerity::access::one_to_one{}, celerity::write_only,
+                                               celerity::no_init };
+
+            cgh.parallel_for(celerityGrid.get_range(), [=](const celerity::id<3> id) {
+                const auto linId = id[0] * sizeY * sizeZ + id[1] * sizeZ + id[2] + 1;
+                auto val = FieldStruct{};
+                for (auto i = 0u; i < NUM_PHYSICAL_FIELDS; ++i) {
+                    val[i] = linId * NUM_PHYSICAL_FIELDS + i;
+                }
+                gridAcc[id] = val;
+            });
+        });
+        BoundaryCelerity::applyAll(distrQueue, celerityGrid, shockTube);
+
+        return celerityGridToPaddedGrid(distrQueue, celerityGrid);
+    }();
+
+    const auto syclBoundary = [&]() {
+        auto queue = sycl::queue();
+        auto syclGrid = sycl::buffer<FieldStruct, 3>(sycl::range<3>(sizeX, sizeY, sizeZ));
+        queue.submit([&](sycl::handler& cgh) {
+            auto gridAcc = sycl::accessor{ syclGrid, cgh, sycl::write_only, sycl::no_init };
+
+            cgh.parallel_for(syclGrid.get_range(), [=](const sycl::id<3> id) {
+                const auto linId = id[0] * sizeY * sizeZ + id[1] * sizeZ + id[2] + 1;
+                auto val = FieldStruct{};
+                for (auto i = 0u; i < NUM_PHYSICAL_FIELDS; ++i) {
+                    val[i] = linId * NUM_PHYSICAL_FIELDS + i;
+                }
+                gridAcc[id] = val;
+            });
+        });
+        BoundarySycl::applyAll(queue, syclGrid, shockTube);
+        return syclGridToPaddedGrid(syclGrid);
+    }();
+
+    compareGrids(celerityBoundary, syclBoundary);
+}
+
 int main(int argc, char* argv[]) {
     Catch::Session session;
 
