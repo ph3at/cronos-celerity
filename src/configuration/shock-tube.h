@@ -28,6 +28,8 @@ class ShockTube : public Problem<ShockTube, FieldStruct, GHOST_CELLS> {
                            const unsigned face) const;
     void applyBoundaryCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
                                const unsigned field, const unsigned face) const;
+    void applyBoundaryCelerity3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
+                                 const unsigned face) const;
     void applySource(PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const;
     void applySourceSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const;
     void applySourceCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) const;

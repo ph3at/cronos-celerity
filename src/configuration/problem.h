@@ -49,6 +49,8 @@ template <class Specific, class Fields, unsigned padding> class Problem {
                            const unsigned face) const;
     void applyBoundaryCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
                                const unsigned field, const unsigned face) const;
+    void applyBoundaryCelerity3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
+                                 const unsigned face) const;
     void applySource(PaddedGrid<Fields, padding>& grid) const;
     void applySourceSycl(sycl::queue& queue, sycl::buffer<FieldStruct, 3>& grid) const;
     void applySourceCelerity(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) const;
@@ -141,6 +143,12 @@ void Problem<Specific, Fields, padding>::applyBoundaryCelerity(celerity::distr_q
                                                                const unsigned field, const unsigned face) const {
     static_cast<const Specific*>(this)->applyBoundaryCelerity(queue, grid, field, face);
 }
+template <class Specific, class Fields, unsigned padding>
+void Problem<Specific, Fields, padding>::applyBoundaryCelerity3D(celerity::distr_queue& queue,
+                                                                 celerity::buffer<FieldStruct, 3>& grid,
+                                                                 const unsigned face) const {
+    static_cast<const Specific*>(this)->applyBoundaryCelerity3D(queue, grid, face);
+}
 
 template <class Specific, class Fields, unsigned padding>
 void Problem<Specific, Fields, padding>::applySource(PaddedGrid<Fields, padding>& grid) const {
@@ -155,3 +163,13 @@ void Problem<Specific, Fields, padding>::applySourceCelerity(celerity::distr_que
                                                              celerity::buffer<FieldStruct, 3>& grid) const {
     static_cast<const Specific*>(this)->applySourceCelerity(queue, grid);
 }
+
+namespace ProblemCelerity {
+
+template <unsigned padding, typename Problem>
+void apply3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid, const unsigned face,
+             const Problem& problem) {
+    problem.applyBoundaryCelerity3D(queue, grid, face);
+}
+
+} // namespace ProblemCelerity

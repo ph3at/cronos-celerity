@@ -110,7 +110,7 @@ RungeKuttaCeleritySolver<ProblemType, Fields, padding>::RungeKuttaCeleritySolver
 template <class ProblemType, class Fields, unsigned padding>
 void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::initialise() {
     problem.initialiseGridCelerity(m_celerity_queue, m_grid);
-    BoundaryCelerity::applyAll(m_celerity_queue, m_grid, problem);
+    BoundaryCelerity::applyAll3D(m_celerity_queue, m_grid, problem);
 }
 
 template <class ProblemType, class Fields, unsigned padding>
@@ -248,7 +248,7 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::finaliseSubstep(con
     integrateTime(m_celerity_queue, m_grid, m_gridSubstepBuffer, m_changeBuffer, substep);
     TransformationCelerity::conservativeToPrimitive(m_celerity_queue, m_grid, problem.thermal, problem.gamma);
 
-    BoundaryCelerity::applyAll(m_celerity_queue, m_grid, problem);
+    BoundaryCelerity::applyAll3D(m_celerity_queue, m_grid, problem);
 
     // Stop clock(s)
     // runtime estimation -- time measurement omitted for now

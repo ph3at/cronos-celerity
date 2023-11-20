@@ -268,6 +268,45 @@ void ShockTube::applyBoundaryCelerity(celerity::distr_queue& queue, celerity::bu
     }
 }
 
+void ShockTube::applyBoundaryCelerity3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
+                                        const unsigned face) const {
+    if (face == Faces::FaceEast) {
+        queue.submit([&grid, &densityRightInit = densityRightInit, &velocityXRightInit = velocityXRightInit,
+                      &velocityYRightInit = velocityYRightInit, &velocityZRightInit = velocityZRightInit,
+                      &pressureRightInit = pressureRightInit, &gamma = gamma](celerity::handler& cgh) {
+            auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only,
+                                                    celerity::no_init };
+
+            const auto offset = celerity::id<3>(grid.get_range()[0] - GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
+            const auto range =
+                celerity::range<3>(grid.get_range()[0] - offset[0], grid.get_range()[1] - offset[1] - GHOST_CELLS,
+                                   grid.get_range()[2] - offset[2] - GHOST_CELLS);
+
+            cgh.parallel_for(range, offset, [=](const celerity::id<3> idx) {
+                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                    double initValue;
+
+                    if (field == FieldNames::DENSITY) {
+                        initValue = densityRightInit;
+                    } else if (field == FieldNames::VELOCITY_X) {
+                        initValue = velocityXRightInit;
+                    } else if (field == FieldNames::VELOCITY_Y) {
+                        initValue = velocityYRightInit;
+                    } else if (field == FieldNames::VELOCITY_Z) {
+                        initValue = velocityZRightInit;
+                    } else if (field == FieldNames::THERMAL_ENERGY) {
+                        initValue = pressureRightInit / densityRightInit / (gamma - 1.0);
+                    } else {
+                        initValue = 0.0;
+                    }
+
+                    gridAccessor[idx][field] = initValue;
+                }
+            });
+        });
+    }
+}
+
 void ShockTube::applySource([[maybe_unused]] PaddedGrid<FieldStruct, GHOST_CELLS>& grid) const {
     // No source in shock tube
 }

@@ -116,4 +116,21 @@ void applyAll(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& gr
     }
 }
 
+template <class T, unsigned padding>
+void applyAll3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
+                const Problem<T, FieldStruct, padding>& problem) {
+    for (unsigned face = 0; face < Faces::FaceMax; ++face) {
+        if (problem.boundaryTypes[face] == EMPTY) {
+            // Used for applying boundaries at a different point (e.g. AMR) or for keeping the
+            // boundary at its initial values.
+        } else if (problem.boundaryTypes[face] == EXTRAPOLATE) {
+            ExtrapolateCelerity::apply3D<padding>(queue, grid, face);
+        } else if (problem.boundaryTypes[face] == OUTFLOW) {
+            OutflowCelerity::apply3D<padding>(queue, grid, face);
+        } else if (problem.boundaryTypes[face] == USER) {
+            ProblemCelerity::apply3D<padding>(queue, grid, face, problem);
+        }
+    }
+}
+
 } // namespace BoundaryCelerity

@@ -664,7 +664,6 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity boundary v host", "[celerity][bounda
 }
 
 TEST_CASE_METHOD(runtime_fixture, "Celerity boundary v sycl", "[celerity][sycl][boundary]") {
-
     toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
 
     *(config["grid"]["number_cells_x"].as_integer()) = 5;
@@ -718,6 +717,46 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity boundary v sycl", "[celerity][sycl][
     }();
 
     compareGrids(celerityBoundary, syclBoundary);
+}
+
+TEST_CASE_METHOD(runtime_fixture, "3D celerity boundary v host", "[celerity][boundary]") {
+    auto queue = celerity::distr_queue();
+
+    toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
+
+    *(config["grid"]["number_cells_x"].as_integer()) = 5;
+    *(config["grid"]["number_cells_y"].as_integer()) = 5;
+    *(config["grid"]["number_cells_z"].as_integer()) = 5;
+
+    const ShockTube shockTube(config);
+
+    const auto sizeX = shockTube.numberCells[Direction::DirX];
+    const auto sizeY = shockTube.numberCells[Direction::DirY];
+    const auto sizeZ = shockTube.numberCells[Direction::DirZ];
+
+    auto grid = celerity::buffer<FieldStruct, 3>(celerity::range<3>(sizeX, sizeY, sizeZ));
+
+    queue.submit([&](celerity::handler& cgh) {
+        auto gridAcc =
+            celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only, celerity::no_init };
+
+        cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
+            const auto linId = id[0] * sizeY * sizeZ + id[1] * sizeZ + id[2] + 1;
+            auto val = FieldStruct{};
+            for (auto i = 0u; i < NUM_PHYSICAL_FIELDS; ++i) {
+                val[i] = linId * NUM_PHYSICAL_FIELDS + i;
+            }
+            gridAcc[id] = val;
+        });
+    });
+
+    auto paddedGrid = celerityGridToPaddedGrid(queue, grid);
+
+    BoundaryCelerity::applyAll3D(queue, grid, shockTube);
+    Boundary::applyAll(paddedGrid, shockTube);
+
+    const auto celerityBoundary = celerityGridToPaddedGrid(queue, grid);
+    compareGrids(celerityBoundary, paddedGrid);
 }
 
 int main(int argc, char* argv[]) {
