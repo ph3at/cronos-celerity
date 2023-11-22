@@ -263,8 +263,8 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::integrateTime(
     queue.submit([&grid, &gridSubstep, &changes, &substep, &timeDelta = timeDelta, &rungeKuttaSteps = rungeKuttaSteps,
                   &inverseCellSize = problem.inverseCellSize](celerity::handler& cgh) {
         auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::read_write };
-        auto gridSubstepAccessor =
-            celerity::accessor{ gridSubstep, cgh, celerity::access::one_to_one{}, celerity::read_write };
+        auto gridSubstepAccessor = celerity::accessor{ gridSubstep, cgh, celerity::access::one_to_one{},
+                                                       celerity::read_write, celerity::no_init };
         auto changeAccessor =
             celerity::accessor{ changes, cgh, celerity::access::neighborhood{ 1, 1, 1 }, celerity::read_only };
 

@@ -133,8 +133,7 @@ void ShockTube::initialiseGridCelerity(celerity::distr_queue& queue, celerity::b
                   &velocityXRightInit = velocityXRightInit, &velocityYRightInit = velocityYRightInit,
                   &velocityZRightInit = velocityZRightInit,
                   &pressureRightInit = pressureRightInit](celerity::handler& cgh) {
-        auto gridAccessor =
-            celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only, celerity::no_init };
+        auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only };
 
         cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
             double posParallel;
@@ -255,8 +254,7 @@ void ShockTube::applyBoundaryCelerity(celerity::distr_queue& queue, celerity::bu
         }
 
         queue.submit([&grid, &initValue, &field](celerity::handler& cgh) {
-            auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only,
-                                                    celerity::no_init };
+            auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only };
 
             const auto offset = celerity::id<3>(grid.get_range()[0] - GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
             const auto range =
@@ -274,8 +272,7 @@ void ShockTube::applyBoundaryCelerity3D(celerity::distr_queue& queue, celerity::
         queue.submit([&grid, &densityRightInit = densityRightInit, &velocityXRightInit = velocityXRightInit,
                       &velocityYRightInit = velocityYRightInit, &velocityZRightInit = velocityZRightInit,
                       &pressureRightInit = pressureRightInit, &gamma = gamma](celerity::handler& cgh) {
-            auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only,
-                                                    celerity::no_init };
+            auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only };
 
             const auto offset = celerity::id<3>(grid.get_range()[0] - GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
             const auto range =
