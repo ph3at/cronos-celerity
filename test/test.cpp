@@ -378,6 +378,8 @@ TEST_CASE("Sycl reduction", "[sycl]") {
     std::cout << std::endl;
 }
 
+#ifndef __HIPSYCL__
+
 TEST_CASE("Sycl native reduction", "[sycl_reduction]") {
     constexpr auto timedCreateQueue = []() {
         const auto _ = ScopedTimer("Creating SYCL queue");
@@ -426,7 +428,7 @@ TEST_CASE("Sycl native reduction", "[sycl_reduction]") {
             queue.submit([&](sycl::handler& cgh) {
                 auto bufferAccessor = sycl::accessor{ buffer, cgh, sycl::read_only };
 
-                auto maxReduction = sycl::reduction(maxBuffer, cgh, sycl::maximum<>(),
+                auto maxReduction = sycl::reduction(maxBuffer, cgh, sycl::maximum<int>(),
                                                     sycl::property::reduction::initialize_to_identity{});
 
                 cgh.parallel_for(buffer.get_range(), maxReduction,
@@ -440,6 +442,8 @@ TEST_CASE("Sycl native reduction", "[sycl_reduction]") {
 
     CHECK(syclResult == stlResult);
 }
+
+#endif
 
 template <typename T> celerity::buffer<T, 1> uploadCelerityBuffer(const std::vector<T>& data) {
     return celerity::buffer<T, 1>(data.data(), celerity::range<1>(data.size()));
@@ -485,7 +489,7 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity reduction", "[celerity]") {
                 auto bufferAccessor =
                     celerity::accessor{ buffer, cgh, celerity::access::one_to_one{}, celerity::read_only };
 
-                auto maxReduction = celerity::reduction(maxBuffer, cgh, sycl::maximum<>(),
+                auto maxReduction = celerity::reduction(maxBuffer, cgh, sycl::maximum<int>(),
                                                         celerity::property::reduction::initialize_to_identity{});
 
                 cgh.parallel_for(buffer.get_range(), maxReduction,

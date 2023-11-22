@@ -211,7 +211,7 @@ double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::reduceCFL(celerit
 
     queue.submit([&cflBuffer, &resultBuffer](celerity::handler& cgh) {
         auto bufferAccessor = celerity::accessor{ cflBuffer, cgh, celerity::access::one_to_one{}, celerity::read_only };
-        auto maxReduction = celerity::reduction(resultBuffer, cgh, sycl::maximum<>(),
+        auto maxReduction = celerity::reduction(resultBuffer, cgh, sycl::maximum<double>(),
                                                 celerity::property::reduction::initialize_to_identity{});
 
         cgh.parallel_for(cflBuffer.get_range(), maxReduction,
