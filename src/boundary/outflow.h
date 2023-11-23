@@ -267,6 +267,8 @@ void apply(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
 
         const auto range = celerity::range<2>{ grid.get_range()[idxMap[1]], grid.get_range()[idxMap[2]] };
 
+        celerity::debug::set_task_name(cgh, "outflow");
+
         cgh.parallel_for(range, [=](const celerity::id<2> id) {
             for (auto d = inner; d != outer; d += direction) {
                 auto dstIdx = celerity::id<3>{ 0, 0, 0 };
@@ -356,6 +358,8 @@ void apply3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& gri
         auto gridAccessor = celerity::accessor{ grid, cgh, boundaryMapper, celerity::read_write };
 
         const auto range = celerity::range<2>{ grid.get_range()[idxMap[1]], grid.get_range()[idxMap[2]] };
+
+        celerity::debug::set_task_name(cgh, "outflow3D");
 
         cgh.parallel_for(range, [=](const celerity::id<2> id) {
             for (auto d = inner; d != outer; d += direction) {

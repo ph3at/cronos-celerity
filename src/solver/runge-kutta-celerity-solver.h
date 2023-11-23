@@ -98,9 +98,17 @@ RungeKuttaCeleritySolver<ProblemType, Fields, padding>::RungeKuttaCeleritySolver
       m_gridSubstepBuffer(celerity::range<3>(m_sizeX, m_sizeY, m_sizeZ)),
       m_cflBuffer(celerity::range<3>(m_sizeX, m_sizeY, m_sizeZ)), rungeKuttaSteps(rungeKuttaSteps), problem(problem),
       timeDelta(problem.timeDelta), timeCurrent(problem.timeStart), timeEnd(problem.timeEnd) {
+
+    celerity::debug::set_buffer_name(m_grid, "grid");
+    celerity::debug::set_buffer_name(m_changeBuffer, "changeBuffer");
+    celerity::debug::set_buffer_name(m_gridSubstepBuffer, "gridSubstepBuffer");
+    celerity::debug::set_buffer_name(m_cflBuffer, "cflBuffer");
+
     m_celerity_queue.submit([=](celerity::handler& cgh) {
         auto cflAccessor = celerity::accessor{ m_cflBuffer, cgh, celerity::access::one_to_one{}, celerity::write_only,
                                                celerity::no_init };
+
+        celerity::debug::set_task_name(cgh, "cflBufferInit");
 
         cgh.parallel_for(m_cflBuffer.get_range(),
                          [=](const celerity::id<3> id) { cflAccessor[id] = std::numeric_limits<double>::lowest(); });
@@ -138,6 +146,8 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::prepareSubstep(
         auto changeAccessor = celerity::accessor{ changeBuffer, cgh, celerity::access::one_to_one{},
                                                   celerity::write_only, celerity::no_init };
 
+        celerity::debug::set_task_name(cgh, "changeBufferInit");
+
         cgh.parallel_for(changeBuffer.get_range(),
                          [=](const celerity::id<3> id) { changeAccessor[id] = Changes<Fields>(); });
     });
@@ -161,6 +171,8 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::computeSubstep() {
         range[2] = range[2] - 2 * padding + 1;
 
         const auto offset = celerity::id<3>(padding, padding, padding);
+
+        celerity::debug::set_task_name(cgh, "computeSubstep");
 
         cgh.parallel_for(
             range, offset,
@@ -213,6 +225,8 @@ double RungeKuttaCeleritySolver<ProblemType, Fields, padding>::reduceCFL(celerit
         auto bufferAccessor = celerity::accessor{ cflBuffer, cgh, celerity::access::one_to_one{}, celerity::read_only };
         auto maxReduction = celerity::reduction(resultBuffer, cgh, sycl::maximum<double>(),
                                                 celerity::property::reduction::initialize_to_identity{});
+
+        celerity::debug::set_task_name(cgh, "reduceCFL");
 
         cgh.parallel_for(cflBuffer.get_range(), maxReduction,
                          [=](celerity::item<3> idx, auto& max) { max.combine(bufferAccessor[idx]); });
@@ -274,6 +288,8 @@ void RungeKuttaCeleritySolver<ProblemType, Fields, padding>::integrateTime(
         range[2] -= 2 * padding;
 
         const auto offset = celerity::id<3>(padding, padding, padding);
+
+        celerity::debug::set_task_name(cgh, "integrateTime");
 
         cgh.parallel_for(range, offset, [=](const celerity::id<3> idx) {
             if (substep == 0 && rungeKuttaSteps > 1) {

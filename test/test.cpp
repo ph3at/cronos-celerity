@@ -492,6 +492,8 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity reduction", "[celerity]") {
                 auto maxReduction = celerity::reduction(maxBuffer, cgh, sycl::maximum<int>(),
                                                         celerity::property::reduction::initialize_to_identity{});
 
+                celerity::debug::set_task_name(cgh, "reduction");
+
                 cgh.parallel_for(buffer.get_range(), maxReduction,
                                  [=](celerity::item<1> idx, auto& max) { max.combine(bufferAccessor[idx]); });
             });
@@ -648,6 +650,8 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity boundary v host", "[celerity][bounda
         auto gridAcc =
             celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only, celerity::no_init };
 
+        celerity::debug::set_task_name(cgh, "testGridInit");
+
         cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
             const auto linId = id[0] * sizeY * sizeZ + id[1] * sizeZ + id[2] + 1;
             auto val = FieldStruct{};
@@ -686,6 +690,8 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity boundary v sycl", "[celerity][sycl][
         distrQueue.submit([&](celerity::handler& cgh) {
             auto gridAcc = celerity::accessor{ celerityGrid, cgh, celerity::access::one_to_one{}, celerity::write_only,
                                                celerity::no_init };
+
+            celerity::debug::set_task_name(cgh, "testGridInit");
 
             cgh.parallel_for(celerityGrid.get_range(), [=](const celerity::id<3> id) {
                 const auto linId = id[0] * sizeY * sizeZ + id[1] * sizeZ + id[2] + 1;
@@ -743,6 +749,8 @@ TEST_CASE_METHOD(runtime_fixture, "3D celerity boundary v host", "[celerity][bou
     queue.submit([&](celerity::handler& cgh) {
         auto gridAcc =
             celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only, celerity::no_init };
+
+        celerity::debug::set_task_name(cgh, "testGridInit3D");
 
         cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
             const auto linId = id[0] * sizeY * sizeZ + id[1] * sizeZ + id[2] + 1;

@@ -135,6 +135,8 @@ void ShockTube::initialiseGridCelerity(celerity::distr_queue& queue, celerity::b
                   &pressureRightInit = pressureRightInit](celerity::handler& cgh) {
         auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only };
 
+        celerity::debug::set_task_name(cgh, "initialiseGrid");
+
         cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
             double posParallel;
             if (shockDir == Direction::DirX) {
@@ -261,6 +263,8 @@ void ShockTube::applyBoundaryCelerity(celerity::distr_queue& queue, celerity::bu
                 celerity::range<3>(grid.get_range()[0] - offset[0], grid.get_range()[1] - offset[1] - GHOST_CELLS,
                                    grid.get_range()[2] - offset[2] - GHOST_CELLS);
 
+            celerity::debug::set_task_name(cgh, "applyBoundary");
+
             cgh.parallel_for(range, offset, [=](const celerity::id<3> idx) { gridAccessor[idx][field] = initValue; });
         });
     }
@@ -278,6 +282,8 @@ void ShockTube::applyBoundaryCelerity3D(celerity::distr_queue& queue, celerity::
             const auto range =
                 celerity::range<3>(grid.get_range()[0] - offset[0], grid.get_range()[1] - offset[1] - GHOST_CELLS,
                                    grid.get_range()[2] - offset[2] - GHOST_CELLS);
+
+            celerity::debug::set_task_name(cgh, "applyBoundary3D");
 
             cgh.parallel_for(range, offset, [=](const celerity::id<3> idx) {
                 for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
