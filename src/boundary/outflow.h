@@ -10,6 +10,7 @@
 #include "../data-types/phys-fields.h"
 #include "../grid/padded-grid.h"
 #include "boundary-types.h"
+#include "boundary.h"
 
 namespace Outflow {
 template <unsigned padding>
@@ -316,17 +317,7 @@ void apply(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
 
 template <Axis axis, Dir dir, unsigned padding>
 void apply3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) {
-    constexpr auto idxMap = []() {
-        if constexpr (axis == Axis::X) {
-            return std::array{ 0, 1, 2 };
-        }
-        if constexpr (axis == Axis::Y) {
-            return std::array{ 1, 0, 2 };
-        }
-        if constexpr (axis == Axis::Z) {
-            return std::array{ 2, 0, 1 };
-        }
-    }();
+    constexpr auto idxMap = Boundary::generateIndexMap<axis>();
 
     auto inner = 0;
     auto outer = 0;
@@ -346,51 +337,16 @@ void apply3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& gri
         const auto first = inner;
         const auto last = outer - direction;
 
-        const auto readMapper = [=](const celerity::chunk<3> chunk) {
-            if (static_cast<size_t>(inner) >= chunk.offset[idxMap[0]] &&
-                static_cast<size_t>(inner) < chunk.offset[idxMap[0]] + chunk.range[idxMap[0]]) {
+        const auto firstAccessA = first - direction;
+        const auto lastAccessA = last - direction;
+        const auto firstAccessB = 2 * inner - first - direction;
+        const auto lastAccessB = 2 * inner - last - direction;
 
-                const auto firstAccessA = first - direction;
-                const auto lastAccessA = last - direction;
-                const auto firstAccessB = 2 * inner - first - direction;
-                const auto lastAccessB = 2 * inner - last - direction;
-
-                const auto min = std::min({ firstAccessA, firstAccessB, lastAccessA, lastAccessB });
-                const auto max = std::max({ firstAccessA, firstAccessB, lastAccessA, lastAccessB });
-
-                const auto offset = min;
-                const auto range = max - min + 1;
-
-                auto subrange = celerity::subrange<3>{ chunk.offset, chunk.range };
-                subrange.offset[idxMap[0]] = offset;
-                subrange.range[idxMap[0]] = range;
-                return subrange;
-            }
-            // Working plane of work items is not part of this chunk.
-            return celerity::subrange<3>{};
-        };
-
+        const auto readMapper = Boundary::generateBoundaryRangeMapper(
+            idxMap, inner, { firstAccessA, firstAccessB, lastAccessA, lastAccessB });
         auto gridRead = celerity::accessor{ grid, cgh, readMapper, celerity::read_only };
 
-        const auto writeMapper = [=](const celerity::chunk<3> chunk) {
-            if (static_cast<size_t>(inner) >= chunk.offset[idxMap[0]] &&
-                static_cast<size_t>(inner) < chunk.offset[idxMap[0]] + chunk.range[idxMap[0]]) {
-
-                const auto min = std::min({ first, last });
-                const auto max = std::max({ first, last });
-
-                const auto offset = min;
-                const auto range = max - min + 1;
-
-                auto subrange = celerity::subrange<3>{ chunk.offset, chunk.range };
-                subrange.offset[idxMap[0]] = offset;
-                subrange.range[idxMap[0]] = range;
-                return subrange;
-            }
-            // Working plane of work items is not part of this chunk.
-            return celerity::subrange<3>{};
-        };
-
+        const auto writeMapper = Boundary::generateBoundaryRangeMapper(idxMap, inner, { first, last });
         auto gridWrite = celerity::accessor{ grid, cgh, writeMapper, celerity::write_only };
 
         celerity::debug::set_task_name(cgh, "outflow3D");

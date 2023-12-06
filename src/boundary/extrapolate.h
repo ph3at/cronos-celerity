@@ -268,17 +268,7 @@ void apply(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid,
 
 template <Axis axis, Dir dir, unsigned padding>
 void apply3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& grid) {
-    constexpr auto idxMap = []() {
-        if constexpr (axis == Axis::X) {
-            return std::array{ 0, 1, 2 };
-        }
-        if constexpr (axis == Axis::Y) {
-            return std::array{ 1, 0, 2 };
-        }
-        if constexpr (axis == Axis::Z) {
-            return std::array{ 2, 0, 1 };
-        }
-    }();
+    constexpr auto idxMap = Boundary::generateIndexMap<axis>();
 
     auto inner = 0;
     auto outer = 0;
@@ -298,49 +288,13 @@ void apply3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& gri
         const auto first = inner;
         const auto last = outer - direction;
 
-        const auto readMapper = [=](const celerity::chunk<3> chunk) {
-            if (static_cast<size_t>(inner) >= chunk.offset[idxMap[0]] &&
-                static_cast<size_t>(inner) < chunk.offset[idxMap[0]] + chunk.range[idxMap[0]]) {
+        const auto firstAccess = first - direction;
+        const auto lastAccess = last - direction;
 
-                const auto firstAccess = first - direction;
-                const auto lastAccess = last - direction;
-
-                const auto min = std::min({ firstAccess, lastAccess });
-                const auto max = std::max({ firstAccess, lastAccess });
-
-                const auto offset = min;
-                const auto range = max - min + 1;
-
-                auto subrange = celerity::subrange<3>{ chunk.offset, chunk.range };
-                subrange.offset[idxMap[0]] = offset;
-                subrange.range[idxMap[0]] = range;
-                return subrange;
-            }
-            // Working plane of work items is not part of this chunk.
-            return celerity::subrange<3>{};
-        };
-
+        const auto readMapper = Boundary::generateBoundaryRangeMapper(idxMap, inner, { firstAccess, lastAccess });
         auto gridRead = celerity::accessor{ grid, cgh, readMapper, celerity::read_only };
 
-        const auto writeMapper = [=](const celerity::chunk<3> chunk) {
-            if (static_cast<size_t>(inner) >= chunk.offset[idxMap[0]] &&
-                static_cast<size_t>(inner) < chunk.offset[idxMap[0]] + chunk.range[idxMap[0]]) {
-
-                const auto min = std::min({ first, last });
-                const auto max = std::max({ first, last });
-
-                const auto offset = min;
-                const auto range = max - min + 1;
-
-                auto subrange = celerity::subrange<3>{ chunk.offset, chunk.range };
-                subrange.offset[idxMap[0]] = offset;
-                subrange.range[idxMap[0]] = range;
-                return subrange;
-            }
-            // Working plane of work items is not part of this chunk.
-            return celerity::subrange<3>{};
-        };
-
+        const auto writeMapper = Boundary::generateBoundaryRangeMapper(idxMap, inner, { first, last });
         auto gridWrite = celerity::accessor{ grid, cgh, writeMapper, celerity::write_only };
 
         celerity::debug::set_task_name(cgh, "extrapolate3D");
