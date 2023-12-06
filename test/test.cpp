@@ -565,29 +565,34 @@ void compareGrids(const PaddedGrid<FieldStruct, GHOST_CELLS>& first,
     REQUIRE(first.yEnd() == second.yEnd());
     REQUIRE(first.zEnd() == second.zEnd());
 
+    auto failed = false;
+
     for (std::size_t x = 0; x < first.xDim(); ++x) {
         for (std::size_t y = 0; y < first.yDim(); ++y) {
             for (std::size_t z = 0; z < first.zDim(); ++z) {
-                // std::cout << "(";
+                std::cout << "(";
                 for (auto field = 0u; field < NUM_PHYSICAL_FIELDS; ++field) {
-                    CAPTURE(x);
-                    CAPTURE(y);
-                    CAPTURE(z);
-                    CAPTURE(field);
-                    CHECK(first(x, y, z)[field] == second(x, y, z)[field]);
-                    // const auto firstVal = first(x, y, z)[field];
-                    // const auto secondVal = second(x, y, z)[field];
+                    // CAPTURE(x);
+                    // CAPTURE(y);
+                    // CAPTURE(z);
+                    // CAPTURE(field);
+                    // CHECK(first(x, y, z)[field] == second(x, y, z)[field]);
+                    failed |= first(x, y, z)[field] != second(x, y, z)[field];
+                    const auto firstVal = first(x, y, z)[field];
+                    const auto secondVal = second(x, y, z)[field];
                     // const auto diff = firstVal - secondVal;
                     // std::printf("%3.0f ", diff);
-                    // const auto* const res = firstVal < secondVal ? "<" : (firstVal > secondVal ? ">" : " ");
-                    // std::cout << res;
+                    const auto* const res = firstVal < secondVal ? "<" : (firstVal > secondVal ? ">" : " ");
+                    std::cout << res;
                 }
-                // std::cout << ")";
+                std::cout << ")";
             }
-            // std::cout << std::endl;
+            std::cout << std::endl;
         }
-        // std::cout << std::endl;
+        std::cout << std::endl;
     }
+
+    CHECK_FALSE(failed);
 }
 
 TEST_CASE("Sycl boundary v host", "[sycl][boundary]") {
@@ -596,8 +601,16 @@ TEST_CASE("Sycl boundary v host", "[sycl][boundary]") {
     toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
 
     *(config["grid"]["number_cells_x"].as_integer()) = 5;
-    *(config["grid"]["number_cells_y"].as_integer()) = 5;
-    *(config["grid"]["number_cells_z"].as_integer()) = 5;
+    *(config["grid"]["number_cells_y"].as_integer()) = 6;
+    *(config["grid"]["number_cells_z"].as_integer()) = 7;
+
+    const auto BOUNDARY = GENERATE("outflow", "user", "extrapolate");
+    *(config["boundary"]["west"].as_string()) = BOUNDARY;
+    *(config["boundary"]["east"].as_string()) = BOUNDARY;
+    *(config["boundary"]["south"].as_string()) = BOUNDARY;
+    *(config["boundary"]["north"].as_string()) = BOUNDARY;
+    *(config["boundary"]["bottom"].as_string()) = BOUNDARY;
+    *(config["boundary"]["top"].as_string()) = BOUNDARY;
 
     const ShockTube shockTube(config);
 
@@ -635,8 +648,16 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity boundary v host", "[celerity][bounda
     toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
 
     *(config["grid"]["number_cells_x"].as_integer()) = 5;
-    *(config["grid"]["number_cells_y"].as_integer()) = 5;
-    *(config["grid"]["number_cells_z"].as_integer()) = 5;
+    *(config["grid"]["number_cells_y"].as_integer()) = 6;
+    *(config["grid"]["number_cells_z"].as_integer()) = 7;
+
+    const auto BOUNDARY = GENERATE("outflow", "user", "extrapolate");
+    *(config["boundary"]["west"].as_string()) = BOUNDARY;
+    *(config["boundary"]["east"].as_string()) = BOUNDARY;
+    *(config["boundary"]["south"].as_string()) = BOUNDARY;
+    *(config["boundary"]["north"].as_string()) = BOUNDARY;
+    *(config["boundary"]["bottom"].as_string()) = BOUNDARY;
+    *(config["boundary"]["top"].as_string()) = BOUNDARY;
 
     const ShockTube shockTube(config);
 
@@ -675,8 +696,16 @@ TEST_CASE_METHOD(runtime_fixture, "Celerity boundary v sycl", "[celerity][sycl][
     toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
 
     *(config["grid"]["number_cells_x"].as_integer()) = 5;
-    *(config["grid"]["number_cells_y"].as_integer()) = 5;
-    *(config["grid"]["number_cells_z"].as_integer()) = 5;
+    *(config["grid"]["number_cells_y"].as_integer()) = 6;
+    *(config["grid"]["number_cells_z"].as_integer()) = 7;
+
+    const auto BOUNDARY = GENERATE("outflow", "user", "extrapolate");
+    *(config["boundary"]["west"].as_string()) = BOUNDARY;
+    *(config["boundary"]["east"].as_string()) = BOUNDARY;
+    *(config["boundary"]["south"].as_string()) = BOUNDARY;
+    *(config["boundary"]["north"].as_string()) = BOUNDARY;
+    *(config["boundary"]["bottom"].as_string()) = BOUNDARY;
+    *(config["boundary"]["top"].as_string()) = BOUNDARY;
 
     const ShockTube shockTube(config);
 
@@ -735,8 +764,16 @@ TEST_CASE_METHOD(runtime_fixture, "3D celerity boundary v host", "[celerity][bou
     toml::table config = toml::parse_file("configuration/shock-tube-integration.toml");
 
     *(config["grid"]["number_cells_x"].as_integer()) = 5;
-    *(config["grid"]["number_cells_y"].as_integer()) = 5;
-    *(config["grid"]["number_cells_z"].as_integer()) = 5;
+    *(config["grid"]["number_cells_y"].as_integer()) = 6;
+    *(config["grid"]["number_cells_z"].as_integer()) = 7;
+
+    const auto BOUNDARY = GENERATE("outflow", "user", "extrapolate");
+    *(config["boundary"]["west"].as_string()) = BOUNDARY;
+    *(config["boundary"]["east"].as_string()) = BOUNDARY;
+    *(config["boundary"]["south"].as_string()) = BOUNDARY;
+    *(config["boundary"]["north"].as_string()) = BOUNDARY;
+    *(config["boundary"]["bottom"].as_string()) = BOUNDARY;
+    *(config["boundary"]["top"].as_string()) = BOUNDARY;
 
     const ShockTube shockTube(config);
 

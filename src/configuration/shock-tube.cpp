@@ -133,11 +133,15 @@ void ShockTube::initialiseGridCelerity(celerity::distr_queue& queue, celerity::b
                   &velocityXRightInit = velocityXRightInit, &velocityYRightInit = velocityYRightInit,
                   &velocityZRightInit = velocityZRightInit,
                   &pressureRightInit = pressureRightInit](celerity::handler& cgh) {
-        auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only };
+        auto gridAccessor =
+            celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only, celerity::no_init };
 
         celerity::debug::set_task_name(cgh, "initialiseGrid");
 
         cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
+            // Zero initialize everything, and only overwrite what is used below.
+            gridAccessor[id] = FieldStruct{};
+
             double posParallel;
             if (shockDir == Direction::DirX) {
                 posParallel = posLeft[Direction::DirX] +
@@ -278,32 +282,29 @@ void ShockTube::applyBoundaryCelerity3D(celerity::distr_queue& queue, celerity::
                       &pressureRightInit = pressureRightInit, &gamma = gamma](celerity::handler& cgh) {
             auto gridAccessor = celerity::accessor{ grid, cgh, celerity::access::one_to_one{}, celerity::write_only };
 
-            const auto offset = celerity::id<3>(grid.get_range()[0] - GHOST_CELLS, GHOST_CELLS, GHOST_CELLS);
-            const auto range =
-                celerity::range<3>(grid.get_range()[0] - offset[0], grid.get_range()[1] - offset[1] - GHOST_CELLS,
-                                   grid.get_range()[2] - offset[2] - GHOST_CELLS);
-
             celerity::debug::set_task_name(cgh, "applyBoundary3D");
 
-            cgh.parallel_for(range, offset, [=](const celerity::id<3> idx) {
-                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-                    double initValue;
+            const auto range = grid.get_range();
 
-                    if (field == FieldNames::DENSITY) {
-                        initValue = densityRightInit;
-                    } else if (field == FieldNames::VELOCITY_X) {
-                        initValue = velocityXRightInit;
-                    } else if (field == FieldNames::VELOCITY_Y) {
-                        initValue = velocityYRightInit;
-                    } else if (field == FieldNames::VELOCITY_Z) {
-                        initValue = velocityZRightInit;
-                    } else if (field == FieldNames::THERMAL_ENERGY) {
-                        initValue = pressureRightInit / densityRightInit / (gamma - 1.0);
-                    } else {
-                        initValue = 0.0;
+            cgh.parallel_for(range, [=](const celerity::id<3> idx) {
+                const bool isInFirstDim = idx[0] >= range[0] - GHOST_CELLS;
+                const bool isInSecondDim = idx[1] >= GHOST_CELLS && idx[1] < range[1] - GHOST_CELLS;
+                const bool isInThirdDim = idx[2] >= GHOST_CELLS && idx[2] < range[2] - GHOST_CELLS;
+
+                if (isInFirstDim && isInSecondDim && isInThirdDim) {
+                    for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                        gridAccessor[idx][field] = [&]() {
+                            switch (field) {
+                                case FieldNames::DENSITY: return densityRightInit;
+                                case FieldNames::VELOCITY_X: return velocityXRightInit;
+                                case FieldNames::VELOCITY_Y: return velocityYRightInit;
+                                case FieldNames::VELOCITY_Z: return velocityZRightInit;
+                                case FieldNames::THERMAL_ENERGY:
+                                    return pressureRightInit / densityRightInit / (gamma - 1.0);
+                                default: return 0.0;
+                            }
+                        }();
                     }
-
-                    gridAccessor[idx][field] = initValue;
                 }
             });
         });

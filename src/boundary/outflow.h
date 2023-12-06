@@ -343,48 +343,84 @@ void apply3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& gri
     }
 
     queue.submit([&grid, &inner, &outer, &direction, &idxMap](celerity::handler& cgh) {
-        const auto boundaryMapper = [=](const celerity::chunk<2> chunk) {
-            auto offset = celerity::id<3>{ 0, 0, 0 };
-            offset[idxMap[0]] = inner - (dir == Dir::LEFT ? 1 : 2);
-            offset[idxMap[1]] = chunk.offset[0];
-            offset[idxMap[2]] = chunk.offset[1];
-            auto range = celerity::range<3>{ 0, 0, 0 };
-            range[idxMap[0]] = padding + 2;
-            range[idxMap[1]] = chunk.range[0];
-            range[idxMap[2]] = chunk.range[1];
-            const auto subrange = celerity::subrange<3>{ offset, range };
-            return subrange;
-        };
-        auto gridAccessor = celerity::accessor{ grid, cgh, boundaryMapper, celerity::read_write };
+        const auto first = inner;
+        const auto last = outer - direction;
 
-        const auto range = celerity::range<2>{ grid.get_range()[idxMap[1]], grid.get_range()[idxMap[2]] };
+        const auto readMapper = [=](const celerity::chunk<3> chunk) {
+            if (static_cast<size_t>(inner) >= chunk.offset[idxMap[0]] &&
+                static_cast<size_t>(inner) < chunk.offset[idxMap[0]] + chunk.range[idxMap[0]]) {
+
+                const auto firstAccessA = first - direction;
+                const auto lastAccessA = last - direction;
+                const auto firstAccessB = 2 * inner - first - direction;
+                const auto lastAccessB = 2 * inner - last - direction;
+
+                const auto min = std::min({ firstAccessA, firstAccessB, lastAccessA, lastAccessB });
+                const auto max = std::max({ firstAccessA, firstAccessB, lastAccessA, lastAccessB });
+
+                const auto offset = min;
+                const auto range = max - min + 1;
+
+                auto subrange = celerity::subrange<3>{ chunk.offset, chunk.range };
+                subrange.offset[idxMap[0]] = offset;
+                subrange.range[idxMap[0]] = range;
+                return subrange;
+            }
+            // Working plane of work items is not part of this chunk.
+            return celerity::subrange<3>{};
+        };
+
+        auto gridRead = celerity::accessor{ grid, cgh, readMapper, celerity::read_only };
+
+        const auto writeMapper = [=](const celerity::chunk<3> chunk) {
+            if (static_cast<size_t>(inner) >= chunk.offset[idxMap[0]] &&
+                static_cast<size_t>(inner) < chunk.offset[idxMap[0]] + chunk.range[idxMap[0]]) {
+
+                const auto min = std::min({ first, last });
+                const auto max = std::max({ first, last });
+
+                const auto offset = min;
+                const auto range = max - min + 1;
+
+                auto subrange = celerity::subrange<3>{ chunk.offset, chunk.range };
+                subrange.offset[idxMap[0]] = offset;
+                subrange.range[idxMap[0]] = range;
+                return subrange;
+            }
+            // Working plane of work items is not part of this chunk.
+            return celerity::subrange<3>{};
+        };
+
+        auto gridWrite = celerity::accessor{ grid, cgh, writeMapper, celerity::write_only };
 
         celerity::debug::set_task_name(cgh, "outflow3D");
 
-        cgh.parallel_for(range, [=](const celerity::id<2> id) {
-            for (auto d = inner; d != outer; d += direction) {
-                auto dstIdx = celerity::id<3>{ 0, 0, 0 };
-                dstIdx[idxMap[0]] = d;
-                dstIdx[idxMap[1]] = id[0];
-                dstIdx[idxMap[2]] = id[1];
+        cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
+            if (id[idxMap[0]] == static_cast<std::size_t>(inner)) {
+                for (auto d = inner; d != outer; d += direction) {
+                    auto dstIdx = celerity::id<3>{ 0, 0, 0 };
+                    dstIdx[idxMap[0]] = d;
+                    dstIdx[idxMap[1]] = id[idxMap[1]];
+                    dstIdx[idxMap[2]] = id[idxMap[2]];
 
-                auto srcIdx = dstIdx;
-                srcIdx[idxMap[0]] -= direction;
+                    auto srcIdx = dstIdx;
+                    srcIdx[idxMap[0]] -= direction;
 
-                auto dirIdx = dstIdx;
-                dirIdx[idxMap[0]] = inner - direction;
+                    auto dirIdx = dstIdx;
+                    dirIdx[idxMap[0]] = inner - direction;
 
-                constexpr auto velocityAxis = FieldNames::VELOCITY_X + idxMap[0];
+                    constexpr auto velocityAxis = FieldNames::VELOCITY_X + idxMap[0];
 
-                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-                    if (gridAccessor[dirIdx][velocityAxis] * direction > 0.0) {
-                        gridAccessor[dstIdx][field] = gridAccessor[srcIdx][field];
-                    } else {
-                        const bool isParallelVelocity = field == velocityAxis;
+                    for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                        if (gridRead[dirIdx][velocityAxis] * direction > 0.0) {
+                            gridWrite[dstIdx][field] = gridRead[srcIdx][field];
+                        } else {
+                            const bool isParallelVelocity = field == velocityAxis;
 
-                        srcIdx[idxMap[0]] = 2 * inner - dstIdx[idxMap[0]] - direction;
-                        const auto value = gridAccessor[srcIdx][field];
-                        gridAccessor[dstIdx][field] = isParallelVelocity ? -value : value;
+                            srcIdx[idxMap[0]] = 2 * inner - d - direction;
+                            const auto value = gridRead[srcIdx][field];
+                            gridWrite[dstIdx][field] = isParallelVelocity ? -value : value;
+                        }
                     }
                 }
             }

@@ -295,36 +295,70 @@ void apply3D(celerity::distr_queue& queue, celerity::buffer<FieldStruct, 3>& gri
     }
 
     queue.submit([&grid, &inner, &outer, &direction, &idxMap](celerity::handler& cgh) {
-        const auto boundaryMapper = [=](const celerity::chunk<2> chunk) {
-            auto offset = celerity::id<3>{ 0, 0, 0 };
-            offset[idxMap[0]] = inner - 1;
-            offset[idxMap[1]] = chunk.offset[0];
-            offset[idxMap[2]] = chunk.offset[1];
-            auto range = celerity::range<3>{ 0, 0, 0 };
-            range[idxMap[0]] = padding + 1;
-            range[idxMap[1]] = chunk.range[0];
-            range[idxMap[2]] = chunk.range[1];
-            const auto subrange = celerity::subrange<3>{ offset, range };
-            return subrange;
-        };
-        auto gridAccessor = celerity::accessor{ grid, cgh, boundaryMapper, celerity::read_write };
+        const auto first = inner;
+        const auto last = outer - direction;
 
-        const auto range = celerity::range<2>{ grid.get_range()[idxMap[1]], grid.get_range()[idxMap[2]] };
+        const auto readMapper = [=](const celerity::chunk<3> chunk) {
+            if (static_cast<size_t>(inner) >= chunk.offset[idxMap[0]] &&
+                static_cast<size_t>(inner) < chunk.offset[idxMap[0]] + chunk.range[idxMap[0]]) {
+
+                const auto firstAccess = first - direction;
+                const auto lastAccess = last - direction;
+
+                const auto min = std::min({ firstAccess, lastAccess });
+                const auto max = std::max({ firstAccess, lastAccess });
+
+                const auto offset = min;
+                const auto range = max - min + 1;
+
+                auto subrange = celerity::subrange<3>{ chunk.offset, chunk.range };
+                subrange.offset[idxMap[0]] = offset;
+                subrange.range[idxMap[0]] = range;
+                return subrange;
+            }
+            // Working plane of work items is not part of this chunk.
+            return celerity::subrange<3>{};
+        };
+
+        auto gridRead = celerity::accessor{ grid, cgh, readMapper, celerity::read_only };
+
+        const auto writeMapper = [=](const celerity::chunk<3> chunk) {
+            if (static_cast<size_t>(inner) >= chunk.offset[idxMap[0]] &&
+                static_cast<size_t>(inner) < chunk.offset[idxMap[0]] + chunk.range[idxMap[0]]) {
+
+                const auto min = std::min({ first, last });
+                const auto max = std::max({ first, last });
+
+                const auto offset = min;
+                const auto range = max - min + 1;
+
+                auto subrange = celerity::subrange<3>{ chunk.offset, chunk.range };
+                subrange.offset[idxMap[0]] = offset;
+                subrange.range[idxMap[0]] = range;
+                return subrange;
+            }
+            // Working plane of work items is not part of this chunk.
+            return celerity::subrange<3>{};
+        };
+
+        auto gridWrite = celerity::accessor{ grid, cgh, writeMapper, celerity::write_only };
 
         celerity::debug::set_task_name(cgh, "extrapolate3D");
 
-        cgh.parallel_for(range, [=](const celerity::id<2> id) {
-            for (auto d = inner; d != outer; d += direction) {
-                auto dstIdx = celerity::id<3>{ 0, 0, 0 };
-                dstIdx[idxMap[0]] = d;
-                dstIdx[idxMap[1]] = id[0];
-                dstIdx[idxMap[2]] = id[1];
+        cgh.parallel_for(grid.get_range(), [=](const celerity::id<3> id) {
+            if (id[idxMap[0]] == static_cast<std::size_t>(inner)) {
+                for (auto d = inner; d != outer; d += direction) {
+                    auto dstIdx = celerity::id<3>{ 0, 0, 0 };
+                    dstIdx[idxMap[0]] = d;
+                    dstIdx[idxMap[1]] = id[idxMap[1]];
+                    dstIdx[idxMap[2]] = id[idxMap[2]];
 
-                auto srcIdx = dstIdx;
-                srcIdx[idxMap[0]] -= direction;
+                    auto srcIdx = dstIdx;
+                    srcIdx[idxMap[0]] -= direction;
 
-                for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
-                    gridAccessor[dstIdx][field] = gridAccessor[srcIdx][field];
+                    for (unsigned field = 0; field < NUM_PHYSICAL_FIELDS; field++) {
+                        gridWrite[dstIdx][field] = gridRead[srcIdx][field];
+                    }
                 }
             }
         });
