@@ -46,6 +46,7 @@ auto benchmarkSolver(const int size, const std::string_view configPath, Args&...
     while (!solver.isFinished()) {
         solver.step();
         solver.adjust();
+        std::cout << "Timestep: " << numTimesteps << std::endl;
         ++numTimesteps;
     }
     solver.finalise();
