@@ -48,6 +48,11 @@ auto benchmarkSolver(const int size, const std::string_view configPath, Args&...
         solver.adjust();
         std::cout << "Timestep: " << numTimesteps << std::endl;
         ++numTimesteps;
+
+        if (numTimesteps >= 200) {
+            std::cout << "Aborting after 200 timesteps..." << std::endl;
+            break;
+        }
     }
     solver.finalise();
 
