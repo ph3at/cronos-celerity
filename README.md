@@ -8,13 +8,25 @@ Port of magnetohydrodynamics simulation software `Cronos` using `Celerity`.
 
 - Celerity
 - C++20 capable backend compiler
+    - DPCPP works with latest mainline release of Celerity
+    - AdaptiveCPP only works with the instruction graph branch (`instruction-graph-wip`) of Celerity
 - cmake
 
-### Compiling
+### Compiling with DPCPP
 
-1. `cmake -Bbuild -DCMAKE_PREFIX_PATH="/path/to/celerity" -DHIPSYCL_TARGETS="cuda:sm_52" -DCMAKE_BUILD_TYPE=Release`
-2. `cd build`
-3. `make -j`
+1. `cmake -DCMAKE_CXX_COMPILER=/path/to/dpcpp/lib/bin/clang++ -GNinja -Bbuild -DCMAKE_PREFIX_PATH="/path/to/celerity" -DCMAKE_BUILD_TYPE=Release -DCELERITY_DPCPP_TARGETS="nvptx64-nvidia-cuda"`
+2. `ninja -C build`
+
+Note: The `lib` folder of dpcpp must be in `LD_LIBRARY_PATH`:
+
+```console
+$ export LD_LIBRARY_PATH=/path/to/dpcpp/lib/lib:$LD_LIBRARY_PATH
+```
+
+### Compiling with AdaptiveCPP
+
+1. `cmake -GNinja -Bbuild -DCMAKE_PREFIX_PATH="/path/to/celerity" -DCMAKE_BUILD_TYPE=Release -DHIPSYCL_TARGETS="cuda:sm_75" -DUSE_OpenMP=OFF`
+2. `ninja -C build`
 
 ### Run
 
@@ -40,8 +52,8 @@ need to be registered in `src/user-interface/config-parser.cpp`.
 
 ### Test
 
-To run the tests, simply use `ctest`.
+To run the tests, execute the `./tests` binary.
 
 #### Benchmarking
 
-The tests also include a benchmarking test for CPU and GPU which automatically scales the problem size by a factor of two. By default the benchmark does 5 doubling steps and repeats each run 3 times.
+There is a benchmarking binary `./cronos-benchmark` which takes the implementation to be benchmarked (one of `cpu|sycl|celerity`) and the problem size. The problem size is a number which expresses how many times the default size `4x1x1` should be doubled.
